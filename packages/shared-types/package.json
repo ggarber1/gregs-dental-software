@@ -1,0 +1,29 @@
+{
+  "name": "@dental/shared-types",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "generate": "tsx scripts/generate-pydantic.ts",
+    "generate:watch": "tsx watch scripts/generate-pydantic.ts"
+  },
+  "devDependencies": {
+    "@dental/tsconfig": "workspace:*",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  }
+}

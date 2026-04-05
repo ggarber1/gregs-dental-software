@@ -1,0 +1,72 @@
+The front desk lives in the software all day. Their answers will be more operational and often more honest.
+
+**Daily workflow:**
+1. Walk me through what you do from when the first patient calls to when they leave after their appointment.
+    - starts with interaction with patient over phone to book an appointment
+        - asks if they are an existing customer or not and asks what they want an appointment for
+        - She then looks up the customer and looks up their information. Depending on what the customer needs things change
+            - for regular cleaning or filling she just looks over schedule
+            - if its an emergency she calls in my dad and work to find a slot
+        - Over the phone she asks for insurance information and adds to their new eaglesoft profile
+        - asks if patient is cardholder ror if there partner is the cardholder
+    - for new customer they often ask about insurance and she needs to look up if they support that insurance
+    - If already with a patient in office she asks person on phone to hold
+    - If a patient comes into the office
+        - goes through check in process
+            - asks for name. sees if they are on schedule
+        - if new customer then gives them intake form
+            - enters new patient into eaglesoft manually
+            - intake form includes insurance information
+    - side note: thinks office should start updating patients medical history more often
+    - side note: eaglesoft is not storing medical history
+    - when the patient is leaving
+        - gets patients folder and has doctors / hygenists notes about what happened
+        - dentist / hygenist lets her know if they need another appointment
+        - gives them an appointment if they need it
+        - looks at folder and adds to eaglesoft all of the codes of the procedures
+        - Dad tells her what the co pay is
+        - mom adds to software if the patient paid and how they paid
+        - then makes an insurance claim with those codes and print it out
+        - patient usually pays the co pay on the spot and inout it into software to show balance is complete
+        - sometimes patient cant pay full co pay and mom has to bill them
+            - billing is just printing out the claim and mailing it to them
+            - patient then needs to send a check and once check is received yo uupdate accounts payabale
+        - for massHealth they dont put anything into eaglesoft and go straight to MassHealth website. Then add to physical chart that massHelath was taken care of. not in software
+2. What takes the most time in your day that feels like it shouldn't?
+    - not much, alot of free time (likely because dad does all of the due dilligence)
+    - sometimes dad even puts in the insurance claim into eaglesoft himself
+3. What do you have to do manually that you wish was automatic?
+    - doesnt really find it too difficult (likely because dad does all of the hard manual stuff)
+
+**Phone and scheduling:**
+4. How many calls do you get in a day? How many do you miss?
+    - not many phone calls. never miss a call really
+5. What are most calls about — booking, questions, insurance?
+    - mostly booking
+6. How do you handle patients who want to book online?
+7. How long does it take to schedule a new patient from scratch?
+    - 15 minutes
+
+**Insurance:**
+8. How do you verify insurance before appointments? How long does that take per patient?
+    - go to insurance website
+    - put in patients info and it returns patient coverage. what are there benefits. whats there deducteble
+    - There are 3 categories of procedures
+    - each category has a different percentage of what the insurance will pay for
+    - patient also has deductuble and to what it applies
+    - have to find group number and employer stuff
+    - there is a waiting period insurances
+    - put all of this into eaglesoft
+    - keep track of in network vs out of network stuff
+    - dad keepts track of what insurances are in vs out of network
+9. How many claims does the practice submit per week? How many come back rejected?
+10. What's the most confusing or annoying part of the billing process?
+    - figuring out copay
+
+**Patient intake:**
+11. Are new patients filling out paper forms or digital forms? If paper, how long does it take to enter that into Eaglesoft?
+12. What information do you wish you had before a patient arrived that you don't have?
+
+**General pain:**
+13. What's the thing about Eaglesoft that makes you want to throw your computer?
+14. If you could wave a magic wand and change one thing about how the office runs, what would it be?

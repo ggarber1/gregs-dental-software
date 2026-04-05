@@ -1,0 +1,88 @@
+**About the business:**
+1. What does a typical day look like from when you walk in to when you leave?
+    - eat some food
+    - go into eaglesoft and see scheduled
+    - Grab paper chart of patient record. Includes past records as well as details about todays procedure
+        - Review patient X-rays which exists in a seperate software
+    - Look over insurance information of patient (verification done by receptionist) and checking how much the co-pay will be
+      because dad does the billing right away. 
+        - Delta dental has good feature that lets dad know the amount but lots of time its a manual process. It would be nice if the insurance website was linked or integrated into the software. asides from delta dental dad basically guesses what the co pay will be. If her over or under guesses next time he takes it off of cost
+    - Dentist stuff - procedure
+    - Write down in physical chart what was done (doesnt use eaglesoft bc it costs money)
+    - Give receptionist physical chart and it has a dental code that goes into eaglesoft and create an insurance claim
+    - Options to send claim to insurance company is physical mail, fax, eaglesoft electronic transfer (additional cost)
+        - Some insurance companies like delta dental allow for manual entry on their website. Its nice but means you have to double your work as you need to also put it into eaglesoft
+        - mail option is also issue because requires manual input on other side
+        - some insurance companies offer manual entry on their website for a fee
+        - for massHealth no need to put into eaglesoft bc massHealth has no coPay. just go to massHealth website and input. put into physical chart and quickbooks that transaction was made
+        - Dad really loves how easy it is to use MassHealth for billing stuff
+        - but annoying that for each insurance website it is a different process. Nice that eaglesoft abstracts this. annoying that eaglesoft charges for electronic claim. annoying that eaglesoft doesnt know exact co pay
+        - Nice that w/ delta dental you know exact co pay amount but still have to do physical mail to them
+    - at end of week need to re entry for all of these payments stuff into quickbooks.
+        - also have to put into quickbooks salaries, and expenses
+        - then once claim has been made and registered in quickbooks go back to eaglesoft and confirm transaction is over
+    - Next we have to dismiss the patient
+        - Schedule patient for next procedure
+        - write down in physical chart what the next visit will be about
+    - Scenario: Patient doesn't show up
+        - If cancels within 24 hours of appointment or doesnt show up mark it as failed in eaglesoft. Difficult to track failed appointment
+            - If multiple fails (happen to track it) then charge patient fee
+    - Scenario: If patient cancels earlier than 24 hours (calls office no other way)
+        - 24 hours is an arbitrary number
+        - 50/50 chance of empty slot being filled. Not easy to track. Not easy to fill support
+        - There is a waiting list for people that want to come sooner than existing appointment but it is a manual process to reach out to them and see if they want to come in
+    - Seperate software sens out survery to patients
+    - Electronic patient charts for multiple screens (each room) costs extra in eaglesoft
+    - Dad likes using paper charts honestly. He likes how easy it is to go back in history of patient and see whats going on
+        - Says having paper feels like a good backup if computer is down
+    - Xrays interfere with wireless communication between systems. so dad using ethernet
+    - If computer is down then can still do dentistry because of physical copies. Cant do xrays
+          
+2. Where do you feel like you lose the most time that isn't actually treating patients?
+    - managing office. Tell recepionist how much to charge patients. insurance stuff
+3. If you could fix one thing about how the practice runs tomorrow, what would it be?
+    - having a robot do the dentistry (joke but true)
+
+**About Eaglesoft specifically:**
+4. How long have you been on Eaglesoft, and has Patterson told you about the 2026 pricing change to subscription-only?
+5. What are you paying all-in right now — software, server maintenance, IT support, any add-ons like YAPI or Demandforce?
+    - 300 plus 80 feature for patient reminders
+6. What do you actually use Eaglesoft for day-to-day vs. what features exist that nobody touches?
+    - anything that costs extra money
+    - some tracking things
+    - too complicated to track patients that miss appointments
+7. What breaks or frustrates you the most about it?
+    - UI issues. randomly one of the rows (dental rooms) just disappear. calander can dissappear. ususally user error tho
+    - generally very reliable tho
+    - hard for receptionist to understand the whole eaglesoft. like the office management part. receptionist get there piece only
+
+**About patients:**
+8. How do most patients book appointments — phone, online, or something else?
+    - only through phone call
+9. What do patients complain about most?
+    - treatment related
+10. How are you sending appointment reminders right now? Is it working?
+    - through this extra cost eaglesoft thing. wasnt working for a while but working now. ask about 4 days in advance
+11. Do patients still fill out paper forms when they arrive?
+    - new patients fill out paper form
+
+**About money:**
+12. What percentage of claims get denied or come back needing corrections?
+    - less than 5 percent
+    - small office so dad literally checks everything. Dad is quality control. He does the procedures he has memeorized the codes. Things don't go wrong because he puts the extra time in double checking everything. 50/50 time in terms of doing treatments and doing this quality control
+13. Do you have a sense of what your no-show rate is? What does a no-show actually cost you?
+    - Right now not that many because of the reminder. Dad also manually texts people to double check with them. especially with people who have cancelled before or havnt confirmed yet
+    - not that bad means 80-90 % of people show up. says other offices are worse
+14. Are there patients with open treatment plans who never scheduled? How do you follow up with them?
+    - Patient comes back in 6 months for regular cleaning. Dad doesnt like calling again to double check with them and think that it is pushy. but mb its just him, he is not really sure how he feels about this. Says for cleanings its actually ok but for more serious procedures if they say no for those then he doesnt really want to push.
+
+
+**About switching:**
+15. What would have to be true for you to consider switching software?
+16. What's the one thing that would make you say "absolutely not" to a new system?
+
+
+
+Notes:
+- receptionist sometimes has time to call patient for days ahead appointments to confirm. which is good but manual process. Issue is confirming. 
+- Important for offices to have recalls, to make people with good teeth to keep coming back for regular cleanings and build that relationship so when a emergency happens they know where to go
