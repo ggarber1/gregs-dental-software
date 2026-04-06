@@ -66,6 +66,17 @@ jobs:
           node-version: "20"
           cache: pnpm
 
+      # datamodel-codegen (Python) is required by pnpm generate, which turbo
+      # runs as a dependency of type-check
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.18"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --frozen
+        working-directory: apps/api
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm lint
