@@ -31,3 +31,11 @@ output "cognito_user_pool_id" {
 output "cognito_app_client_id" {
   value = module.cognito.app_client_id
 }
+
+# CI setup — only one manual step required after apply:
+# Set GitHub Actions secret AWS_ACCOUNT_ID = $(aws sts get-caller-identity --query Account --output text)
+# Subnet and SG IDs are looked up at deploy time via EC2 tags — no GitHub variables needed.
+output "github_actions_role_arn" {
+  description = "Informational — the deploy workflows derive the role ARN from the AWS_ACCOUNT_ID secret"
+  value       = module.github_oidc.role_arn
+}

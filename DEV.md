@@ -287,7 +287,23 @@ Staging and production are fully independent. Destroying staging has zero effect
 
 ---
 
-### CI behaviour (once 1.3 is built)
+### CI / CD
 
-- **On every PR:** GitHub Actions runs `terraform plan` — catches errors before merge
-- **`terraform apply`:** Always manual, never automated in CI
+**CI** runs automatically on every PR and push to `main`:
+- Python: ruff, mypy, pytest
+- Node: ESLint, tsc
+
+**Deploying** is always manual — trigger from the GitHub Actions tab:
+- `Deploy Staging` — use when staging is up (`make staging-up` first)
+- `Deploy Production` — use when you're ready to ship
+
+Both workflows build Docker images, push to ECR, run `alembic upgrade head` as a one-off ECS task, deploy the services, and wait for stability. If the migration exits non-zero the deploy stops.
+
+**One-time setup** (after first `terraform apply` on a new account):
+```bash
+# Add this as a GitHub Actions secret called AWS_ACCOUNT_ID
+aws sts get-caller-identity --query Account --output text
+```
+Subnet and SG IDs are looked up at deploy time from EC2 tags — nothing else to configure.
+
+**`terraform apply`:** Always manual, never automated in CI.
