@@ -9,8 +9,9 @@ def _make_idempotency_app():
 
     os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/test")
 
-    from app.middleware.idempotency import IdempotencyMiddleware
     from fastapi import FastAPI
+
+    from app.middleware.idempotency import IdempotencyMiddleware
 
     app = FastAPI()
     app.add_middleware(IdempotencyMiddleware)
