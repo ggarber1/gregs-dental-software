@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --ext .ts,.tsx --max-warnings 0"
   },
   "devDependencies": {
     "@dental/eslint-config": "workspace:*",
