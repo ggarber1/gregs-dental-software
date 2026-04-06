@@ -54,11 +54,11 @@ Step 5 (optional): Enable claims submission → enter NPI, tax ID, taxonomy → 
 
 ## Module 1: Foundation & Infrastructure
 
-### 1.1 Monorepo Scaffolding
-- [ ] Turborepo monorepo with `apps/web`, `apps/api`, `packages/shared-types`, `packages/ui`, `packages/config`
-- [ ] Docker Compose for local dev (PostgreSQL, Redis, LocalStack for S3/SQS)
-- [ ] Root ESLint, Prettier, TypeScript configs in `packages/config`
-- [ ] `packages/shared-types` — Zod schemas with inferred TypeScript types (mirrored as Pydantic models in API)
+### 1.1 Monorepo Scaffolding - Done
+- [x] Turborepo monorepo with `apps/web`, `apps/api`, `packages/shared-types`, `packages/ui`, `packages/config`
+- [x] Docker Compose for local dev (PostgreSQL, Redis, LocalStack for S3/SQS)
+- [x] Root ESLint, Prettier, TypeScript configs in `packages/config`
+- [x] `packages/shared-types` — Zod schemas with inferred TypeScript types (mirrored as Pydantic models in API)
 
 ### 1.2 AWS Infrastructure (Terraform)
 - [ ] VPC with public/private subnets, NAT Gateway, VPC flow logs

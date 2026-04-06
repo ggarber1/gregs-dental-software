@@ -103,3 +103,191 @@ AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
 2. Export it from `packages/shared-types/src/index.ts`
 3. Run `pnpm generate` to regenerate Pydantic models
 4. Import the Pydantic model in the API from `app.schemas.generated`
+
+---
+
+## Terraform — AWS Infrastructure
+
+### First-time bootstrap (one-time, do by hand)
+
+MAKE SURE IN CORRECT AWS CONFIG
+
+Before running any Terraform, create the state backend manually:
+
+```bash
+# Create S3 state bucket (already created: greg-dental-terraform-state)
+aws s3api create-bucket \
+  --bucket greg-dental-terraform-state \
+  --region us-east-1
+
+aws s3api put-bucket-versioning \
+  --bucket dental-terraform-state \
+  --versioning-configuration Status=Enabled
+
+aws s3api put-bucket-encryption \
+  --bucket dental-terraform-state \
+  --server-side-encryption-configuration \
+    '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms"}}]}'
+
+# Create DynamoDB lock table
+aws dynamodb create-table \
+  --table-name dental-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+```
+
+Then initialise Terraform:
+
+```bash
+cd infra/terraform/environments/staging
+terraform init
+```
+
+---
+
+### First apply (staging)
+
+**Step 1 — Create a tfvars file (gitignored, never commit this):**
+
+```bash
+cat > infra/terraform/environments/staging/terraform.tfvars <<EOF
+alert_email = "your@email.com"
+db_password = "$(openssl rand -hex 16)"
+EOF
+```
+
+**Step 2 — Init and apply:**
+
+```bash
+cd infra/terraform/environments/staging
+terraform init
+terraform plan   # read the output carefully — ~50 resources on first apply
+terraform apply
+```
+
+**Step 3 — Populate SSM parameters from outputs:**
+
+After apply, Terraform creates placeholder SSM parameters. Replace them with real values:
+
+```bash
+# Get values from terraform outputs
+RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+REDIS_ENDPOINT=$(terraform output -json | jq -r '.elasticache_endpoint.value // empty' 2>/dev/null || echo "run make staging-up first")
+USER_POOL_ID=$(terraform output -raw cognito_user_pool_id)
+APP_CLIENT_ID=$(terraform output -raw cognito_app_client_id)
+
+# Populate SSM (run from infra/terraform/environments/staging)
+aws ssm put-parameter --name /dental/staging/db/url \
+  --value "postgresql://dental_admin:YOUR_DB_PASSWORD@${RDS_ENDPOINT}/dental" \
+  --type SecureString --overwrite
+
+aws ssm put-parameter --name /dental/staging/redis/url \
+  --value "redis://${REDIS_ENDPOINT}:6379" \
+  --type SecureString --overwrite
+
+aws ssm put-parameter --name /dental/staging/cognito/user_pool_id \
+  --value "${USER_POOL_ID}" --type String --overwrite
+
+aws ssm put-parameter --name /dental/staging/cognito/app_client_id \
+  --value "${APP_CLIENT_ID}" --type String --overwrite
+
+# Twilio — set when building Module 4 (reminders). Leave as placeholder until then.
+# aws ssm put-parameter --name /dental/staging/twilio/account_sid \
+#   --value "ACxxx" --type SecureString --overwrite
+# aws ssm put-parameter --name /dental/staging/twilio/auth_token \
+#   --value "xxx" --type SecureString --overwrite
+# aws ssm put-parameter --name /dental/staging/twilio/phone_number \
+#   --value "+1xxxxxxxxxx" --type SecureString --overwrite
+
+# Clearinghouse — set when building Module 5/7 (eligibility/claims). Leave as placeholder until then.
+# aws ssm put-parameter --name /dental/staging/clearinghouse/api_key \
+#   --value "xxx" --type SecureString --overwrite
+
+# Generate a random secret key for the API
+aws ssm put-parameter --name /dental/staging/app/secret_key \
+  --value "$(openssl rand -hex 32)" --type SecureString --overwrite
+```
+
+**Step 4 — Bring staging up:**
+
+```bash
+# Run from repo root
+make staging-up
+```
+
+Staging is now live. The ALB DNS name is printed at the end.
+
+**Step 5 — Verify everything is healthy:**
+
+```bash
+# Run from repo root — checks every layer and prints OK / FAIL / NEEDS POPULATING
+make staging-verify
+```
+
+Fix anything marked `FAIL` or `NEEDS POPULATING` before moving on. The SSM population commands are in Step 3 above.
+
+> The ElastiCache endpoint is only available after `make staging-up` runs (it's
+> destroyed when staging is down). Run `make staging-up` before populating the
+> redis/url SSM parameter.
+
+---
+
+### Safe daily workflow
+
+```bash
+cd infra/terraform/environments/staging
+
+# 1. See exactly what will change — read this carefully
+terraform plan
+
+# 2. Only once you're happy with the plan
+terraform apply
+```
+
+**Never run `terraform apply` without reviewing `plan` output first.**
+
+---
+
+### Staging start / stop
+
+```bash
+make staging-up    # starts RDS, ElastiCache, NAT instance, ECS (~3 min to be ready)
+make staging-down  # stops everything manually
+```
+
+A midnight Lambda shuts down anything left running and emails you if it had to stop something.
+
+---
+
+### Working on production
+
+Production is not provisioned until dad is onboarding. When ready:
+
+```bash
+cd infra/terraform/environments/production
+terraform init
+terraform plan    # review carefully — this is real infra
+terraform apply
+```
+
+**Never run `terraform destroy` on production without an explicit decision.**
+
+---
+
+### Environment state files
+
+| Environment | State file |
+|---|---|
+| Staging | `s3://dental-terraform-state/staging/terraform.tfstate` |
+| Production | `s3://dental-terraform-state/production/terraform.tfstate` |
+
+Staging and production are fully independent. Destroying staging has zero effect on production.
+
+---
+
+### CI behaviour (once 1.3 is built)
+
+- **On every PR:** GitHub Actions runs `terraform plan` — catches errors before merge
+- **`terraform apply`:** Always manual, never automated in CI

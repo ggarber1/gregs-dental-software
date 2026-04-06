@@ -1,0 +1,15 @@
+# Local variable files — contain secrets, never commit
+*.tfvars
+*.tfvars.json
+
+# Terraform working directories
+**/.terraform/
+**/.terraform.lock.hcl
+
+# Generated artifacts
+**/placeholder.zip
+**/lifecycle_handler.zip
+
+# State files — state is remote (S3), local files are accidents
+*.tfstate
+*.tfstate.backup
