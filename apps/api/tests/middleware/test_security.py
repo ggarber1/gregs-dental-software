@@ -5,12 +5,14 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_security_headers_present(client):
+    auth_path = "app.middleware.auth.CognitoAuthMiddleware.dispatch"
+    audit_path = "app.middleware.audit.AuditLogMiddleware.dispatch"
+    idempotency_path = "app.middleware.idempotency.IdempotencyMiddleware.dispatch"
     with (
-        patch("app.middleware.auth.CognitoAuthMiddleware.dispatch", new_callable=AsyncMock) as mock_auth,
-        patch("app.middleware.audit.AuditLogMiddleware.dispatch", new_callable=AsyncMock) as mock_audit,
-        patch("app.middleware.idempotency.IdempotencyMiddleware.dispatch", new_callable=AsyncMock) as mock_idempotency,
+        patch(auth_path, new_callable=AsyncMock) as mock_auth,
+        patch(audit_path, new_callable=AsyncMock) as mock_audit,
+        patch(idempotency_path, new_callable=AsyncMock) as mock_idempotency,
     ):
-        from starlette.responses import JSONResponse
 
         async def passthrough(request, call_next):
             return await call_next(request)

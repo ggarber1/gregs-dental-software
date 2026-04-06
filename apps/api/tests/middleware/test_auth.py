@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock, patch
-
 import pytest
 
 
@@ -9,9 +7,9 @@ def _make_app_with_open_route():
 
     os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/test")
 
-    from fastapi import FastAPI
     from app.middleware.auth import CognitoAuthMiddleware
     from app.middleware.security import SecurityHeadersMiddleware
+    from fastapi import FastAPI
 
     app = FastAPI()
     app.add_middleware(SecurityHeadersMiddleware)

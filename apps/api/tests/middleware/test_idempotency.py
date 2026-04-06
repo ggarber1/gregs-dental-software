@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -9,8 +9,8 @@ def _make_idempotency_app():
 
     os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/test")
 
-    from fastapi import FastAPI
     from app.middleware.idempotency import IdempotencyMiddleware
+    from fastapi import FastAPI
 
     app = FastAPI()
     app.add_middleware(IdempotencyMiddleware)
