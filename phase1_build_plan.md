@@ -80,14 +80,14 @@ Step 5 (optional): Enable claims submission → enter NPI, tax ID, taxonomy → 
 - [x] Separate staging and production deployment jobs
 - [x] Database migration step in deploy pipeline (Alembic)
 
-### 1.4 FastAPI Skeleton
-- [ ] App factory with middleware registration
-- [ ] Cognito JWT verification middleware
-- [ ] **Audit log middleware** — insert-only PHI access logging, wired before any routes are written
-- [ ] Idempotency key middleware — enforces `Idempotency-Key` header on all mutation endpoints
-- [ ] HIPAA security headers middleware
-- [ ] Alembic migrations setup
-- [ ] Health check endpoint
+### 1.4 FastAPI Skeleton - Done
+- [x] App factory with middleware registration
+- [x] Cognito JWT verification middleware
+- [x] **Audit log middleware** — insert-only PHI access logging, wired before any routes are written
+- [x] Idempotency key middleware — enforces `Idempotency-Key` header on all mutation endpoints
+- [x] HIPAA security headers middleware
+- [x] Alembic migrations setup
+- [x] Health check endpoint
 
 ### 1.5 Next.js Skeleton
 - [ ] App Router setup with `(auth)` and `(practice)` route groups
@@ -104,6 +104,21 @@ Step 5 (optional): Enable claims submission → enter NPI, tax ID, taxonomy → 
 - [ ] All PHI tables with `created_at`, `updated_at`, `deleted_at`, `last_accessed_by`, `last_accessed_at`
 - [ ] UUID primary keys everywhere (no exposed sequential integers)
 - [ ] Indexes for scheduling queries, insurance lookups, claims processing, audit compliance
+
+---
+
+## 🚦 Staging Checkpoint 1 — End of Module 1 (after 1.4 + 1.5 + 1.6)
+
+**Why here:** First ECS deploy. None of this can be validated locally — Cognito, RDS, ElastiCache, and CloudWatch all need real AWS.
+
+Verify:
+- [ ] Both ECS tasks (`api`, `web`) start and stay healthy — no crash loops in CloudWatch logs
+- [ ] Cognito login flow works end-to-end: login → MFA → JWT issued → API accepts it
+- [ ] `GET /health` returns `{"db": "ok", "redis": "ok"}` against real RDS + ElastiCache
+- [ ] Alembic `upgrade head` runs cleanly on staging RDS (audit_logs table created)
+- [ ] HIPAA headers visible in browser devtools on every response
+- [ ] CloudWatch log groups receiving output from both services
+- [ ] ALB HTTPS termination working; HTTP redirects to HTTPS
 
 ---
 
@@ -148,6 +163,21 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 
 ---
 
+## 🚦 Staging Checkpoint 2 — End of Module 2 (after 2.1–2.4)
+
+**Why here:** First real PHI in the system. Also the right moment to get dad's eyes on the first screens before building scheduling on top.
+
+Verify:
+- [ ] Create a patient — confirm SSN is stored as encrypted `bytea` in RDS (not plaintext)
+- [ ] Audit log rows appear in `audit_logs` for every patient read and write
+- [ ] Upload an X-ray to the real `phi-documents` S3 bucket; pre-signed URL loads the image
+- [ ] Send a live intake form SMS via Twilio to a test phone number; complete the form on mobile
+- [ ] Token is rejected on second submission (single-use enforced)
+- [ ] Completed intake data appears on patient chart
+- [ ] **Dad review:** walk through patient list, chart, and intake form UX — capture feedback before continuing
+
+---
+
 ## Module 3: Scheduling
 
 ### 3.1 Scheduling API
@@ -173,6 +203,20 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 
 ---
 
+## 🚦 Staging Checkpoint 3 — End of Module 3 (after 3.1–3.3)
+
+**Why here:** Scheduling is the core daily workflow. Dad needs to validate the UX before you build reminders on top of it — the appointment data model is the foundation for Modules 4–7.
+
+Verify:
+- [ ] Book appointments across multiple providers and operatories — no false conflict errors
+- [ ] Double-booking correctly rejected
+- [ ] All appointment timestamps display in the practice's local timezone, stored as UTC in RDS
+- [ ] Appointment status transitions work (scheduled → checked_in → completed)
+- [ ] Day sheet shows correct ordering
+- [ ] **Dad + staff review:** book a full mock day's schedule; verify the calendar and day sheet match how they actually work
+
+---
+
 ## Module 4: Automated Reminders
 
 ### 4.1 Reminder Infrastructure
@@ -193,6 +237,21 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 - [ ] Reminder status column on day sheet
 - [ ] Per-appointment reminder history in appointment detail
 - [ ] Settings page — reminder timing configuration (how many hours before)
+
+---
+
+## 🚦 Staging Checkpoint 4 — End of Module 4 (after 4.1–4.3)
+
+**Why here:** First async worker (ECS `reminder-worker`) and first Twilio integration. The inbound webhook cannot be tested locally — it needs a real publicly reachable URL.
+
+Verify:
+- [ ] Create an appointment → SQS reminder job enqueued → worker dequeues → Twilio SMS delivered to test number
+- [ ] Email reminder also delivered via SES
+- [ ] Duplicate send prevention: kill the worker mid-job, restart it — same SMS not sent twice
+- [ ] Twilio inbound "YES" reply marks appointment confirmed; visible on day sheet
+- [ ] "STOP" reply marks patient as opted out; no further SMS sent to that number
+- [ ] Kill the ECS worker task — CloudWatch alarm fires on DLQ depth within expected window
+- [ ] Reschedule an appointment — pending reminders for the old time are cancelled
 
 ---
 
@@ -223,6 +282,21 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 - [ ] Eligibility card on patient chart — benefit summary, deductible remaining, coverage %  by category
 - [ ] Eligibility badge inline on appointment slot (verified / pending / failed / not-checked)
 - [ ] Manual re-verify button (re-triggers check)
+
+---
+
+## 🚦 Staging Checkpoint 5 — End of Module 5 (after 5.1–5.4)
+
+**Why here:** First outbound call to an external API (Stedi) from inside the ECS private subnet. NAT gateway routing, SSM parameter retrieval, and ECS task IAM roles all need to be correct — none of this is testable locally.
+
+Verify:
+- [ ] ECS `eligibility-worker` can reach Stedi sandbox from private subnet (NAT gateway routing confirmed in VPC flow logs)
+- [ ] SSM parameter store: worker retrieves Stedi API key from SSM at runtime — never hardcoded
+- [ ] Run a real eligibility check via Stedi sandbox for a test patient; structured result stored in `eligibility_checks`
+- [ ] Pre-appointment auto-check fires via CloudWatch scheduled rule 3 days before a test appointment
+- [ ] Clearinghouse failure (bad credentials / timeout): check marked `failed`, staff alert visible — no silent skip
+- [ ] Eligibility badge updates on appointment slot after check completes
+- [ ] MassHealth payer ID `CKMA1` routes correctly through Stedi
 
 ---
 
@@ -279,6 +353,21 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 
 ---
 
+## 🚦 Staging Checkpoint 6 — End of Modules 6 + 7 (after 6.1–7.4)
+
+**Why here:** Highest financial risk in the entire system. Wrong co-pay calculation or a duplicate claim submission costs the practice money. Verify the full claims pipeline before touching billing.
+
+Verify:
+- [ ] Submit a test 837D to Stedi sandbox; confirm acknowledgment received and `claims.clearinghouse_status` updated
+- [ ] Attempt to submit the same claim twice with the same idempotency key — only one submission goes through
+- [ ] Simulate a denial: denied claim appears on worklist with denial code; one-click resubmit generates new idempotency key
+- [ ] Drop a test 835 ERA file into S3 `era-files` bucket → SQS message → ERA worker parses it → payment auto-reconciled against claim
+- [ ] Unmatched ERA payment flagged for manual review (not silently dropped)
+- [ ] Co-pay calculation: verify several procedure combinations against known expected outputs (bring a real EOB for comparison)
+- [ ] Secondary insurance flagged for manual review — not auto-calculated
+
+---
+
 ## Module 8: Billing & Payments
 
 ### 8.1 Payment Recording
@@ -302,6 +391,20 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 
 ---
 
+## 🚦 Staging Checkpoint 7 — End of Module 8 (after 8.1–8.3)
+
+**Why here:** Full billing cycle is complete. Before touching real patient data in the migration, dad and his bookkeeper should do a complete end-to-end dry run on staging with synthetic data.
+
+Verify:
+- [ ] Full workflow dry run: new patient → appointment → eligibility check → procedures entered → co-pay shown → appointment completed → claim submitted → ERA received → payment recorded → balance at zero
+- [ ] Aging report shows correct buckets for outstanding balances
+- [ ] Daily production report matches what was manually entered
+- [ ] Quickbooks export CSV reviewed by bookkeeper — confirm format matches what they import
+- [ ] Re-export same date range — no duplicates (idempotent export verified)
+- [ ] **Dad sign-off:** he should be comfortable using the system for all daily tasks at this point
+
+---
+
 ## Module 9: Eaglesoft Data Migration
 
 ### 9.1 Migration Script
@@ -315,6 +418,22 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 - [ ] New patients go into new system from go-live date
 - [ ] Existing patients remain in Eaglesoft until migration cutover
 - [ ] Staff training on new system before full cutover
+
+---
+
+## 🚦 Staging Checkpoint 8 — Pre-Go-Live (after 9.1, before cutover)
+
+**Why here:** Last gate before real patient data enters the system. This is the point of no return — once existing patients are migrated, rollback is painful.
+
+Verify:
+- [ ] Run migration script in dry-run mode against a real Eaglesoft export — review the summary report; rejection rate should be near zero
+- [ ] Run migration for real on staging; spot-check 20+ patient records against Eaglesoft source data
+- [ ] Audit logs confirm every migrated record has an entry (migration counts as a PHI write)
+- [ ] Confirm production RDS deletion protection is on, automated backups are running, and a fresh snapshot exists before cutover
+- [ ] Staff have completed training on staging — front desk can book, check in, and complete an appointment without help
+- [ ] DentalXChange BAA signed before any real patient insurance data is submitted to clearinghouse
+- [ ] CloudWatch alarms tested: trigger an API error spike and a DLQ depth alarm artificially — confirm alerts fire
+- [ ] Confirm dad is happy to go live for new patients while existing patients stay in Eaglesoft
 
 ---
 
