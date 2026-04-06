@@ -73,7 +73,7 @@ def create_app() -> FastAPI:
             db_status = "error"
 
         try:
-            await get_redis().ping()
+            await get_redis().ping()  # type: ignore[misc]
         except Exception:
             logger.exception("Health check: Redis unreachable")
             redis_status = "error"
