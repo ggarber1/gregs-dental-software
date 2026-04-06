@@ -60,25 +60,25 @@ Step 5 (optional): Enable claims submission → enter NPI, tax ID, taxonomy → 
 - [x] Root ESLint, Prettier, TypeScript configs in `packages/config`
 - [x] `packages/shared-types` — Zod schemas with inferred TypeScript types (mirrored as Pydantic models in API)
 
-### 1.2 AWS Infrastructure (Terraform)
-- [ ] VPC with public/private subnets, NAT Gateway, VPC flow logs
-- [ ] RDS PostgreSQL — encrypted at rest (KMS), private subnet only, automated backups (35-day retention), deletion protection
-- [ ] ElastiCache Redis — idempotency key cache, session cache, rate limiting
-- [ ] ECS Fargate cluster — separate task definitions for `api`, `web`, `reminder-worker`, `eligibility-worker`, `era-worker`
-- [ ] ALB with HTTPS termination, WAF rules
-- [ ] CloudFront distribution for Next.js static assets
-- [ ] S3 buckets — `phi-documents`, `era-files`, `exports`, `terraform-state` (versioning + KMS encryption + no public access on all)
-- [ ] SQS queues — `reminders`, `eligibility`, `era-processing`, `audit-logs`
-- [ ] AWS Cognito user pool — MFA enforced, password policy, app client
-- [ ] SSM Parameter Store — all secrets stored here (never in env vars or task definitions)
-- [ ] CloudWatch log groups, alarms (API error rate, claim failures, DLQ depth), dashboard
-- [ ] AWS Backup for RDS
-- [ ] Staging and production environments as separate Terraform workspaces
+### 1.2 AWS Infrastructure (Terraform) - Done
+- [x] VPC with public/private subnets, NAT Gateway, VPC flow logs
+- [x] RDS PostgreSQL — encrypted at rest (KMS), private subnet only, automated backups (35-day retention), deletion protection
+- [x] ElastiCache Redis — idempotency key cache, session cache, rate limiting
+- [x] ECS Fargate cluster — separate task definitions for `api`, `web`, `reminder-worker`, `eligibility-worker`, `era-worker`
+- [x] ALB with HTTPS termination, WAF rules
+- [x] CloudFront distribution for Next.js static assets
+- [x] S3 buckets — `phi-documents`, `era-files`, `exports`, `terraform-state` (versioning + KMS encryption + no public access on all)
+- [x] SQS queues — `reminders`, `eligibility`, `era-processing`, `audit-logs`
+- [x] AWS Cognito user pool — MFA enforced, password policy, app client
+- [x] SSM Parameter Store — all secrets stored here (never in env vars or task definitions)
+- [x] CloudWatch log groups, alarms (API error rate, claim failures, DLQ depth), dashboard
+- [x] AWS Backup for RDS
+- [x] Staging and production environments as separate Terraform workspaces
 
-### 1.3 CI/CD
-- [ ] GitHub Actions pipeline: lint → test → build Docker images → push to ECR → deploy to ECS
-- [ ] Separate staging and production deployment jobs
-- [ ] Database migration step in deploy pipeline (Alembic)
+### 1.3 CI/CD - Done
+- [x] GitHub Actions pipeline: lint → test → build Docker images → push to ECR → deploy to ECS
+- [x] Separate staging and production deployment jobs
+- [x] Database migration step in deploy pipeline (Alembic)
 
 ### 1.4 FastAPI Skeleton
 - [ ] App factory with middleware registration

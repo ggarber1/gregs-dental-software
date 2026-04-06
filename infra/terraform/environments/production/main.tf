@@ -197,4 +197,14 @@ module "backup" {
   tags             = local.common_tags
 }
 
+# GitHub Actions OIDC — provider already created by staging; set create_oidc_provider = false
+# to reference the existing account-level provider via data source
+module "github_oidc" {
+  source               = "../../modules/github-oidc"
+  env                  = local.env
+  github_repo          = "ggarber1/gregs-dental-software"
+  create_oidc_provider = false
+  tags                 = local.common_tags
+}
+
 # No staging_lifecycle module in production

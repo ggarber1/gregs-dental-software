@@ -188,6 +188,16 @@ module "backup" {
   tags             = local.common_tags
 }
 
+# GitHub Actions OIDC — create the provider here (account-level, one per account)
+# Production sets create_oidc_provider = false and references this one via data source
+module "github_oidc" {
+  source               = "../../modules/github-oidc"
+  env                  = local.env
+  github_repo          = "ggarber1/gregs-dental-software"
+  create_oidc_provider = true
+  tags                 = local.common_tags
+}
+
 # Staging-only: midnight Lambda that stops anything left running and emails you
 module "staging_lifecycle" {
   source            = "../../modules/staging-lifecycle"
