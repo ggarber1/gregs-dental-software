@@ -187,6 +187,8 @@ jobs:
 
       - name: Wait for services to stabilize
         run: |
-          aws ecs wait services-stable \
+          # Default waiter: 40 attempts × 15s = 10 min. Bump to 80 × 15s = 20 min
+          # to accommodate slow migrations and multi-deployment rollouts.
+          AWS_MAX_ATTEMPTS=80 aws ecs wait services-stable \
             --cluster "${{ env.CLUSTER }}" \
             --services "${{ env.API_SERVICE }}" "${{ env.WEB_SERVICE }}"
