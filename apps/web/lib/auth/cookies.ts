@@ -13,16 +13,21 @@ const COOKIE_BASE = [
   .join("; ");
 
 // Used by the /api/auth/session route handler to set cookies on the Response.
-export function buildSetCookieHeaders(accessToken: string, refreshToken: string): string[] {
+export function buildSetCookieHeaders(accessToken: string, refreshToken?: string): string[] {
   const accessMaxAge = 60 * 60; // 1 hour — matches Cognito access token validity
   const refreshMaxAge = 60 * 60 * 24 * 30; // 30 days — matches Cognito refresh token validity
 
-  return [
+  const headers = [
     // Access token: NOT httpOnly so JavaScript can read it and forward to FastAPI.
     `${ACCESS_TOKEN_COOKIE}=${accessToken}; Max-Age=${accessMaxAge}; ${COOKIE_BASE}`,
-    // Refresh token: httpOnly — never readable by JavaScript.
-    `${REFRESH_TOKEN_COOKIE}=${refreshToken}; Max-Age=${refreshMaxAge}; HttpOnly; ${COOKIE_BASE}`,
   ];
+
+  if (refreshToken) {
+    // Refresh token: httpOnly — never readable by JavaScript.
+    headers.push(`${REFRESH_TOKEN_COOKIE}=${refreshToken}; Max-Age=${refreshMaxAge}; HttpOnly; ${COOKIE_BASE}`);
+  }
+
+  return headers;
 }
 
 export function buildClearCookieHeaders(): string[] {
