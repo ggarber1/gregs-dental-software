@@ -1,9 +1,15 @@
 /**
  * Typed API client for the FastAPI backend.
  *
- * All requests are authenticated via Cognito JWT (added in 1.5).
- * Idempotency-Key header is required on all mutation methods.
+ * Reads the Cognito access token from the dental-access-token cookie and
+ * forwards it as Authorization: Bearer <token> on every request. The FastAPI
+ * middleware validates this token against Cognito JWKS and reads
+ * custom:practice_id and cognito:groups from its claims.
+ *
+ * Idempotency-Key header is required on all mutation methods (POST/PATCH/DELETE).
  */
+
+import { getAccessToken } from "@/lib/auth/cookies";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -23,6 +29,11 @@ async function request<T>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+
+  const token = getAccessToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   if (options.idempotencyKey) {
     headers["Idempotency-Key"] = options.idempotencyKey;

@@ -34,6 +34,18 @@ COPY packages/ packages/
 COPY apps/web/ apps/web/
 COPY turbo.json .
 
+# Build-time config — NEXT_PUBLIC_* vars are baked into the JS bundle by next build.
+# Values are passed as --build-arg from the deploy workflow (read from SSM).
+ARG NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ARG NEXT_PUBLIC_COGNITO_CLIENT_ID
+ARG NEXT_PUBLIC_COGNITO_REGION=us-east-1
+ARG NEXT_PUBLIC_API_URL
+
+ENV NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID \
+    NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID \
+    NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Build shared packages first, then web
 RUN pnpm --filter @dental/shared-types build
 RUN pnpm --filter @dental/ui build

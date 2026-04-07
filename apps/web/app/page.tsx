@@ -1,8 +1,5 @@
-export default function HomePage() {
-  return (
-    <main>
-      <h1>Dental PMS</h1>
-      <p>Practice management system — coming soon.</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+export default function RootPage() {
+  redirect("/dashboard");
 }
