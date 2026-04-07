@@ -39,7 +39,8 @@ export async function validateAccessToken(
       issuer: `https://cognito-idp.${process.env.NEXT_PUBLIC_COGNITO_REGION ?? "us-east-1"}.amazonaws.com/${process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID}`,
     });
     return payload as CognitoJwtPayload;
-  } catch {
+  } catch (err) {
+    console.error("[validateAccessToken] failed:", err);
     return null;
   }
 }

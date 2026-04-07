@@ -8,7 +8,13 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const isAuthRoute = nextUrl.pathname.startsWith("/login");
 
   const token = getAccessTokenFromRequest(req);
+  if (!token) {
+    console.log(`[middleware] no token cookie on ${nextUrl.pathname}`);
+  }
   const payload = token ? await validateAccessToken(token) : null;
+  if (token && !payload) {
+    console.error(`[middleware] token present but validateAccessToken returned null on ${nextUrl.pathname}`);
+  }
   const isAuthenticated = payload !== null;
 
   if (isAuthRoute) {
