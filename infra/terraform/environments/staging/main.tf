@@ -48,9 +48,10 @@ module "sqs" {
 }
 
 module "cognito" {
-  source = "../../modules/cognito"
-  env    = local.env
-  tags   = local.common_tags
+  source            = "../../modules/cognito"
+  env               = local.env
+  tags              = local.common_tags
+  mfa_configuration = "OPTIONAL"
 }
 
 module "ecr" {

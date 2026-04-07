@@ -1,8 +1,8 @@
 resource "aws_cognito_user_pool" "main" {
   name = "dental-${var.env}"
 
-  # TOTP MFA enforced — no SMS to avoid Twilio dependency on auth path
-  mfa_configuration = "ON"
+  # TOTP MFA — ON in production, OPTIONAL in staging for easier testing
+  mfa_configuration = var.mfa_configuration
 
   software_token_mfa_configuration {
     enabled = true
