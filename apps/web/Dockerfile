@@ -51,6 +51,19 @@ RUN pnpm --filter @dental/shared-types build
 RUN pnpm --filter @dental/ui build
 RUN pnpm --filter @dental/web build
 
+# Next.js file tracer misses packages loaded via runtime require.resolve() hooks
+# (styled-jsx, @swc/helpers, etc.) when using pnpm's virtual store. Fix: copy
+# everything from next's pnpm bucket into the standalone output. The tar -h flag
+# dereferences symlinks so targets from .pnpm/ become real files in the archive.
+RUN NEXT_PNPM=$(ls /app/node_modules/.pnpm | grep '^next@' | head -1) && \
+    mkdir -p /app/apps/web/.next/standalone/apps/web/node_modules && \
+    tar -chf - -C /app/node_modules/.pnpm/$NEXT_PNPM/node_modules . | \
+        tar -xf - -C /app/apps/web/.next/standalone/apps/web/node_modules
+
+# Dereference any remaining pnpm symlinks in the standalone output
+RUN mkdir -p /standalone && \
+    tar -chf - -C /app/apps/web/.next/standalone . | tar -xf - -C /standalone
+
 # ── Runtime ───────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
 
@@ -58,8 +71,9 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 WORKDIR /app
 
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /standalone ./
+# outputFileTracingRoot=repo-root means static lives at apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
 
@@ -69,4 +83,5 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-CMD ["node", "server.js"]
+# server.js is at apps/web/server.js when outputFileTracingRoot is the monorepo root
+CMD ["node", "apps/web/server.js"]
