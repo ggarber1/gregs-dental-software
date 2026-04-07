@@ -6,8 +6,11 @@ export const REFRESH_TOKEN_COOKIE = "dental-refresh-token";
 const COOKIE_BASE = [
   "Path=/",
   "SameSite=Strict",
-  // Secure flag is omitted in development (no HTTPS on localhost).
-  process.env.NODE_ENV === "production" ? "Secure" : "",
+  // Secure flag requires HTTPS. Omit in local dev (NODE_ENV !== production)
+  // and in staging (ENV !== production) which runs over plain HTTP.
+  process.env.NODE_ENV === "production" && process.env.ENV === "production"
+    ? "Secure"
+    : "",
 ]
   .filter(Boolean)
   .join("; ");
