@@ -19,7 +19,8 @@ class UUIDMixin:
 
 
 class TimestampMixin(UUIDMixin):
-    """Standard columns for non-PHI operational tables (practices, users, providers, operatories)."""
+    """Standard columns for non-PHI operational tables (practices, users, providers, operatories).
+    """
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

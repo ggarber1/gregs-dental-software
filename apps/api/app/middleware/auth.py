@@ -173,7 +173,12 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                 practice_id = uuid.UUID(raw_practice_id)
             except ValueError:
                 return JSONResponse(
-                    {"error": {"code": "INVALID_PRACTICE_ID", "message": "X-Practice-ID must be a valid UUID"}},
+                    {
+                        "error": {
+                            "code": "INVALID_PRACTICE_ID",
+                            "message": "X-Practice-ID must be a valid UUID",
+                        }
+                    },
                     status_code=400,
                 )
 
@@ -185,7 +190,12 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                     practice_id,
                 )
                 return JSONResponse(
-                    {"error": {"code": "PRACTICE_ACCESS_DENIED", "message": "Practice access denied"}},
+                    {
+                        "error": {
+                            "code": "PRACTICE_ACCESS_DENIED",
+                            "message": "Practice access denied",
+                        }
+                    },
                     status_code=403,
                 )
 
