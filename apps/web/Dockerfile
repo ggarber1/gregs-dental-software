@@ -52,13 +52,18 @@ RUN pnpm --filter @dental/ui build
 RUN pnpm --filter @dental/web build
 
 # Next.js file tracer misses packages loaded via runtime require.resolve() hooks
-# (styled-jsx, @swc/helpers, etc.) when using pnpm's virtual store. Fix: copy
-# everything from next's pnpm bucket into the standalone output. The tar -h flag
-# dereferences symlinks so targets from .pnpm/ become real files in the archive.
+# when using pnpm's virtual store. Fix: merge the pnpm buckets for next and its
+# direct runtime peer (styled-jsx) into the standalone. Each bucket contains that
+# package's own deps — styled-jsx's bucket is where client-only lives.
+# The tar -h flag dereferences symlinks so .pnpm/ targets become real files.
 RUN NEXT_PNPM=$(ls /app/node_modules/.pnpm | grep '^next@' | head -1) && \
+    STYLED_JSX_PNPM=$(ls /app/node_modules/.pnpm | grep '^styled-jsx@' | head -1) && \
     mkdir -p /app/apps/web/.next/standalone/apps/web/node_modules && \
     tar -chf - -C /app/node_modules/.pnpm/$NEXT_PNPM/node_modules . | \
-        tar -xf - -C /app/apps/web/.next/standalone/apps/web/node_modules
+        tar -xf - -C /app/apps/web/.next/standalone/apps/web/node_modules && \
+    [ -n "$STYLED_JSX_PNPM" ] && \
+        tar -chf - -C /app/node_modules/.pnpm/$STYLED_JSX_PNPM/node_modules . | \
+            tar -xf - -C /app/apps/web/.next/standalone/apps/web/node_modules || true
 
 # Dereference any remaining pnpm symlinks in the standalone output
 RUN mkdir -p /standalone && \
