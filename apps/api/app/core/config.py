@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────────────────────────
     database_url: str = Field(...)
 
+    @property
+    def async_database_url(self) -> str:
+        """Always returns a postgresql+asyncpg:// URL regardless of how DATABASE_URL is stored."""
+        return self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
     # ── Redis ─────────────────────────────────────────────────────────────────
     redis_url: str = Field(default="redis://localhost:6379/0")
 
