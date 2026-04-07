@@ -32,7 +32,7 @@ class Practice(Base, TimestampMixin):
 
     # Feature flags — each optional module is gated here.
     # e.g. {"eligibility_verification": true, "copay_estimation": false, "claims_submission": true}
-    features: Mapped[dict] = mapped_column(
+    features: Mapped[dict[str, bool]] = mapped_column(
         JSONB,
         nullable=False,
         server_default="{}",
