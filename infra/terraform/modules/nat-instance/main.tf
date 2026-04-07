@@ -49,12 +49,18 @@ resource "aws_instance" "nat" {
 
   user_data = base64encode(<<-EOF
     #!/bin/bash
+    # Enable IP forwarding permanently
     echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
     sysctl -p
+
+    # Write masquerade rule to rc.local so it runs on every boot
+    echo '#!/bin/bash' > /etc/rc.d/rc.local
+    echo 'iptables -t nat -C POSTROUTING -o eth0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' >> /etc/rc.d/rc.local
+    chmod +x /etc/rc.d/rc.local
+    systemctl enable rc-local
+
+    # Apply immediately without waiting for reboot
     iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-    yum install -y iptables-services
-    service iptables save
-    systemctl enable iptables
     EOF
   )
 

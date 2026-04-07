@@ -26,9 +26,11 @@ data "aws_iam_openid_connect_provider" "github_actions" {
 }
 
 locals {
-  oidc_provider_arn = var.create_oidc_provider \
-    ? aws_iam_openid_connect_provider.github_actions[0].arn \
+  oidc_provider_arn = (
+    var.create_oidc_provider
+    ? aws_iam_openid_connect_provider.github_actions[0].arn
     : data.aws_iam_openid_connect_provider.github_actions[0].arn
+  )
 }
 
 resource "aws_iam_role" "github_actions" {
@@ -135,6 +137,12 @@ resource "aws_iam_role_policy" "github_actions" {
         Effect   = "Allow"
         Action   = ["ssm:GetParameter", "ssm:GetParameters"]
         Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/dental/${var.env}/*"
+      },
+      # EC2 — look up subnet and security group IDs by tag at deploy time
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DescribeSubnets", "ec2:DescribeSecurityGroups"]
+        Resource = "*"
       },
     ]
   })

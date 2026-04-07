@@ -118,6 +118,20 @@ module "elasticache" {
   tags = local.common_tags
 }
 
+module "vpc_endpoints" {
+  source                  = "../../modules/vpc-endpoints"
+  env                     = local.env
+  vpc_id                  = module.vpc.vpc_id
+  private_subnet_ids      = module.vpc.private_subnet_ids
+  private_route_table_ids = module.vpc.private_route_table_ids
+  app_sg_ids = [
+    module.security_groups.api_task_sg_id,
+    module.security_groups.web_task_sg_id,
+    module.security_groups.worker_sg_id,
+  ]
+  tags = local.common_tags
+}
+
 module "ecs" {
   source              = "../../modules/ecs"
   env                 = local.env

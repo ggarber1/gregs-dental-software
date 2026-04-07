@@ -111,35 +111,39 @@ staging-verify:
 	@echo " SSM population steps are in DEV.md under 'First apply'."
 	@echo "======================================================"
 
-# staging-up: provision ElastiCache (~5 min), start RDS + NAT instance, bring ECS to desired=1
+# staging-up: provision VPC endpoints + ElastiCache, start RDS + NAT instance, bring ECS to desired=1
 # Run from the repo root.
 staging-up:
-	@echo "==> [1/5] Provisioning ElastiCache (~5 min)..."
+	@echo "==> [1/6] Provisioning VPC endpoints (~2 min)..."
+	cd $(STAGING_DIR) && terraform apply -target=module.vpc_endpoints -auto-approve
+	@echo "==> [2/6] Provisioning ElastiCache (~5 min)..."
 	cd $(STAGING_DIR) && terraform apply -target=module.elasticache -auto-approve
-	@echo "==> [2/5] Starting RDS..."
+	@echo "==> [3/6] Starting RDS..."
 	-aws rds start-db-instance --db-instance-identifier dental-staging
-	@echo "==> [3/5] Starting NAT instance..."
+	@echo "==> [4/6] Starting NAT instance..."
 	-aws ec2 start-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw nat_instance_id)
-	@echo "==> [4/5] Waiting for RDS to be available (~2 min)..."
+	@echo "==> [5/6] Waiting for RDS to be available (~2 min)..."
 	aws rds wait db-instance-available --db-instance-identifier dental-staging
-	@echo "==> [5/5] Starting ECS services..."
+	@echo "==> [6/6] Starting ECS services..."
 	aws ecs update-service --cluster dental-staging --service dental-staging-api --desired-count 1
 	aws ecs update-service --cluster dental-staging --service dental-staging-web --desired-count 1
 	@echo ""
 	@echo "==> Staging is up!"
 	@cd $(STAGING_DIR) && echo "    ALB: http://$$(terraform output -raw alb_dns_name)"
 
-# staging-down: stop ECS, stop RDS, stop NAT instance, destroy ElastiCache (~3 min)
+# staging-down: stop ECS, stop RDS, stop NAT instance, destroy ElastiCache + VPC endpoints
 # Run from the repo root.
 staging-down:
-	@echo "==> [1/4] Stopping ECS services..."
+	@echo "==> [1/5] Stopping ECS services..."
 	-aws ecs update-service --cluster dental-staging --service dental-staging-api --desired-count 0
 	-aws ecs update-service --cluster dental-staging --service dental-staging-web --desired-count 0
-	@echo "==> [2/4] Stopping RDS..."
+	@echo "==> [2/5] Stopping RDS..."
 	-aws rds stop-db-instance --db-instance-identifier dental-staging
-	@echo "==> [3/4] Stopping NAT instance..."
+	@echo "==> [3/5] Stopping NAT instance..."
 	-aws ec2 stop-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw nat_instance_id)
-	@echo "==> [4/4] Destroying ElastiCache (~3 min)..."
+	@echo "==> [4/5] Destroying ElastiCache (~3 min)..."
 	cd $(STAGING_DIR) && terraform destroy -target=module.elasticache -auto-approve
+	@echo "==> [5/5] Destroying VPC endpoints (~2 min)..."
+	cd $(STAGING_DIR) && terraform destroy -target=module.vpc_endpoints -auto-approve
 	@echo ""
 	@echo "==> Staging is down. Cost while idle: ~\$$2/mo (RDS storage only)."

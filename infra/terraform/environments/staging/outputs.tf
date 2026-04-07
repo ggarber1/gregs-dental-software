@@ -24,6 +24,12 @@ output "rds_endpoint" {
   sensitive   = true
 }
 
+output "elasticache_endpoint" {
+  description = "ElastiCache endpoint — populate SSM /dental/staging/redis/url after staging-up"
+  value       = module.elasticache.endpoint
+  sensitive   = true
+}
+
 output "cognito_user_pool_id" {
   value = module.cognito.user_pool_id
 }
