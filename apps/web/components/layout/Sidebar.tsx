@@ -35,26 +35,28 @@ interface NavItemProps {
 
 function NavItem({ href, label, icon: Icon, isActive }: NavItemProps) {
   return (
-    <TooltipTrigger asChild>
-      <Link
-        href={href}
-        className={cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          isActive
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground/70",
-          "md:w-full",
-          "max-md:justify-center max-md:px-2",
-        )}
-      >
-        <Icon className="h-5 w-5 shrink-0" />
-        <span className="hidden md:inline">{label}</span>
-      </Link>
+    <>
+      <TooltipTrigger asChild>
+        <Link
+          href={href}
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            isActive
+              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+              : "text-sidebar-foreground/70",
+            "md:w-full",
+            "max-md:justify-center max-md:px-2",
+          )}
+        >
+          <Icon className="h-5 w-5 shrink-0" />
+          <span className="hidden md:inline">{label}</span>
+        </Link>
+      </TooltipTrigger>
       <TooltipContent side="right" className="md:hidden">
         {label}
       </TooltipContent>
-    </TooltipTrigger>
+    </>
   );
 }
 
