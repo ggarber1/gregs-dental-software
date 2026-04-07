@@ -5,7 +5,7 @@ import { buildClearCookieHeaders, buildSetCookieHeaders } from "@/lib/auth/cooki
 
 const SetSessionBody = z.object({
   accessToken: z.string().min(1),
-  refreshToken: z.string().min(1),
+  refreshToken: z.string().optional(),
 });
 
 // Called by the login page after Amplify sign-in succeeds.
