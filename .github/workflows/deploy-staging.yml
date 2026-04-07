@@ -15,6 +15,9 @@ jobs:
   deploy:
     name: Deploy to Staging
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
