@@ -89,21 +89,220 @@ Step 5 (optional): Enable claims submission → enter NPI, tax ID, taxonomy → 
 - [x] Alembic migrations setup
 - [x] Health check endpoint
 
-### 1.5 Next.js Skeleton
-- [ ] App Router setup with `(auth)` and `(practice)` route groups
-- [ ] Cognito Amplify login flow (login page, MFA page)
-- [ ] Authenticated layout (sidebar nav, session management)
-- [ ] Typed API client (`lib/api-client.ts`)
+### 1.5 Next.js Skeleton - Done
+- [x] App Router setup with `(auth)` and `(practice)` route groups
+- [x] Cognito Amplify login flow (login page, MFA page)
+- [x] Authenticated layout (sidebar nav, session management)
+- [x] Typed API client (`lib/api-client.ts`)
 
 ### 1.6 Database Schema (Initial Migration)
-- [ ] `practices` table
-- [ ] `users` table (linked to Cognito sub)
-- [ ] `providers` table (dentists, hygienists — NPI required)
-- [ ] `operatories` table (chairs/rooms)
-- [ ] `audit_logs` table — append-only, Postgres trigger preventing UPDATE/DELETE, app DB user has INSERT only
-- [ ] All PHI tables with `created_at`, `updated_at`, `deleted_at`, `last_accessed_by`, `last_accessed_at`
-- [ ] UUID primary keys everywhere (no exposed sequential integers)
-- [ ] Indexes for scheduling queries, insurance lookups, claims processing, audit compliance
+
+#### Scope
+
+Foundation tables only — practice configuration, identity, and the insert-only audit log. Patient and scheduling tables come in Modules 2 and 3. Nothing here touches PHI yet; that boundary starts when `patients` is created.
+
+#### Files to create
+
+```
+apps/api/app/models/practice.py
+apps/api/app/models/user.py          -- includes PracticeUser association model
+apps/api/app/models/provider.py
+apps/api/app/models/operatory.py
+apps/api/alembic/versions/0001_initial_schema.py
+```
+
+Update `apps/api/alembic/env.py` — add imports for all four new model modules so Alembic autogenerate sees them.
+
+#### Base conventions (already in place)
+
+`PHIMixin` in `app/models/base.py` provides `created_at`, `updated_at`, `deleted_at`, `last_accessed_by`, `last_accessed_at`. Foundation tables here do **not** use `PHIMixin` — they use a simpler `TimestampMixin` (just `created_at`, `updated_at`, `deleted_at`) to be defined in `base.py`. `PHIMixin` is reserved for tables that hold patient PHI (starting with Module 2's `patients` table). All tables use `UUIDMixin` (UUID v4 primary keys, already defined).
+
+Add `TimestampMixin` to `base.py`:
+```python
+class TimestampMixin(UUIDMixin):
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+```
+
+#### Table: `practices`
+
+Holds all practice-level configuration. One row per tenant. Feature flags and clearinghouse credentials live here per the Optional Modules section.
+
+```
+id                          UUID PK
+name                        TEXT NOT NULL
+timezone                    TEXT NOT NULL DEFAULT 'America/New_York'
+phone                       TEXT
+address_line1               TEXT
+address_line2               TEXT
+city                        TEXT
+state                       CHAR(2)
+zip                         TEXT
+features                    JSONB NOT NULL DEFAULT '{}'
+clearinghouse_provider      TEXT CHECK (clearinghouse_provider IN ('stedi', 'dentalxchange'))
+clearinghouse_submitter_id  TEXT
+clearinghouse_api_key_ssm_path TEXT  -- SSM path only, never the key
+billing_npi                 TEXT
+billing_tax_id_encrypted    BYTEA       -- AES-256 encrypted, app layer
+billing_taxonomy_code       TEXT
+masshealth_provider_id      TEXT
+created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+deleted_at                  TIMESTAMPTZ
+```
+
+Indexes: primary key only. Single-tenant lookup at app start, no hot-path queries against this table.
+
+#### Table: `users`
+
+Maps Cognito sub → internal user row. Practice membership and role are in `practice_users` (see below) — a user can belong to multiple practices with a different role at each.
+
+```
+id              UUID PK
+cognito_sub     TEXT NOT NULL UNIQUE      -- from JWT sub claim
+email           TEXT NOT NULL
+full_name       TEXT NOT NULL
+is_active       BOOLEAN NOT NULL DEFAULT TRUE
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+deleted_at      TIMESTAMPTZ
+```
+
+Indexes:
+- `UNIQUE (cognito_sub)` — fast JWT → user lookup on every authenticated request
+
+#### Table: `practice_users`
+
+Junction table scoping users to practices with a per-practice role. A doctor who owns two practices gets two rows here, one per practice, potentially with different roles.
+
+```
+practice_id     UUID NOT NULL FK → practices(id)
+user_id         UUID NOT NULL FK → users(id)
+role            TEXT NOT NULL CHECK (role IN ('admin', 'provider', 'front_desk', 'billing', 'read_only'))
+is_active       BOOLEAN NOT NULL DEFAULT TRUE
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+PRIMARY KEY (practice_id, user_id)
+```
+
+Indexes:
+- `(user_id)` — given a user, list all their practices (practice switcher)
+- `(practice_id)` — given a practice, list all its users
+
+**Auth flow:** JWT arrives → look up `users` by `cognito_sub` → validate `practice_users` row exists and `is_active = TRUE` for the practice in the request scope → role from that row drives endpoint authorization. Practice scope comes from an `X-Practice-ID` request header; middleware rejects requests where the user has no active `practice_users` row for that practice ID.
+
+#### Table: `providers`
+
+Dentists, hygienists, and any clinical staff who appear on the schedule. `user_id` is nullable — a provider doesn't need a system login (e.g., an associate not using the system directly). NPI is required per Module 3 (claims generation).
+
+```
+id              UUID PK
+practice_id     UUID NOT NULL FK → practices(id)
+user_id         UUID FK → users(id)   -- nullable: not all providers have logins
+full_name       TEXT NOT NULL
+npi             TEXT NOT NULL          -- 10-digit NPI
+provider_type   TEXT NOT NULL CHECK (provider_type IN ('dentist', 'hygienist', 'specialist', 'other'))
+license_number  TEXT
+specialty       TEXT                   -- e.g. 'general', 'orthodontics', 'oral_surgery'
+color           CHAR(7) NOT NULL DEFAULT '#4F86C6'  -- hex, used on calendar
+is_active       BOOLEAN NOT NULL DEFAULT TRUE
+display_order   INTEGER NOT NULL DEFAULT 0
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+deleted_at      TIMESTAMPTZ
+```
+
+Indexes:
+- `(practice_id)` — all providers for a practice
+- `(practice_id, is_active)` — scheduling query: available providers
+- `(npi)` — claims validation: check NPI exists before generating 837D
+
+#### Table: `operatories`
+
+Physical chairs/rooms. Used for conflict detection (no double-booking same operatory) and the room-view calendar that front desk actually uses.
+
+```
+id              UUID PK
+practice_id     UUID NOT NULL FK → practices(id)
+name            TEXT NOT NULL           -- e.g. 'Operatory 1', 'Room A'
+color           CHAR(7) NOT NULL DEFAULT '#7BC67E'  -- hex, used on calendar
+is_active       BOOLEAN NOT NULL DEFAULT TRUE
+display_order   INTEGER NOT NULL DEFAULT 0
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+deleted_at      TIMESTAMPTZ
+```
+
+Indexes:
+- `(practice_id)` — all operatories for a practice
+- `(practice_id, is_active)` — scheduling query: available rooms
+
+#### Table: `audit_logs`
+
+Already exists as a SQLAlchemy model (`app/models/audit_log.py`). The migration must also apply a Postgres DDL trigger so no DB user can UPDATE or DELETE rows — enforced at the DB layer independent of application code.
+
+Trigger DDL (include as raw SQL in migration `upgrade()`):
+
+```sql
+CREATE OR REPLACE FUNCTION audit_logs_immutable()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_logs rows are immutable';
+END;
+$$;
+
+CREATE TRIGGER trg_audit_logs_no_update
+    BEFORE UPDATE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION audit_logs_immutable();
+
+CREATE TRIGGER trg_audit_logs_no_delete
+    BEFORE DELETE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION audit_logs_immutable();
+```
+
+Drop in `downgrade()`:
+```sql
+DROP TRIGGER IF EXISTS trg_audit_logs_no_update ON audit_logs;
+DROP TRIGGER IF EXISTS trg_audit_logs_no_delete ON audit_logs;
+DROP FUNCTION IF EXISTS audit_logs_immutable();
+```
+
+#### Migration file structure
+
+Single Alembic revision `0001_initial_schema`. Creates tables in dependency order:
+
+1. `audit_logs` (no FKs)
+2. `practices` (no FKs)
+3. `users` (no FKs)
+4. `practice_users` (FK → practices, users)
+5. `providers` (FK → practices, users)
+6. `operatories` (FK → practices)
+7. Apply audit_logs immutability triggers
+
+`downgrade()` drops in reverse order and drops triggers/function. Migration is safe to re-run (Alembic tracks applied revisions in `alembic_version`).
+
+#### What's deferred
+
+- `patients`, `insurance_plans`, `patient_insurance` — Module 2
+- `appointments`, `appointment_types` — Module 3
+- `appointment_reminders` — Module 4
+- `eligibility_checks` — Module 5
+- `appointment_procedures`, `cdt_codes` — Module 6
+- `claims`, `payments` — Module 7
+- App DB user `GRANT INSERT ON audit_logs` / revoke UPDATE+DELETE — done in Terraform RDS bootstrap, not in Alembic
+
+#### Checklist
+
+- [x] Add `TimestampMixin` to `app/models/base.py`
+- [x] `app/models/practice.py` — `Practice` model
+- [x] `app/models/user.py` — `User` + `PracticeUser` models
+- [x] `app/models/provider.py` — `Provider` model
+- [x] `app/models/operatory.py` — `Operatory` model
+- [x] `alembic/versions/0001_initial_schema.py` — all tables + audit trigger DDL
+- [x] Update `alembic/env.py` — import all four new model modules
+- [x] `alembic upgrade head` runs cleanly on local Postgres (Docker Compose)
+- [x] Verify audit_logs trigger: `UPDATE audit_logs SET ...` raises exception
+- [x] UUID PKs confirmed (no serial/integer PKs in `\d` output)
 
 ---
 
