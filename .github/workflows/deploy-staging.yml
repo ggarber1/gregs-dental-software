@@ -39,6 +39,22 @@ jobs:
           echo "api_latest=${REGISTRY}/dental/api:staging-latest" >> "$GITHUB_OUTPUT"
           echo "web_latest=${REGISTRY}/dental/web:staging-latest" >> "$GITHUB_OUTPUT"
 
+      - name: Read build-time config from SSM
+        id: build_config
+        run: |
+          USER_POOL_ID=$(aws ssm get-parameter \
+            --name /dental/staging/cognito/user_pool_id \
+            --query Parameter.Value --output text)
+          APP_CLIENT_ID=$(aws ssm get-parameter \
+            --name /dental/staging/cognito/app_client_id \
+            --query Parameter.Value --output text)
+          API_URL=$(aws ssm get-parameter \
+            --name /dental/staging/app/api_url \
+            --query Parameter.Value --output text)
+          echo "user_pool_id=${USER_POOL_ID}" >> "$GITHUB_OUTPUT"
+          echo "app_client_id=${APP_CLIENT_ID}" >> "$GITHUB_OUTPUT"
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push API image
         run: |
           docker build \
@@ -52,6 +68,10 @@ jobs:
         run: |
           docker build \
             -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID=${{ steps.build_config.outputs.user_pool_id }} \
+            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID=${{ steps.build_config.outputs.app_client_id }} \
+            --build-arg NEXT_PUBLIC_COGNITO_REGION=us-east-1 \
+            --build-arg NEXT_PUBLIC_API_URL=${{ steps.build_config.outputs.api_url }} \
             -t "${{ steps.images.outputs.web }}" \
             -t "${{ steps.images.outputs.web_latest }}" \
             .

@@ -100,6 +100,17 @@ resource "aws_ssm_parameter" "clearinghouse_api_key" {
   }
 }
 
+resource "aws_ssm_parameter" "api_url" {
+  name  = "${local.path}/app/api_url"
+  type  = "String"
+  value = "placeholder — set to public API URL e.g. https://api.staging.example.com"
+  tags  = var.tags
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "secret_key" {
   name   = "${local.path}/app/secret_key"
   type   = "SecureString"

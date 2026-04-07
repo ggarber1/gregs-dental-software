@@ -18,6 +18,10 @@
       "cache": false,
       "persistent": true,
       "dependsOn": ["^build", "^generate"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
     }
   }
 }

@@ -16,6 +16,46 @@ cd apps/api && uv sync && cd ../..  # install Python dependencies + create lockf
 cp .env.example .env                # fill in any local overrides if needed
 ```
 
+### Cognito setup (required for auth)
+
+The web app uses Amplify Auth (SRP) to sign in directly against a Cognito User Pool — no hosted UI, no OAuth redirects, no client secret needed.
+
+1. Create a **User Pool** in the AWS Console:
+   - **Sign-in**: email
+   - **MFA**: optional for local dev (staging enforces TOTP)
+   - **Self-registration**: disabled (admin creates users only)
+   - **Custom attributes**: `custom:practice_id` (String), `custom:role` (String)
+
+2. Under **App clients**, create an app client:
+   - **Client secret**: disabled (not needed for SRP)
+   - **Auth flows**: `ALLOW_USER_SRP_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH`
+   - No OAuth / hosted UI configuration needed
+
+3. Create a test user in the console (or via CLI):
+   ```bash
+   aws cognito-idp admin-create-user \
+     --user-pool-id <pool-id> \
+     --username you@example.com \
+     --temporary-password TempPass123!
+   ```
+
+4. Populate `.env`:
+   ```bash
+   # API — server-side JWT validation
+   COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
+   COGNITO_CLIENT_ID=<app-client-id>
+   COGNITO_REGION=us-east-1
+
+   # Web — client-side Amplify Auth (same values, NEXT_PUBLIC_ prefix)
+   NEXT_PUBLIC_COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
+   NEXT_PUBLIC_COGNITO_CLIENT_ID=<app-client-id>
+   NEXT_PUBLIC_COGNITO_REGION=us-east-1
+   ```
+
+**Note:** The staging Cognito pool (provisioned by Terraform) has TOTP MFA enforced. For easier local dev, set MFA to optional on your personal dev pool.
+
+---
+
 ## Daily dev
 
 ```bash
@@ -63,6 +103,9 @@ pnpm lint
 
 # Type-check all packages
 pnpm type-check
+
+# Run JS tests
+pnpm --filter @dental/web test
 
 # Run a command in a specific package
 pnpm --filter @dental/web dev
@@ -193,6 +236,12 @@ aws ssm put-parameter --name /dental/staging/cognito/user_pool_id \
 aws ssm put-parameter --name /dental/staging/cognito/app_client_id \
   --value "${APP_CLIENT_ID}" --type String --overwrite
 
+# API URL — the public-facing URL of the FastAPI ALB (used by the browser to call the API).
+# The deploy workflow reads this from SSM and bakes it into the Next.js bundle at build time.
+aws ssm put-parameter --name /dental/staging/app/api_url \
+  --value "https://api.staging.yourdomain.com" \
+  --type String --overwrite
+
 # Twilio — set when building Module 4 (reminders). Leave as placeholder until then.
 # aws ssm put-parameter --name /dental/staging/twilio/account_sid \
 #   --value "ACxxx" --type SecureString --overwrite
@@ -298,6 +347,15 @@ Staging and production are fully independent. Destroying staging has zero effect
 - `Deploy Production` — use when you're ready to ship
 
 Both workflows build Docker images, push to ECR, run `alembic upgrade head` as a one-off ECS task, deploy the services, and wait for stability. If the migration exits non-zero the deploy stops.
+
+**Before triggering the first deploy on a new environment**, all SSM parameters must be populated (the deploy workflow reads Cognito IDs and the API URL from SSM at build time and bakes them into the Next.js bundle):
+
+1. Run `terraform apply` to create the SSM placeholders and grant the GitHub Actions role SSM read access
+2. Populate the required parameters (see Step 3 of "First apply" above for the full list)
+3. Bring the environment up: `make staging-up`
+4. Then trigger the deploy from GitHub Actions
+
+If SSM parameters still contain `placeholder` values when the deploy runs, the web container will ship with missing Cognito config and Amplify Auth will fail on every page load.
 
 **One-time setup** (after first `terraform apply` on a new account):
 ```bash

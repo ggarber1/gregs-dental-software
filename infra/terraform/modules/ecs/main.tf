@@ -223,7 +223,7 @@ resource "aws_ecs_task_definition" "web" {
         valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/cognito/user_pool_id"
       },
       {
-        name      = "NEXT_PUBLIC_COGNITO_APP_CLIENT_ID"
+        name      = "NEXT_PUBLIC_COGNITO_CLIENT_ID"
         valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/cognito/app_client_id"
       },
     ]
