@@ -53,14 +53,19 @@ resource "aws_instance" "nat" {
     echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
     sysctl -p
 
-    # Write masquerade rule to rc.local so it runs on every boot
-    echo '#!/bin/bash' > /etc/rc.d/rc.local
-    echo 'iptables -t nat -C POSTROUTING -o eth0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' >> /etc/rc.d/rc.local
-    chmod +x /etc/rc.d/rc.local
-    systemctl enable rc-local
+    # Detect the primary interface (AL2023 uses ens5, not eth0)
+    PRIMARY_IF=$(ip route | awk '/default/ {print $5; exit}')
 
-    # Apply immediately without waiting for reboot
-    iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    # Create a proper systemd service using printf to avoid heredoc-in-heredoc issues.
+    # rc-local has no [Install] section on AL2023 so systemctl enable rc-local
+    # silently fails — iptables MASQUERADE rule was never re-applied after stop/start.
+    printf '[Unit]\nDescription=NAT iptables MASQUERADE\nAfter=network.target\n\n[Service]\nType=oneshot\nExecStart=/bin/sh -c "iptables -t nat -C POSTROUTING -o %s -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o %s -j MASQUERADE"\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n' \
+      "$${PRIMARY_IF}" "$${PRIMARY_IF}" \
+      > /etc/systemd/system/nat-masquerade.service
+
+    systemctl daemon-reload
+    systemctl enable nat-masquerade.service
+    systemctl start nat-masquerade.service
     EOF
   )
 

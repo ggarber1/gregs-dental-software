@@ -19,7 +19,7 @@ RUN pnpm install --frozen-lockfile
 # ── Builder ───────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN apk add --no-cache curl && corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 WORKDIR /app
 
@@ -45,6 +45,13 @@ ENV NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID \
     NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID \
     NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION \
     NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+# Pre-fetch Cognito JWKS at build time — embedded in the image so middleware
+# can validate tokens without outbound network access at runtime.
+# Keys rarely rotate; a re-deploy will refresh them when needed.
+RUN curl -sf \
+    "https://cognito-idp.${NEXT_PUBLIC_COGNITO_REGION:-us-east-1}.amazonaws.com/${NEXT_PUBLIC_COGNITO_USER_POOL_ID}/.well-known/jwks.json" \
+    -o apps/web/lib/auth/cognito-jwks.json
 
 # Build shared packages first, then web
 RUN pnpm --filter @dental/shared-types build
