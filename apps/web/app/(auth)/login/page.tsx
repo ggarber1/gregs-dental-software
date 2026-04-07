@@ -78,7 +78,7 @@ export default function LoginPage() {
       return;
     }
 
-    const res = await fetch("/api/auth/session", {
+    const res = await fetch("/_session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accessToken, refreshToken: "" }),

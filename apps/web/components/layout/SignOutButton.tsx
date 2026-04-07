@@ -12,7 +12,7 @@ export function SignOutButton() {
     } catch {
       // Amplify sign-out failures are non-fatal — proceed to clear cookies.
     }
-    await fetch("/api/auth/session", { method: "DELETE" });
+    await fetch("/_session", { method: "DELETE" });
     router.push("/login");
   }
 

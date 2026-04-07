@@ -70,7 +70,7 @@ export function Sidebar() {
     } catch {
       // Non-fatal — proceed to clear cookies regardless.
     }
-    await fetch("/api/auth/session", { method: "DELETE" });
+    await fetch("/_session", { method: "DELETE" });
     router.push("/login");
   }
 
