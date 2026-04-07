@@ -35,6 +35,7 @@ export default function LoginPage() {
         await persistSession();
       }
     } catch (err) {
+      console.error("[login] signIn error:", err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
