@@ -24,7 +24,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/config/typescript/node_modules ./packages/config/typescript/node_modules
+COPY --from=deps /app/packages/config/eslint/node_modules ./packages/config/eslint/node_modules
 COPY --from=deps /app/packages/shared-types/node_modules ./packages/shared-types/node_modules
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
