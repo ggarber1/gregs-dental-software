@@ -182,7 +182,7 @@ resource "aws_ecs_task_definition" "api" {
     }
 
     healthCheck = {
-      command     = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      command     = ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval    = 30
       timeout     = 5
       retries     = 3
