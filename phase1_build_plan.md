@@ -328,13 +328,13 @@ Cognito is `OPTIONAL` in staging (sufficient for dev). Before production go-live
 
 ## Module 2: Patient Management & Digital Intake
 
-### 2.1 Patient API
-- [ ] `POST /api/v1/patients` — create patient, write audit log
-- [ ] `GET /api/v1/patients` — search/list with pagination
-- [ ] `GET /api/v1/patients/{id}` — patient detail, write audit log on every read
-- [ ] `PATCH /api/v1/patients/{id}` — update patient
-- [ ] Soft delete only (`deleted_at`)
-- [ ] SSN encrypted at application layer (AES-256) before storage
+### 2.1 Patient API - Done
+- [x] `POST /api/v1/patients` — create patient, write audit log
+- [x] `GET /api/v1/patients` — search/list with pagination
+- [x] `GET /api/v1/patients/{id}` — patient detail, write audit log on every read
+- [x] `PATCH /api/v1/patients/{id}` — update patient
+- [x] Soft delete only (`deleted_at`)
+- [x] SSN encrypted at application layer (AES-256) before storage
 
 ### 2.2 Patient Frontend
 - [ ] Patient search/list page

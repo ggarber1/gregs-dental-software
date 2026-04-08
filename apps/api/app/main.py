@@ -3,8 +3,11 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.requests import Request
 
 from app.core.config import get_settings
 from app.core.db import dispose_engine, get_session_factory
@@ -13,6 +16,7 @@ from app.middleware.audit import AuditLogMiddleware
 from app.middleware.auth import CognitoAuthMiddleware
 from app.middleware.idempotency import IdempotencyMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
+from app.routers import patients
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +63,22 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # ── Exception handlers ────────────────────────────────────────────────────
+    # Normalise all error responses to {"error": {"code": ..., "message": ...}}
+    # so routes and middleware share the same shape.
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        detail = exc.detail
+        # Route guards raise HTTPException with detail={"error": {...}}
+        if isinstance(detail, dict) and "error" in detail:
+            return JSONResponse(status_code=exc.status_code, content=detail)
+        # Fall back for plain string details (e.g. FastAPI 404 for unknown routes)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": str(exc.status_code), "message": str(detail)}},
+        )
+
     # ── Routes ────────────────────────────────────────────────────────────────
     @app.get("/health", tags=["ops"])
     async def health() -> dict[str, str]:
@@ -81,6 +101,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "db": db_status, "redis": redis_status}
 
     # Additional routers registered here per module (2.x onward)
+    app.include_router(patients.router)
 
     return app
 

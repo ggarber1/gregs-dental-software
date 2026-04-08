@@ -1,0 +1,8 @@
+# Import all models here so Alembic's env.py picks them up via Base.metadata.
+from app.models.audit_log import AuditLog as AuditLog
+from app.models.operatory import Operatory as Operatory
+from app.models.patient import Patient as Patient
+from app.models.practice import Practice as Practice
+from app.models.provider import Provider as Provider
+from app.models.user import PracticeUser as PracticeUser
+from app.models.user import User as User
