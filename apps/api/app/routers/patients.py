@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import func, or_, select, update
@@ -40,7 +41,8 @@ def _require_practice_scope(request: Request) -> uuid.UUID:
                 )
             ).model_dump(by_alias=True),
         )
-    return practice_id  # type: ignore[return-value]
+    assert isinstance(practice_id, uuid.UUID)
+    return practice_id
 
 
 def _require_write_role(request: Request) -> None:
@@ -74,7 +76,7 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         dateOfBirth=row.date_of_birth,
         sex=row.sex,  # type: ignore[arg-type]
         phone=row.phone,
-        email=row.email,  # type: ignore[arg-type]
+        email=row.email,
         addressLine1=row.address_line1,
         addressLine2=row.address_line2,
         city=row.city,
@@ -148,7 +150,7 @@ async def list_patients(
     q: str | None = None,
     page: int = 1,
     page_size: int = 20,
-) -> dict:
+) -> dict[str, Any]:
     practice_id = _require_practice_scope(request)
 
     if page < 1:

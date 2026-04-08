@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from sqlalchemy import Boolean, CheckConstraint, Date, Index, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, BYTEA, UUID
@@ -23,7 +24,7 @@ class Patient(Base, PHIMixin):
     # Demographics
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    date_of_birth: Mapped[Date] = mapped_column(Date, nullable=False)
+    date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
     sex: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     # Contact
