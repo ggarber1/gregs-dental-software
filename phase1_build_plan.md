@@ -311,13 +311,18 @@ Single Alembic revision `0001_initial_schema`. Creates tables in dependency orde
 **Why here:** First ECS deploy. None of this can be validated locally — Cognito, RDS, ElastiCache, and CloudWatch all need real AWS.
 
 Verify:
-- [ ] Both ECS tasks (`api`, `web`) start and stay healthy — no crash loops in CloudWatch logs
-- [ ] Cognito login flow works end-to-end: login → MFA → JWT issued → API accepts it
-- [ ] `GET /health` returns `{"db": "ok", "redis": "ok"}` against real RDS + ElastiCache
-- [ ] Alembic `upgrade head` runs cleanly on staging RDS (audit_logs table created)
-- [ ] HIPAA headers visible in browser devtools on every response
-- [ ] CloudWatch log groups receiving output from both services
-- [ ] ALB HTTPS termination working; HTTP redirects to HTTPS
+- [x] Both ECS tasks (`api`, `web`) start and stay healthy — no crash loops in CloudWatch logs
+- [x] Cognito login flow works end-to-end: login → JWT issued → API accepts it (MFA optional in staging — see pre-production gate below)
+- [x] `GET /health` returns `{"db": "ok", "redis": "ok"}` against real RDS + ElastiCache
+- [x] Alembic `upgrade head` runs cleanly on staging RDS (runs as one-off ECS task in deploy workflow)
+- [x] HIPAA headers visible in browser devtools on every response
+- [x] CloudWatch log groups receiving output from both services
+- [x] ALB HTTPS termination working; HTTP redirects to HTTPS (N/A — staging is HTTP-only, no domain set)
+
+---
+
+**Pre-production gate — MFA enrollment flow:**
+Cognito is `OPTIONAL` in staging (sufficient for dev). Before production go-live, set to `ON` (required) and build a TOTP enrollment screen (shown on first login when no MFA is enrolled — generate QR code via `setupTOTP`, verify with `verifyTOTPSetup`). Without this, users with no TOTP enrolled will be locked out once MFA is required.
 
 ---
 
