@@ -1,4 +1,4 @@
-# Post-Phase 1 Roadmap
+# Molar — Post-Phase 1 Roadmap
 
 Phase 1 delivers: scheduling, reminders, patient records, digital intake, and optionally eligibility verification, co-pay estimation, and claims submission.
 
@@ -97,13 +97,26 @@ By this point there are months of real claims data in the system. ERA responses 
 - Payment plan setup (installment agreements for large balances)
 - Collections flagging for accounts over 90 days
 
-### 3.5 Quickbooks Integration (Real-Time)
+### 3.5 Clearinghouse Architecture
+
+DentalCXchange is NOT on MassHealth's approved vendor list, and as the payer network expands this gap will recur. Design around it from the start.
+
+- **Primary clearinghouse: Availity** — MassHealth-approved, full transaction set (837P/D, 835, 270/271, COB, Void/Replace), large national network
+- **Secondary: DentalCXchange** — retained only for dental-specific payers where Availity lacks connectivity
+- **MassHealth dental specifically:** Routes through DentaQuest (MassHealth's dental program) — not a general clearinghouse
+- **Payer routing is config-driven:** a `payer_id → clearinghouse` mapping, not hardcoded logic. Adding a new route = one config change
+- **ClearinghouseClient interface:** all clearinghouse integrations behind a common interface so adding a third clearinghouse (e.g. Waystar for a specific state Medicaid) requires no architectural changes
+- This is the foundation for reliable billing across all state Medicaid programs as the platform expands
+
+Note: the routing abstraction should be designed during Phase 1 claims submission work even if only one clearinghouse is wired up at that point.
+
+### 3.6 Quickbooks Integration (Real-Time)
 - Replace the Phase 1 CSV export with a proper Quickbooks Online API integration
 - Real-time sync of payments, write-offs, adjustments
 - Map dental ledger entries to Quickbooks chart of accounts
 - Reconciliation report
 
-### 3.6 Patient Financing
+### 3.7 Patient Financing
 - CareCredit integration — apply and get approval in-app
 - Cherry / Sunbit as alternatives
 - Financing option surfaced when patient responsibility exceeds a configurable threshold (e.g. > $500)

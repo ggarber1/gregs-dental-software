@@ -1,4 +1,4 @@
-# Phase 1 Build Plan — Dental PMS MVP
+# Molar — Phase 1 Build Plan
 
 ## Overview
 
@@ -13,7 +13,7 @@ Replace the core Eaglesoft workflow for a solo dental practice. Dad runs Eagleso
 Modules 5 (Insurance Verification), 6 (Co-pay Estimation), and 7 (Claims Submission) are **opt-in per practice**. A practice must explicitly enable each one. The system is fully usable for scheduling, patient records, and reminders without any of them active.
 
 This matters because:
-- Clearinghouse enrollment (DentalXChange, Stedi) takes 2–4 weeks — practices shouldn't be blocked from using the system while they wait
+- Clearinghouse enrollment (Availity, Stedi) takes 2–4 weeks — practices shouldn't be blocked from using the system while they wait
 - Some practices may use a separate billing service and only want the scheduling/comms layer
 - Modules 6 and 7 require NPI, tax ID, and clearinghouse credentials that not every practice will have ready at onboarding
 
@@ -140,7 +140,7 @@ city                        TEXT
 state                       CHAR(2)
 zip                         TEXT
 features                    JSONB NOT NULL DEFAULT '{}'
-clearinghouse_provider      TEXT CHECK (clearinghouse_provider IN ('stedi', 'dentalxchange'))
+clearinghouse_provider      TEXT CHECK (clearinghouse_provider IN ('stedi', 'availity', 'dentalxchange'))
 clearinghouse_submitter_id  TEXT
 clearinghouse_api_key_ssm_path TEXT  -- SSM path only, never the key
 billing_npi                 TEXT
@@ -444,6 +444,19 @@ Verify:
 
 ---
 
+## ⚡ Action Required at End of Module 4 — Start Availity Prod Enrollment
+
+Do not wait until Module 7 to start this. Payer enrollment queues run 4–8 weeks.
+
+- [ ] Submit Availity production application
+- [ ] Enroll for each target payer (Delta Dental, MassHealth/DentaQuest, Cigna, Aetna, MetLife)
+- [ ] Submit NPI verification for the practice
+- [ ] Sign BAA with Availity
+- [ ] Pass Availity test claim submission requirements
+- [ ] Target: prod credentials in hand before Staging Checkpoint 6
+
+---
+
 ## 🚦 Staging Checkpoint 4 — End of Module 4 (after 4.1–4.3)
 
 **Why here:** First async worker (ECS `reminder-worker`) and first Twilio integration. The inbound webhook cannot be tested locally — it needs a real publicly reachable URL.
@@ -468,7 +481,7 @@ Verify:
 - [ ] UI for adding/editing patient insurance on patient chart
 
 ### 5.2 Eligibility Verification API
-- [ ] Abstract `EligibilityProvider` interface — swappable between Stedi (dev) and DentalXChange/Availity (production)
+- [ ] Abstract `EligibilityProvider` interface — swappable between Stedi (dev/staging), Availity (production primary), and DentalXChange (secondary for dental-specific payers)
 - [ ] `POST /api/v1/eligibility/check` — enqueue async check via SQS
 - [ ] ECS eligibility worker — dequeues, calls clearinghouse API, stores structured result in `eligibility_checks`
 - [ ] `GET /api/v1/eligibility/{checkId}` — poll for result
@@ -532,7 +545,7 @@ Verify:
 ### 7.1 Claims Generation
 - [ ] 837D (dental) claim generation from `appointment_procedures` + `patient_insurance` + `provider` NPI
 - [ ] Use custom `X12Builder` class to generate raw 837D — pyx12 is a validator only, not a generator
-- [ ] Abstract `ClaimsProvider` interface — swappable between Stedi (dev/staging) and DentalXChange (production)
+- [ ] Abstract `ClaimsProvider` interface — swappable between Stedi (dev/staging), Availity (production primary), and DentalXChange (secondary for dental-specific payers); routing is payer-config-driven, not hardcoded
 - [ ] Idempotency key on every claim submission — stored in `claims.idempotency_key`, prevents duplicate submissions on retry
 - [ ] Store raw 837D payload in `claims.raw_submission` for debugging
 
@@ -635,7 +648,7 @@ Verify:
 - [ ] Audit logs confirm every migrated record has an entry (migration counts as a PHI write)
 - [ ] Confirm production RDS deletion protection is on, automated backups are running, and a fresh snapshot exists before cutover
 - [ ] Staff have completed training on staging — front desk can book, check in, and complete an appointment without help
-- [ ] DentalXChange BAA signed before any real patient insurance data is submitted to clearinghouse
+- [ ] Availity and DentalXChange BAAs signed before any real patient insurance data is submitted to clearinghouse
 - [ ] CloudWatch alarms tested: trigger an API error spike and a DLQ depth alarm artificially — confirm alerts fire
 - [ ] Confirm dad is happy to go live for new patients while existing patients stay in Eaglesoft
 
@@ -657,11 +670,14 @@ Verify:
 
 ## Clearinghouse Setup (do on Day 1, not Week 9)
 
-- [ ] Apply for **DentalXChange XConnect** sandbox access (2–4 week approval queue)
+**Strategy:** Availity is the production primary (MassHealth-approved, full transaction set). DentalXChange is secondary for dental-specific payers where Availity lacks connectivity. DentalXChange is NOT on MassHealth's approved vendor list — do not route MassHealth claims through it.
+
 - [ ] Sign up for **Stedi** free tier (immediate access — use for dev/staging)
-- [ ] Verify DentalXChange is on [MassHealth approved vendor list](https://www.mass.gov/doc/masshealth-vendor-list-effective-may-2025-0/download)
-- [ ] Confirm MassHealth payer ID `CKMA1` routes correctly through chosen clearinghouse
-- [ ] Obtain BAA from DentalXChange before submitting any real patient data
+- [ ] Apply for **Availity** sandbox access (production primary — MassHealth-approved)
+- [ ] Apply for **DentalXChange XConnect** sandbox access (secondary — dental-specific payers only)
+- [ ] Confirm MassHealth payer ID `CKMA1` routes through Availity, not DentalXChange
+- [ ] MassHealth dental specifically goes through **DentaQuest** (MassHealth's dental program) — verify routing with Availity
+- [ ] Obtain BAAs from both Availity and DentalXChange before submitting any real patient data
 
 ---
 

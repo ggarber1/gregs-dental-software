@@ -1,4 +1,4 @@
-# Greg's Dental Software
+# Molar
 
 Building a modern, all-in-one dental practice management platform targeting solo and small group practices (Vector A: The All-In-One Disruptor).
 
@@ -37,7 +37,7 @@ Instead: Dad runs Eaglesoft for existing data while the new system goes live for
 - Requires deep domain knowledge from Dad and staff
 
 ### Phase 3 — Billing & Insurance
-- Electronic claims via clearinghouse (Office Ally, DentalXChange)
+- Electronic claims via clearinghouse (Availity primary, DentalXChange secondary)
 - Insurance eligibility verification
 - ERA/payment posting
 - This is the hardest module — tackle last
