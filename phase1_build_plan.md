@@ -336,11 +336,11 @@ Cognito is `OPTIONAL` in staging (sufficient for dev). Before production go-live
 - [x] Soft delete only (`deleted_at`)
 - [x] SSN encrypted at application layer (AES-256) before storage
 
-### 2.2 Patient Frontend
-- [ ] Patient search/list page
-- [ ] New patient form
-- [ ] Patient chart overview page
-- [ ] Medical alerts bar (allergies always visible)
+### 2.2 Patient Frontend - Done
+- [x] Patient search/list page
+- [x] New patient form
+- [x] Patient chart overview page
+- [x] Medical alerts bar (allergies always visible)
 
 ### 2.3 X-Ray Viewer (Basic)
 
