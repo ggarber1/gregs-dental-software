@@ -1,3 +1,4 @@
+import { decodeJwt } from "jose";
 import type { NextRequest } from "next/server";
 
 export const ACCESS_TOKEN_COOKIE = "dental-access-token";
@@ -58,4 +59,16 @@ export function getAccessToken(): string | undefined {
     new RegExp(`(?:^|;\\s*)${ACCESS_TOKEN_COOKIE}=([^;]+)`),
   );
   return match?.[1];
+}
+
+// Client-side: decode the access token to extract custom:practice_id.
+export function getPracticeId(): string | undefined {
+  const token = getAccessToken();
+  if (!token) return undefined;
+  try {
+    const payload = decodeJwt(token);
+    return payload["custom:practice_id"] as string | undefined;
+  } catch {
+    return undefined;
+  }
 }

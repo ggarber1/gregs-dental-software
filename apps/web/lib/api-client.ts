@@ -9,7 +9,7 @@
  * Idempotency-Key header is required on all mutation methods (POST/PATCH/DELETE).
  */
 
-import { getAccessToken } from "@/lib/auth/cookies";
+import { getAccessToken, getPracticeId } from "@/lib/auth/cookies";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -33,6 +33,11 @@ async function request<T>(
   const token = getAccessToken();
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const practiceId = getPracticeId();
+  if (practiceId) {
+    headers["X-Practice-ID"] = practiceId;
   }
 
   if (options.idempotencyKey) {
