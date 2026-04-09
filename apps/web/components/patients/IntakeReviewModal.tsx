@@ -11,7 +11,6 @@ import {
 import {
   useIntakeFormDetail,
   useApplyIntakeForm,
-  type IntakeFormDetail,
 } from "@/lib/api/intake";
 
 interface IntakeReviewModalProps {
@@ -26,7 +25,7 @@ function Row({ label, value }: { label: string; value: unknown }) {
   if (value === null || value === undefined || value === "") return null;
   const display = Array.isArray(value)
     ? (value as string[]).join(", ") || "—"
-    : String(value);
+    : String(value as string | number | boolean);
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
