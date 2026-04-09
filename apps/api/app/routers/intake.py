@@ -69,7 +69,10 @@ async def get_intake_form_public(token: str) -> IntakeFormTokenInfo:
             select(IntakeForm).where(IntakeForm.token == token)
         )
         if form is None:
-            raise HTTPException(status_code=404, detail={"error": {"code": "INTAKE_NOT_FOUND", "message": "Intake form not found"}})
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "INTAKE_NOT_FOUND", "message": "Intake form not found"}},
+            )
 
         if _expire_if_due(form, now):
             await session.execute(
@@ -78,11 +81,24 @@ async def get_intake_form_public(token: str) -> IntakeFormTokenInfo:
                 .values(status="expired", updated_at=now)
             )
             await session.commit()
-            raise HTTPException(status_code=410, detail={"error": {"code": "INTAKE_EXPIRED", "message": "This intake form link has expired"}})
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "error": {
+                        "code": "INTAKE_EXPIRED",
+                        "message": "This intake form link has expired",
+                    }
+                },
+            )
 
         if form.status != "pending":
             code = "INTAKE_COMPLETED" if form.status == "completed" else "INTAKE_EXPIRED"
-            raise HTTPException(status_code=410, detail={"error": {"code": code, "message": "This intake form link is no longer active"}})
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "error": {"code": code, "message": "This intake form link is no longer active"}
+                },
+            )
 
         # Fetch practice name and patient first name for the greeting
         practice = await session.scalar(
@@ -111,7 +127,12 @@ async def submit_intake_form(token: str, body: SubmitIntakeForm, request: Reques
     if not body.hipaa_consent_accepted:
         raise HTTPException(
             status_code=422,
-            detail={"error": {"code": "HIPAA_CONSENT_REQUIRED", "message": "HIPAA consent must be accepted to submit the form"}},
+            detail={
+                "error": {
+                    "code": "HIPAA_CONSENT_REQUIRED",
+                    "message": "HIPAA consent must be accepted to submit the form",
+                }
+            },
         )
 
     now = datetime.now(UTC)
@@ -121,7 +142,10 @@ async def submit_intake_form(token: str, body: SubmitIntakeForm, request: Reques
             select(IntakeForm).where(IntakeForm.token == token)
         )
         if form is None:
-            raise HTTPException(status_code=404, detail={"error": {"code": "INTAKE_NOT_FOUND", "message": "Intake form not found"}})
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "INTAKE_NOT_FOUND", "message": "Intake form not found"}},
+            )
 
         if _expire_if_due(form, now):
             await session.execute(
@@ -130,11 +154,24 @@ async def submit_intake_form(token: str, body: SubmitIntakeForm, request: Reques
                 .values(status="expired", updated_at=now)
             )
             await session.commit()
-            raise HTTPException(status_code=410, detail={"error": {"code": "INTAKE_EXPIRED", "message": "This intake form link has expired"}})
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "error": {
+                        "code": "INTAKE_EXPIRED",
+                        "message": "This intake form link has expired",
+                    }
+                },
+            )
 
         if form.status != "pending":
             code = "INTAKE_COMPLETED" if form.status == "completed" else "INTAKE_EXPIRED"
-            raise HTTPException(status_code=410, detail={"error": {"code": code, "message": "This intake form link is no longer active"}})
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "error": {"code": code, "message": "This intake form link is no longer active"}
+                },
+            )
 
         # Encrypt the full form payload. model_dump_json serialises date/datetime
         # objects to ISO strings automatically.
@@ -190,19 +227,31 @@ async def send_intake_form(body: SendIntakeForm, request: Request) -> SendIntake
         if patient is None:
             raise HTTPException(
                 status_code=404,
-                detail=ApiError(error=Error(code="PATIENT_NOT_FOUND", message="Patient not found")).model_dump(by_alias=True),
+                detail=ApiError(
+                    error=Error(code="PATIENT_NOT_FOUND", message="Patient not found")
+                ).model_dump(by_alias=True),
             )
 
         if not patient.phone:
             raise HTTPException(
                 status_code=422,
-                detail=ApiError(error=Error(code="PATIENT_NO_PHONE", message="Patient does not have a phone number on file")).model_dump(by_alias=True),
+                detail=ApiError(
+                    error=Error(
+                        code="PATIENT_NO_PHONE",
+                        message="Patient does not have a phone number on file",
+                    )
+                ).model_dump(by_alias=True),
             )
 
         if patient.sms_opt_out:
             raise HTTPException(
                 status_code=422,
-                detail=ApiError(error=Error(code="PATIENT_SMS_OPT_OUT", message="Patient has opted out of SMS communications")).model_dump(by_alias=True),
+                detail=ApiError(
+                    error=Error(
+                        code="PATIENT_SMS_OPT_OUT",
+                        message="Patient has opted out of SMS communications",
+                    )
+                ).model_dump(by_alias=True),
             )
 
         practice = await session.scalar(
@@ -352,7 +401,12 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
         if not form.responses_encrypted:
             raise HTTPException(
                 status_code=422,
-                detail={"error": {"code": "INTAKE_NO_RESPONSES", "message": "Intake form has no responses"}},
+                detail={
+                    "error": {
+                        "code": "INTAKE_NO_RESPONSES",
+                        "message": "Intake form has no responses",
+                    }
+                },
             )
 
         patient = await session.scalar(

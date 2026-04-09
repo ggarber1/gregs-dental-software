@@ -13,7 +13,6 @@ from httpx import AsyncClient
 
 from tests.integration.conftest import mut
 
-
 pytestmark = pytest.mark.integration
 
 _BASE_CREATE_BODY = {
@@ -229,6 +228,8 @@ class TestListPatients:
         assert resp.status_code == 200
         result_body = resp.json()
         # Handle both list and paginated dict response shapes
-        patients = result_body.get("data", result_body) if isinstance(result_body, dict) else result_body
+        patients = (
+            result_body.get("data", result_body) if isinstance(result_body, dict) else result_body
+        )
         ids = [p["id"] for p in patients]
         assert str(rival_patient.id) not in ids

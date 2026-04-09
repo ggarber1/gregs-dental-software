@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
 import uuid
 
 from sqlalchemy import select
@@ -97,7 +96,8 @@ async def seed(
                 )
                 session.add(practice_user)
                 print(
-                    f"[seed] Created practice_user: practice={practice.id} user={user.id} role=admin"
+                    f"[seed] Created practice_user: "
+                    f"practice={practice.id} user={user.id} role=admin"
                 )
             else:
                 print(f"[seed] Practice membership already exists (role={practice_user.role!r})")

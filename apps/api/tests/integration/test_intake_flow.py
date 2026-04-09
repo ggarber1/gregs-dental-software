@@ -7,6 +7,7 @@ against a real Postgres database. Twilio SMS is mocked to avoid live sends.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -15,7 +16,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.integration.conftest import intake_submit_payload, mut
-
 
 pytestmark = pytest.mark.integration
 
@@ -62,8 +62,9 @@ class TestSendIntakeForm:
     async def test_send_422_patient_no_phone(
         self, client: AsyncClient, auth_headers, db_session, practice, mock_sms
     ):
-        from app.models.patient import Patient
         from datetime import date
+
+        from app.models.patient import Patient
 
         no_phone = Patient(
             id=uuid.uuid4(),
@@ -87,8 +88,9 @@ class TestSendIntakeForm:
     async def test_send_422_sms_opt_out(
         self, client: AsyncClient, auth_headers, db_session, practice, mock_sms
     ):
-        from app.models.patient import Patient
         from datetime import date
+
+        from app.models.patient import Patient
 
         opted_out = Patient(
             id=uuid.uuid4(),
@@ -125,9 +127,10 @@ class TestSendIntakeForm:
         staff_user, auth_headers, practice
     ):
         """Patient belonging to a different practice must not be found."""
+        from datetime import date
+
         from app.models.patient import Patient
         from app.models.practice import Practice
-        from datetime import date
 
         other_practice = Practice(id=uuid.uuid4(), name="Other Clinic", timezone="UTC")
         db_session.add(other_practice)
@@ -267,8 +270,9 @@ class TestStaffIntakeEndpoints:
     async def test_list_filter_by_patient(
         self, client: AsyncClient, auth_headers, patient, db_session, practice, mock_sms
     ):
-        from app.models.patient import Patient
         from datetime import date
+
+        from app.models.patient import Patient
 
         other = Patient(
             id=uuid.uuid4(),
@@ -325,11 +329,12 @@ class TestStaffIntakeEndpoints:
         self, client: AsyncClient, auth_headers, db_session, practice, mock_sms
     ):
         """A form belonging to a different practice must return 404."""
+        import secrets
+        from datetime import date, datetime, timedelta
+
         from app.models.intake_form import IntakeForm
         from app.models.patient import Patient
         from app.models.practice import Practice
-        from datetime import date, datetime, timedelta, timezone
-        import secrets
 
         other_practice = Practice(id=uuid.uuid4(), name="Other Clinic", timezone="UTC")
         db_session.add(other_practice)
@@ -351,7 +356,7 @@ class TestStaffIntakeEndpoints:
             patient_id=other_patient.id,
             token=secrets.token_hex(32),
             status="pending",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
+            expires_at=datetime.now(UTC) + timedelta(hours=72),
             created_by=uuid.uuid4(),
         )
         db_session.add(form)

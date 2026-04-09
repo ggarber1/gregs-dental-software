@@ -304,7 +304,9 @@ async def test_send_intake_form_returns_201():
     session.scalar = AsyncMock(side_effect=[patient, practice])
     session.add = MagicMock(side_effect=lambda r: setattr(r, "id", intake_row.id))
     session.commit = AsyncMock()
-    session.refresh = AsyncMock(side_effect=lambda r: setattr(r, "expires_at", intake_row.expires_at))
+    session.refresh = AsyncMock(
+        side_effect=lambda r: setattr(r, "expires_at", intake_row.expires_at)
+    )
 
     with (
         _auth_patches() as headers,

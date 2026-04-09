@@ -18,7 +18,6 @@ from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, patch
 
 import asyncpg
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
@@ -69,7 +68,6 @@ async def db_engine(_ensure_test_db: None) -> AsyncGenerator[AsyncEngine, None]:
     """Session-scoped async engine pointing at dental_test. Creates all tables once."""
     # Import models so they register with Base before create_all.
     import app.models  # noqa: F401 — triggers __init__ imports
-
     from app.models.base import Base
 
     engine = create_async_engine(_TEST_DB_URL, echo=False)
