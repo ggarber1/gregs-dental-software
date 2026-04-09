@@ -360,7 +360,7 @@ async def get_intake_form_detail(intake_form_id: uuid.UUID, request: Request) ->
         expiresAt=form.expires_at.replace(tzinfo=UTC),
         createdAt=form.created_at.replace(tzinfo=UTC),
         createdBy=form.created_by,
-        responses=responses,  # type: ignore[arg-type]
+        responses=responses,
     )
 
 

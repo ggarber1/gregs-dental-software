@@ -27,7 +27,7 @@ async def send_sms(to: str, body: str) -> None:
     # Import lazily so missing twilio dep doesn't crash the entire app on startup
     # (e.g. in environments where only eligibility features are needed).
     try:
-        from twilio.rest import Client  # type: ignore[import-untyped]
+        from twilio.rest import Client
     except ImportError as exc:
         raise RuntimeError(
             "twilio package is not installed. Run: uv add twilio"
