@@ -3,12 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Mock the cookies module before importing api-client.
 vi.mock("@/lib/auth/cookies", () => ({
   getAccessToken: vi.fn(),
+  getPracticeId: vi.fn(),
 }));
 
-import { getAccessToken } from "@/lib/auth/cookies";
+import { getAccessToken, getPracticeId } from "@/lib/auth/cookies";
 import { apiClient, ApiError } from "@/lib/api-client";
 
 const mockGetAccessToken = vi.mocked(getAccessToken);
+const mockGetPracticeId = vi.mocked(getPracticeId);
 
 const API_BASE = "http://localhost:8000";
 
@@ -25,6 +27,10 @@ afterEach(() => {
 });
 
 describe("apiClient — auth header", () => {
+  beforeEach(() => {
+    mockGetPracticeId.mockReturnValue(undefined);
+  });
+
   it("attaches Authorization header when access token is present", async () => {
     mockGetAccessToken.mockReturnValue("my-cognito-token");
     mockFetch(200, { data: "ok" });
@@ -48,9 +54,38 @@ describe("apiClient — auth header", () => {
   });
 });
 
+describe("apiClient — X-Practice-ID header", () => {
+  beforeEach(() => {
+    mockGetAccessToken.mockReturnValue(undefined);
+  });
+
+  it("attaches X-Practice-ID header when practice ID is present", async () => {
+    mockGetPracticeId.mockReturnValue("practice-uuid-123");
+    mockFetch(200, {});
+
+    await apiClient.get("/api/v1/patients");
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const headers = init?.headers as Record<string, string>;
+    expect(headers["X-Practice-ID"]).toBe("practice-uuid-123");
+  });
+
+  it("omits X-Practice-ID header when practice ID is absent", async () => {
+    mockGetPracticeId.mockReturnValue(undefined);
+    mockFetch(200, {});
+
+    await apiClient.get("/api/v1/patients");
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const headers = init?.headers as Record<string, string>;
+    expect(headers["X-Practice-ID"]).toBeUndefined();
+  });
+});
+
 describe("apiClient — idempotency key", () => {
   beforeEach(() => {
     mockGetAccessToken.mockReturnValue(undefined);
+    mockGetPracticeId.mockReturnValue(undefined);
   });
 
   it("attaches Idempotency-Key header when provided", async () => {
@@ -77,6 +112,7 @@ describe("apiClient — idempotency key", () => {
 describe("apiClient — HTTP methods and URL", () => {
   beforeEach(() => {
     mockGetAccessToken.mockReturnValue(undefined);
+    mockGetPracticeId.mockReturnValue(undefined);
   });
 
   it("GET calls correct URL with GET method", async () => {
@@ -123,6 +159,7 @@ describe("apiClient — HTTP methods and URL", () => {
 describe("apiClient — error handling", () => {
   beforeEach(() => {
     mockGetAccessToken.mockReturnValue(undefined);
+    mockGetPracticeId.mockReturnValue(undefined);
   });
 
   it("throws ApiError with status and body on 4xx response", async () => {
