@@ -149,7 +149,7 @@ class CreatePatient(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    practice_id: UUID = Field(..., alias='practiceId')
+    practice_id: UUID | None = Field(None, alias='practiceId')
     first_name: str = Field(..., alias='firstName', max_length=100, min_length=1)
     last_name: str = Field(..., alias='lastName', max_length=100, min_length=1)
     date_of_birth: date = Field(..., alias='dateOfBirth')
@@ -230,3 +230,100 @@ class ApiError(BaseModel):
         extra='forbid',
     )
     error: Error
+
+
+# ── Intake forms ──────────────────────────────────────────────────────────────
+
+
+class IntakeStatus(StrEnum):
+    pending = 'pending'
+    completed = 'completed'
+    expired = 'expired'
+
+
+class RelationshipToInsured(StrEnum):
+    self_ = 'self'
+    spouse = 'spouse'
+    child = 'child'
+    other = 'other'
+
+
+class IntakeFormTokenInfo(BaseModel):
+    """Public endpoint response — only practice name + patient first name."""
+
+    model_config = ConfigDict(extra='forbid')
+    practice_name: str = Field(..., alias='practiceName')
+    patient_first_name: str = Field(..., alias='patientFirstName')
+
+
+class SubmitIntakeForm(BaseModel):
+    """Patient-submitted form payload. Encrypted at rest as a JSON blob."""
+
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
+    # Personal info
+    first_name: str = Field(..., alias='firstName', max_length=100, min_length=1)
+    last_name: str = Field(..., alias='lastName', max_length=100, min_length=1)
+    date_of_birth: date = Field(..., alias='dateOfBirth')
+    sex: Sex | None = None
+    phone: str = Field(..., max_length=20)
+    email: EmailStr | None = Field(None, max_length=255)
+    address_line1: str | None = Field(None, alias='addressLine1', max_length=255)
+    address_line2: str | None = Field(None, alias='addressLine2', max_length=255)
+    city: str | None = Field(None, max_length=100)
+    state: str | None = Field(None, max_length=2, min_length=2)
+    zip: str | None = Field(None, max_length=10)
+    # Medical history
+    medical_conditions: list[str] | None = Field([], alias='medicalConditions')
+    medications: list[str] | None = []
+    allergies: list[str] | None = []
+    # Dental history
+    last_dental_visit: str | None = Field(None, alias='lastDentalVisit')
+    previous_dentist: str | None = Field(None, alias='previousDentist')
+    chief_complaint: str | None = Field(None, alias='chiefComplaint')
+    # Insurance
+    insurance_carrier: str | None = Field(None, alias='insuranceCarrier')
+    insurance_member_id: str | None = Field(None, alias='insuranceMemberId')
+    insurance_group_number: str | None = Field(None, alias='insuranceGroupNumber')
+    insurance_holder_name: str | None = Field(None, alias='insuranceHolderName')
+    insurance_holder_dob: str | None = Field(None, alias='insuranceHolderDob')
+    relationship_to_insured: RelationshipToInsured | None = Field(
+        None, alias='relationshipToInsured'
+    )
+    # HIPAA consent — validated in router that hipaa_consent_accepted is True
+    hipaa_consent_accepted: bool = Field(..., alias='hipaaConsentAccepted')
+    hipaa_consent_timestamp: AwareDatetime = Field(..., alias='hipaaConsentTimestamp')
+    hipaa_consent_signature: str = Field(..., alias='hipaaConsentSignature', min_length=1)
+    sms_opt_in: bool = Field(..., alias='smsOptIn')
+
+
+class SendIntakeForm(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    patient_id: UUID = Field(..., alias='patientId')
+
+
+class SendIntakeFormResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    intake_form_id: UUID = Field(..., alias='intakeFormId')
+    expires_at: AwareDatetime = Field(..., alias='expiresAt')
+    form_url: str = Field(..., alias='formUrl')
+
+
+class IntakeFormSummary(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: UUID
+    patient_id: UUID = Field(..., alias='patientId')
+    status: IntakeStatus
+    expires_at: AwareDatetime = Field(..., alias='expiresAt')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    created_by: UUID = Field(..., alias='createdBy')
+
+
+class IntakeFormDetail(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: UUID
+    patient_id: UUID = Field(..., alias='patientId')
+    status: IntakeStatus
+    expires_at: AwareDatetime = Field(..., alias='expiresAt')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    created_by: UUID = Field(..., alias='createdBy')
+    responses: dict[str, Any] | None = None

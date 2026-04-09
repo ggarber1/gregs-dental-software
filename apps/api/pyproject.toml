@@ -18,6 +18,7 @@ dependencies = [
     "cryptography>=44.0.0",
     "httpx>=0.28.1",
     "python-jose[cryptography]>=3.3.0",
+    "twilio>=9.0.0",
 ]
 
 [project.optional-dependencies]
@@ -64,4 +65,14 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# All async code (fixtures AND test functions) shares one session-scoped event loop.
+# This keeps asyncpg connection pools usable across the full test session.
+# Correctness is preserved via explicit DB truncation between tests (see integration/conftest.py).
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+# Run only unit tests by default; use `pytest -m integration` for integration tests.
+addopts = "-m 'not integration'"
+markers = [
+    "integration: marks tests that require a real Postgres + Redis (deselected by default)",
+]

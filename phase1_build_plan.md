@@ -342,30 +342,30 @@ Cognito is `OPTIONAL` in staging (sufficient for dev). Before production go-live
 - [x] Patient chart overview page
 - [x] Medical alerts bar (allergies always visible)
 
-### 2.3 X-Ray Viewer (Basic)
+### ~~2.3 X-Ray Viewer (Basic)~~ — REMOVED
 
-Dad reviews X-rays before every patient using separate software. Without this, staff still has to keep the old X-ray software open alongside ours for every appointment — persistent daily friction.
+**Decision (2026-04-09):** Removed entirely. Dad uses CDR DICOM (Schick by Dentsply Sirona), which is end-of-life as of Dec 31, 2024. Dentsply recommends migrating to Sidexis 4 (free for compatible hardware).
 
-Phase 1 scope is upload + display only. Sensor integration (hardware capture directly into the system) stays in Phase 4.
+A basic upload/display viewer provides no value because:
+- CDR's images live in a local proprietary database — nothing to pull from without reverse engineering
+- Dad still needs CDR open for clinical work (measurement tools, hardware capture)
+- Integration with PMS is a bridge pattern (launch CDR with patient ID), not an embedded viewer
 
-- [ ] Upload X-ray images to patient record (JPG, PNG, DICOM `.dcm` files accepted)
-- [ ] Store in S3 under `phi-documents` bucket, encrypted at rest, pre-signed URL for retrieval
-- [ ] Link X-rays to specific appointments and/or tooth numbers
-- [ ] Basic viewer in patient chart — display image, brightness/contrast slider, zoom
-- [ ] X-ray history tab on patient chart — all images across all visits in chronological order
-- [ ] Staff workflow: export image from existing X-ray software → drag and drop into patient record
-- [ ] **Not in Phase 1:** DICOM proper rendering with measurement tools (Phase 2), hardware sensor integration (Phase 4)
+**Phase 4 note:** Revisit imaging integration once the imaging software decision is settled (CDR → Sidexis 4 migration, or other). The integration itself is simple — launch imaging software with patient context — but not worth scoping until the target is known.
 
-### 2.4 Digital Intake Forms
-- [ ] `POST /api/v1/intake/send` — generate cryptographically random 32-byte token, set 72h expiry, send SMS via Twilio
-- [ ] `GET /intake/[token]` — public route (no auth), single-use, mobile-optimised
-- [ ] Form fields: personal info, medical history, medications, allergies, dental history, insurance info, HIPAA consent + signature
-- [ ] On submission: store encrypted responses in `intake_forms.responses` (jsonb), mark token used, write audit log with IP address
-- [ ] Completed intake data auto-populates patient record for staff review
-- [ ] `/intake/[token]/complete` — confirmation page
-- [ ] Reject resubmission on already-completed tokens
+### 2.4 Digital Intake Forms - Done
+- [x] `POST /api/v1/intake/send` — generate cryptographically random 32-byte token, set 72h expiry, send SMS via Twilio
+- [x] `GET /intake/[token]` — public route (no auth), single-use, mobile-optimised
+- [x] Form fields: personal info, medical history, medications, allergies, dental history, insurance info, HIPAA consent + signature
+- [x] On submission: store encrypted responses in `intake_forms.responses_encrypted` (BYTEA AES-256-GCM), mark token used, record IP address
+- [x] Completed intake data available for staff review; staff explicitly applies to patient record
+- [x] `/intake/[token]/complete` — confirmation page
+- [x] Reject resubmission on already-completed tokens
+- Note: Twilio credentials not yet wired — SMS logs in dev mode. Add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` to SSM/env for production.
 
----
+--
+
+CREATE E2E TESTS THAT RUN AS PART OF STAGING AND PROD DEPLOY
 
 ## 🚦 Staging Checkpoint 2 — End of Module 2 (after 2.1–2.4)
 
@@ -374,7 +374,6 @@ Phase 1 scope is upload + display only. Sensor integration (hardware capture dir
 Verify:
 - [ ] Create a patient — confirm SSN is stored as encrypted `bytea` in RDS (not plaintext)
 - [ ] Audit log rows appear in `audit_logs` for every patient read and write
-- [ ] Upload an X-ray to the real `phi-documents` S3 bucket; pre-signed URL loads the image
 - [ ] Send a live intake form SMS via Twilio to a test phone number; complete the form on mobile
 - [ ] Token is rejected on second submission (single-use enforced)
 - [ ] Completed intake data appears on patient chart

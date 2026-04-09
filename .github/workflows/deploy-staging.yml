@@ -18,6 +18,10 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    outputs:
+      web_url: ${{ steps.staging_urls.outputs.web_url }}
+      api_url: ${{ steps.staging_urls.outputs.api_url }}
+      user_pool_id: ${{ steps.build_config.outputs.user_pool_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -192,3 +196,25 @@ jobs:
           AWS_MAX_ATTEMPTS=80 aws ecs wait services-stable \
             --cluster "${{ env.CLUSTER }}" \
             --services "${{ env.API_SERVICE }}" "${{ env.WEB_SERVICE }}"
+
+      - name: Read staging URLs from SSM
+        id: staging_urls
+        run: |
+          WEB_URL=$(aws ssm get-parameter \
+            --name /dental/staging/app/web_url \
+            --query Parameter.Value --output text)
+          API_URL=$(aws ssm get-parameter \
+            --name /dental/staging/app/api_url \
+            --query Parameter.Value --output text)
+          echo "web_url=${WEB_URL}" >> "$GITHUB_OUTPUT"
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    name: E2E Tests
+    needs: deploy
+    uses: ./.github/workflows/e2e.yml
+    with:
+      web_url: ${{ needs.deploy.outputs.web_url }}
+      api_url: ${{ needs.deploy.outputs.api_url }}
+      cognito_user_pool_id: ${{ needs.deploy.outputs.user_pool_id }}
+    secrets: inherit

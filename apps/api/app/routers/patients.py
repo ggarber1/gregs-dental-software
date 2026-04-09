@@ -221,7 +221,9 @@ async def get_patient(patient_id: uuid.UUID, request: Request) -> Patient:
                 detail={"error": {"code": "PATIENT_NOT_FOUND", "message": "Patient not found"}},
             )
 
-        # Update access tracking — fire-and-forget style (same session, still fast)
+        # Update access tracking — fire-and-forget style (same session, still fast).
+        # Use synchronize_session=False to prevent ORM from expiring `row` attributes
+        # (particularly server-computed columns like updated_at) before we serialize.
         user_sub = getattr(request.state.user, "sub", None)
         await session.execute(
             update(PatientModel)
@@ -230,6 +232,7 @@ async def get_patient(patient_id: uuid.UUID, request: Request) -> Patient:
                 last_accessed_by=user_sub,
                 last_accessed_at=datetime.now(UTC),
             )
+            .execution_options(synchronize_session=False)
         )
         await session.commit()
 
@@ -293,3 +296,27 @@ async def update_patient(
         await session.refresh(row)
 
     return _row_to_schema(row, include_ssn=True)
+
+
+@router.delete("/{patient_id}", status_code=204)
+async def delete_patient(patient_id: uuid.UUID, request: Request) -> None:
+    practice_id = _require_practice_scope(request)
+    _require_write_role(request)
+
+    async with get_session_factory()() as session:
+        row = await session.scalar(
+            select(PatientModel).where(
+                PatientModel.id == patient_id,
+                PatientModel.practice_id == practice_id,
+                PatientModel.deleted_at.is_(None),
+            )
+        )
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "PATIENT_NOT_FOUND", "message": "Patient not found"}},
+            )
+
+        row.deleted_at = datetime.now(UTC)
+        await session.commit()
