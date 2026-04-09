@@ -31,6 +31,10 @@ export const CreatePatientSchema = PatientSchema.omit({
   deletedAt: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // practiceId is inferred from the authenticated X-Practice-ID header;
+  // providing it in the body is optional and used only for mismatch validation.
+  practiceId: UuidSchema.optional(),
 });
 
 export const UpdatePatientSchema = CreatePatientSchema.partial();

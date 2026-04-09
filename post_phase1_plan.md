@@ -47,11 +47,32 @@ Dad explicitly said he likes paper charts because history is easy to flip throug
 - Mom noted Eaglesoft isn't storing medical history well — this is a gap to fill
 - Version history — track changes over time, not just current state
 
-### 2.6 X-Ray Viewer (Basic)
-- Display existing X-ray images stored in S3 (uploaded by staff)
-- Link X-rays to specific appointments and teeth
-- Side-by-side comparison of X-rays across dates
-- Note: full X-ray hardware integration (Dexis, Carestream sensor) is Phase 4 — this phase is viewer only
+### 2.6 Imaging Integration (Deep)
+
+**Pre-requisite:** Dad has migrated off CDR DICOM (EOL Dec 2024) to a supported platform. Likely candidates: Sidexis 4 (free Dentsply upgrade for compatible Schick hardware), Dexis, or Apteryx XVWeb (cloud). Confirm before starting this section.
+
+**Goal:** Deep integration with the imaging software — not a replacement. Imaging software owns capture and clinical tools. PMS surfaces images in context and eliminates manual patient lookup in two systems.
+
+**Patient context bridge**
+- "Open in [Imaging Software]" button on patient chart — launches imaging software with patient pre-selected
+- Pass patient ID via bridge protocol (CLI arg or COM object, varies by vendor)
+- Button hidden on workstations where imaging software isn't installed
+
+**DICOM Modality Worklist (MWL)**
+- Stand up a DICOM MWL server (Orthanc, open-source) in the VPC — not publicly exposed
+- Populate worklist from PMS appointment data: patient name, DOB, MRN, procedure, scheduled time
+- Imaging software queries MWL at appointment start — staff selects patient from list instead of re-entering demographics
+- Eliminates the main source of data-entry errors in X-ray labeling
+
+**Image surfacing in PMS chart**
+- Imaging software pushes completed studies to Orthanc PACS via DICOM Storage SCU (standard feature on all major platforms)
+- On receive: extract metadata (tooth, date, modality), store DICOM in `phi-documents` S3, write to `patient_images` table linked to appointment
+- Render in patient chart using Cornerstone.js or OHIF Viewer (open-source, display-only — no FDA clearance needed)
+- X-ray history tab: all images across all visits, filterable by tooth/date/modality
+- Pre-signed S3 URLs for retrieval; images never served through app server
+- Audit log every image access (PHI read)
+
+**Note:** We are not building imaging software. Measurement tools, bone level analysis, and pathology detection stay in the dedicated imaging platform. Replacing those would require FDA 510(k) clearance and is out of scope indefinitely.
 
 ### 2.7 Offline Resilience
 - Read-only mode when internet is down — staff can view today's schedule and patient charts

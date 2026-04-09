@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 _MUTATION_METHODS: frozenset[str] = frozenset({"POST", "PATCH", "PUT", "DELETE"})
 _TTL_SECONDS = 86_400  # 24 hours
 
+# Public routes that use their own idempotency mechanism (e.g. single-use tokens)
+# and must not require the Idempotency-Key header.
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/intake/",)
+
 
 def _cache_key(practice_id: str | None, idempotency_key: str) -> str:
     scope = practice_id or "anonymous"
@@ -34,6 +38,10 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.method not in _MUTATION_METHODS:
+            return await call_next(request)
+
+        # Public intake endpoints use single-use tokens as their idempotency mechanism.
+        if any(request.url.path.startswith(p) for p in _PUBLIC_PREFIXES):
             return await call_next(request)
 
         idempotency_key = request.headers.get("Idempotency-Key")

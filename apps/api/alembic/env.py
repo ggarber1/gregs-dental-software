@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 # Import all models so their tables are registered on Base.metadata before
 # autogenerate inspects it. Add new model modules here as they are created.
 import app.models.audit_log  # noqa: F401
+import app.models.intake_form  # noqa: F401
 import app.models.operatory  # noqa: F401
 import app.models.practice  # noqa: F401
 import app.models.provider  # noqa: F401

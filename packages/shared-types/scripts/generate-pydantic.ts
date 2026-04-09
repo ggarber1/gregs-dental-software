@@ -35,6 +35,14 @@ import {
   PatientSearchQuerySchema,
 } from "../src/schemas/patient.js";
 import {
+  IntakeFormTokenInfoSchema,
+  SubmitIntakeFormSchema,
+  SendIntakeFormSchema,
+  SendIntakeFormResponseSchema,
+  IntakeFormSummarySchema,
+  IntakeFormDetailSchema,
+} from "../src/schemas/intake.js";
+import {
   PaginationQuerySchema,
   PaginationMetaSchema,
   ApiErrorSchema,
@@ -55,6 +63,12 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   PaginationQuery: PaginationQuerySchema,
   PaginationMeta: PaginationMetaSchema,
   ApiError: ApiErrorSchema,
+  IntakeFormTokenInfo: IntakeFormTokenInfoSchema,
+  SubmitIntakeForm: SubmitIntakeFormSchema,
+  SendIntakeForm: SendIntakeFormSchema,
+  SendIntakeFormResponse: SendIntakeFormResponseSchema,
+  IntakeFormSummary: IntakeFormSummarySchema,
+  IntakeFormDetail: IntakeFormDetailSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

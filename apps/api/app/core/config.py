@@ -45,6 +45,16 @@ class Settings(BaseSettings):
     # 32-byte base64-encoded key for AES-256 application-layer encryption (PHI)
     app_encryption_key: str = Field(default="")
 
+    # ── App URL ───────────────────────────────────────────────────────────────
+    # Public URL of the web frontend — used to build intake form links in SMS
+    app_url: str = Field(default="http://localhost:3000")
+
+    # ── Twilio ────────────────────────────────────────────────────────────────
+    # Leave blank in development — SMS will be logged, not sent
+    twilio_account_sid: str = Field(default="")
+    twilio_auth_token: str = Field(default="")
+    twilio_from_number: str = Field(default="")
+
     @property
     def is_development(self) -> bool:
         return self.api_env == "development"

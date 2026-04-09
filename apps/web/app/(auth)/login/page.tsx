@@ -70,10 +70,10 @@ export default function LoginPage() {
   async function persistSession() {
     const { fetchAuthSession } = await import("aws-amplify/auth");
     const session = await fetchAuthSession();
-    const accessToken = session.tokens?.accessToken?.toString();
-    // Amplify doesn't expose refresh tokens directly — the access token
-    // cookie is sufficient for Phase 1. Refresh token handling added in Phase 2.
-    if (!accessToken) {
+    // Store the ID token — it contains custom:practice_id and cognito:groups
+    // and has aud=client_id which the API middleware validates.
+    const idToken = session.tokens?.idToken?.toString();
+    if (!idToken) {
       setError("Could not retrieve session tokens. Please try again.");
       return;
     }
@@ -81,7 +81,7 @@ export default function LoginPage() {
     const res = await fetch("/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken, refreshToken: "" }),
+      body: JSON.stringify({ accessToken: idToken, refreshToken: "" }),
     });
 
     if (!res.ok) {

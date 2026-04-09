@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, X, Check } from "lucide-react";
+import { ArrowLeft, Pencil, X, Check, Send } from "lucide-react";
 import Link from "next/link";
 
 import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
+import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,11 @@ import {
   type UpdatePatientBody,
   type Sex,
 } from "@/lib/api/patients";
+import {
+  usePatientIntakeForms,
+  useSendIntakeForm,
+  type IntakeFormSummary,
+} from "@/lib/api/intake";
 
 function formatDob(dob: string): string {
   const [y, m, d] = dob.split("-");
@@ -390,6 +396,97 @@ function EditField({
   );
 }
 
+// ── Intake forms card ─────────────────────────────────────────────────────────
+
+function statusBadgeVariant(status: IntakeFormSummary["status"]) {
+  if (status === "completed") return "default" as const;
+  if (status === "expired") return "secondary" as const;
+  return "outline" as const;
+}
+
+function IntakeFormsCard({ patient, patientId }: { patient: Patient; patientId: string }) {
+  const { data: forms, isLoading } = usePatientIntakeForms(patientId);
+  const { mutate: sendForm, isPending: isSending, error: sendError } = useSendIntakeForm();
+  const [reviewId, setReviewId] = useState<string | null>(null);
+
+  function handleSend() {
+    sendForm({ patientId });
+  }
+
+  const canSend = !patient.smsOptOut && Boolean(patient.phone);
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-base font-semibold">Intake Forms</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSend}
+            disabled={isSending || !canSend}
+            title={!canSend ? "Patient has no phone number or has opted out of SMS" : undefined}
+          >
+            <Send className="h-4 w-4" />
+            {isSending ? "Sending…" : "Send form"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {sendError && (
+            <p className="mb-3 text-sm text-destructive">Failed to send form. Please try again.</p>
+          )}
+          {!canSend && (
+            <p className="mb-3 text-xs text-muted-foreground">
+              {!patient.phone
+                ? "Add a phone number to send an intake form."
+                : "Patient has opted out of SMS."}
+            </p>
+          )}
+          {isLoading && (
+            <div className="flex justify-center py-4">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )}
+          {!isLoading && (!forms || forms.length === 0) && (
+            <p className="text-sm text-muted-foreground">No intake forms sent yet.</p>
+          )}
+          {!isLoading && forms && forms.length > 0 && (
+            <ul className="divide-y divide-border">
+              {forms.map((f) => (
+                <li key={f.id} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusBadgeVariant(f.status)} className="capitalize">
+                      {f.status}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(f.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {f.status === "completed" && (
+                    <Button variant="ghost" size="sm" onClick={() => setReviewId(f.id)}>
+                      Review
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {reviewId && (
+        <IntakeReviewModal
+          intakeFormId={reviewId}
+          patientId={patientId}
+          open={Boolean(reviewId)}
+          onClose={() => setReviewId(null)}
+          onApplied={() => setReviewId(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PatientDetailPage() {
@@ -451,6 +548,9 @@ export default function PatientDetailPage() {
         <DemographicsCard patient={patient} patientId={patientId} />
         <ContactCard patient={patient} patientId={patientId} />
       </div>
+
+      {/* Intake forms */}
+      <IntakeFormsCard patient={patient} patientId={patientId} />
     </div>
   );
 }

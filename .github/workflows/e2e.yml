@@ -1,0 +1,64 @@
+name: E2E Tests
+
+on:
+  workflow_call:
+    inputs:
+      web_url:
+        description: "Staging web URL"
+        required: true
+        type: string
+      api_url:
+        description: "Staging API URL"
+        required: true
+        type: string
+      cognito_user_pool_id:
+        description: "Cognito user pool ID (for idempotent test-user creation)"
+        required: true
+        type: string
+    secrets:
+      E2E_TEST_EMAIL:
+        required: true
+      E2E_TEST_PASSWORD:
+        required: true
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          E2E_BASE_URL: ${{ inputs.web_url }}
+          E2E_API_URL: ${{ inputs.api_url }}
+          COGNITO_USER_POOL_ID: ${{ inputs.cognito_user_pool_id }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: pnpm e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
