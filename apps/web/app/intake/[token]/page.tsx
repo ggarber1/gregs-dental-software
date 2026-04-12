@@ -470,7 +470,7 @@ export default function IntakeFormPage() {
     if (!token) return;
     void (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/intake/form/${token}`);
+        const res = await fetch(`${API_BASE_URL}/api/intake/form/${token}`);
         if (res.status === 410) {
           const body = (await res.json()) as { error: { code: string } };
           setPageState(body.error?.code === "INTAKE_COMPLETED" ? "completed" : "expired");
@@ -565,7 +565,7 @@ export default function IntakeFormPage() {
     };
 
     try {
-      const res = await fetch(`${API_BASE_URL}/intake/form/${token}/submit`, {
+      const res = await fetch(`${API_BASE_URL}/api/intake/form/${token}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
