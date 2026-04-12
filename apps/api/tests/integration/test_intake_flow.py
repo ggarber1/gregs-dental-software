@@ -170,14 +170,14 @@ class TestPublicFormEndpoints:
         assert send.status_code == 201
         token = await _fetch_token(db_session, send.json()["intakeFormId"])
 
-        resp = await client.get(f"/intake/form/{token}")
+        resp = await client.get(f"/api/intake/form/{token}")
         assert resp.status_code == 200
         body = resp.json()
         assert body["practiceName"] == practice.name
         assert body["patientFirstName"] == patient.first_name
 
     async def test_get_form_404_unknown_token(self, client: AsyncClient):
-        resp = await client.get("/intake/form/deadbeef" + "0" * 56)
+        resp = await client.get("/api/intake/form/deadbeef" + "0" * 56)
         assert resp.status_code == 404
 
     async def test_submit_form_204(
@@ -191,7 +191,7 @@ class TestPublicFormEndpoints:
         token = await _fetch_token(db_session, send.json()["intakeFormId"])
 
         resp = await client.post(
-            f"/intake/form/{token}/submit",
+            f"/api/intake/form/{token}/submit",
             json=intake_submit_payload(),
         )
         assert resp.status_code == 204
@@ -207,10 +207,10 @@ class TestPublicFormEndpoints:
         token = await _fetch_token(db_session, send.json()["intakeFormId"])
         payload = intake_submit_payload()
 
-        first = await client.post(f"/intake/form/{token}/submit", json=payload)
+        first = await client.post(f"/api/intake/form/{token}/submit", json=payload)
         assert first.status_code == 204
 
-        second = await client.post(f"/intake/form/{token}/submit", json=payload)
+        second = await client.post(f"/api/intake/form/{token}/submit", json=payload)
         assert second.status_code == 410
         assert second.json()["error"]["code"] == "INTAKE_COMPLETED"
 
@@ -225,7 +225,7 @@ class TestPublicFormEndpoints:
         token = await _fetch_token(db_session, send.json()["intakeFormId"])
 
         resp = await client.post(
-            f"/intake/form/{token}/submit",
+            f"/api/intake/form/{token}/submit",
             json=intake_submit_payload(hipaaConsentAccepted=False),
         )
         assert resp.status_code == 422
@@ -241,9 +241,9 @@ class TestPublicFormEndpoints:
         )
         token = await _fetch_token(db_session, send.json()["intakeFormId"])
 
-        await client.post(f"/intake/form/{token}/submit", json=intake_submit_payload())
+        await client.post(f"/api/intake/form/{token}/submit", json=intake_submit_payload())
 
-        resp = await client.get(f"/intake/form/{token}")
+        resp = await client.get(f"/api/intake/form/{token}")
         assert resp.status_code == 410
         assert resp.json()["error"]["code"] == "INTAKE_COMPLETED"
 
@@ -316,7 +316,7 @@ class TestStaffIntakeEndpoints:
         token = await _fetch_token(db_session, form_id)
 
         payload = intake_submit_payload(firstName="UpdatedFirst")
-        await client.post(f"/intake/form/{token}/submit", json=payload)
+        await client.post(f"/api/intake/form/{token}/submit", json=payload)
 
         resp = await client.get(f"/api/v1/intake/{form_id}", headers=auth_headers)
         assert resp.status_code == 200
@@ -391,7 +391,7 @@ class TestApplyIntakeForm:
             medications=["metformin"],
             smsOptIn=False,
         )
-        await client.post(f"/intake/form/{token}/submit", json=payload)
+        await client.post(f"/api/intake/form/{token}/submit", json=payload)
 
         resp = await client.post(
             f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
@@ -440,7 +440,7 @@ class TestApplyIntakeForm:
         token = await _fetch_token(db_session, form_id)
 
         payload = intake_submit_payload(firstName="Idempotent")
-        await client.post(f"/intake/form/{token}/submit", json=payload)
+        await client.post(f"/api/intake/form/{token}/submit", json=payload)
 
         first = await client.post(
             f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
@@ -488,13 +488,13 @@ class TestFullIntakeFlow:
         token = db_form.token
 
         # 3. Public: greeting
-        greeting = await client.get(f"/intake/form/{token}")
+        greeting = await client.get(f"/api/intake/form/{token}")
         assert greeting.status_code == 200
         assert greeting.json()["practiceName"] == practice.name
 
         # 4. Public: submit
         submit_resp = await client.post(
-            f"/intake/form/{token}/submit",
+            f"/api/intake/form/{token}/submit",
             json=intake_submit_payload(firstName="EndToEnd"),
         )
         assert submit_resp.status_code == 204
@@ -507,7 +507,7 @@ class TestFullIntakeFlow:
         assert db_form.responses_encrypted is not None
 
         # 6. Public token is now spent
-        spent = await client.get(f"/intake/form/{token}")
+        spent = await client.get(f"/api/intake/form/{token}")
         assert spent.status_code == 410
 
         # 7. Staff: list — 1 completed form

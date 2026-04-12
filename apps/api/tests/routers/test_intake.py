@@ -125,7 +125,7 @@ def _auth_patches(practice_id: uuid.UUID | None = _PRACTICE_ID, role: str = "fro
         yield headers
 
 
-# ── Public: GET /intake/form/{token} ─────────────────────────────────────────
+# ── Public: GET /api/intake/form/{token} ─────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -143,7 +143,7 @@ async def test_get_intake_form_public_returns_200():
     with patch("app.routers.intake.get_session_factory") as mock_sf:
         mock_sf.return_value.return_value = session
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get(f"/intake/form/{_TOKEN}")
+            resp = await c.get(f"/api/intake/form/{_TOKEN}")
 
     assert resp.status_code == 200
     body = resp.json()
@@ -163,7 +163,7 @@ async def test_get_intake_form_public_404_unknown_token():
     with patch("app.routers.intake.get_session_factory") as mock_sf:
         mock_sf.return_value.return_value = session
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get("/intake/form/unknowntoken")
+            resp = await c.get("/api/intake/form/unknowntoken")
 
     assert resp.status_code == 404
 
@@ -186,7 +186,7 @@ async def test_get_intake_form_public_410_expired():
     with patch("app.routers.intake.get_session_factory") as mock_sf:
         mock_sf.return_value.return_value = session
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get(f"/intake/form/{_TOKEN}")
+            resp = await c.get(f"/api/intake/form/{_TOKEN}")
 
     assert resp.status_code == 410
     assert resp.json()["error"]["code"] == "INTAKE_EXPIRED"
@@ -208,13 +208,13 @@ async def test_get_intake_form_public_410_completed():
     with patch("app.routers.intake.get_session_factory") as mock_sf:
         mock_sf.return_value.return_value = session
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.get(f"/intake/form/{_TOKEN}")
+            resp = await c.get(f"/api/intake/form/{_TOKEN}")
 
     assert resp.status_code == 410
     assert resp.json()["error"]["code"] == "INTAKE_COMPLETED"
 
 
-# ── Public: POST /intake/form/{token}/submit ──────────────────────────────────
+# ── Public: POST /api/intake/form/{token}/submit ──────────────────────────────────
 
 _VALID_SUBMIT = {
     "firstName": "Jane",
@@ -250,7 +250,7 @@ async def test_submit_intake_form_returns_204():
     ):
         mock_sf.return_value.return_value = session
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.post(f"/intake/form/{_TOKEN}/submit", json=_VALID_SUBMIT)
+            resp = await c.post(f"/api/intake/form/{_TOKEN}/submit", json=_VALID_SUBMIT)
 
     assert resp.status_code == 204
 
@@ -261,7 +261,7 @@ async def test_submit_intake_form_rejects_missing_hipaa_consent():
     payload = {**_VALID_SUBMIT, "hipaaConsentAccepted": False}
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        resp = await c.post(f"/intake/form/{_TOKEN}/submit", json=payload)
+        resp = await c.post(f"/api/intake/form/{_TOKEN}/submit", json=payload)
 
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "HIPAA_CONSENT_REQUIRED"
@@ -283,7 +283,7 @@ async def test_submit_intake_form_rejects_second_submission():
     with patch("app.routers.intake.get_session_factory") as mock_sf:
         mock_sf.return_value.return_value = session
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            resp = await c.post(f"/intake/form/{_TOKEN}/submit", json=_VALID_SUBMIT)
+            resp = await c.post(f"/api/intake/form/{_TOKEN}/submit", json=_VALID_SUBMIT)
 
     assert resp.status_code == 410
 

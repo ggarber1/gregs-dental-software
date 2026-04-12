@@ -123,6 +123,29 @@ resource "aws_ssm_parameter" "secret_key" {
   }
 }
 
+resource "aws_ssm_parameter" "encryption_key" {
+  name   = "${local.path}/app/encryption_key"
+  type   = "SecureString"
+  value  = "placeholder — set to a base64-encoded 32-byte AES key (openssl rand -base64 32)"
+  key_id = var.kms_key_arn
+  tags   = var.tags
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "web_url" {
+  name  = "${local.path}/app/web_url"
+  type  = "String"
+  value = "placeholder — set to the public web URL"
+  tags  = var.tags
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # IAM policy — read all parameters under /dental/{env}/
 resource "aws_iam_policy" "ssm_read" {
   name        = "dental-${var.env}-ssm-read"
