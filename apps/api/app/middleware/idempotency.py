@@ -14,7 +14,7 @@ _TTL_SECONDS = 86_400  # 24 hours
 
 # Public routes that use their own idempotency mechanism (e.g. single-use tokens)
 # and must not require the Idempotency-Key header.
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/intake/",)
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/api/intake/form/",)
 
 
 def _cache_key(practice_id: str | None, idempotency_key: str) -> str:

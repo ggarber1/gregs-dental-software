@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Routes that do not require authentication.
 _PUBLIC_PATHS: set[str] = {"/health"}
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/intake/",)
+_PUBLIC_PREFIXES: tuple[str, ...] = ("/api/intake/form/",)
 
 # JWKS cache: { kid -> public key object }
 _jwks_cache: dict[str, Any] = {}

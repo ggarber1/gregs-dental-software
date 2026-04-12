@@ -128,6 +128,16 @@ resource "aws_iam_role_policy" "api_task" {
         Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
         Resource = var.kms_key_arn
       },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel",
+        ]
+        Resource = "*"
+      },
     ]
   })
 }
@@ -144,7 +154,7 @@ resource "aws_ecs_task_definition" "api" {
 
   container_definitions = jsonencode([{
     name      = "api"
-    image     = "${var.ecr_api_repo_url}:latest"
+    image     = "${var.ecr_api_repo_url}:staging-latest"
     essential = true
 
     portMappings = [{
@@ -169,6 +179,34 @@ resource "aws_ecs_task_definition" "api" {
       {
         name      = "SECRET_KEY"
         valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/app/secret_key"
+      },
+      {
+        name      = "COGNITO_USER_POOL_ID"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/cognito/user_pool_id"
+      },
+      {
+        name      = "COGNITO_CLIENT_ID"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/cognito/app_client_id"
+      },
+      {
+        name      = "APP_ENCRYPTION_KEY"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/app/encryption_key"
+      },
+      {
+        name      = "APP_URL"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/app/web_url"
+      },
+      {
+        name      = "TWILIO_ACCOUNT_SID"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/twilio/account_sid"
+      },
+      {
+        name      = "TWILIO_AUTH_TOKEN"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/twilio/auth_token"
+      },
+      {
+        name      = "TWILIO_FROM_NUMBER"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/twilio/phone_number"
       },
     ]
 
@@ -203,7 +241,7 @@ resource "aws_ecs_task_definition" "web" {
 
   container_definitions = jsonencode([{
     name      = "web"
-    image     = "${var.ecr_web_repo_url}:latest"
+    image     = "${var.ecr_web_repo_url}:staging-latest"
     essential = true
 
     portMappings = [{
@@ -243,11 +281,12 @@ resource "aws_ecs_task_definition" "web" {
 
 # ECS Services
 resource "aws_ecs_service" "api" {
-  name            = "dental-${var.env}-api"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = var.api_desired_count
-  launch_type     = "FARGATE"
+  name                   = "dental-${var.env}-api"
+  cluster                = aws_ecs_cluster.main.id
+  task_definition        = aws_ecs_task_definition.api.arn
+  desired_count          = var.api_desired_count
+  launch_type            = "FARGATE"
+  enable_execute_command = true
 
   network_configuration {
     subnets          = var.private_subnet_ids

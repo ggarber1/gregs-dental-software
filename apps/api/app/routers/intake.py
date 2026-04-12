@@ -38,7 +38,7 @@ _INTAKE_TTL_HOURS = 72
 # Routes under /intake/ are bypassed by CognitoAuthMiddleware and
 # IdempotencyMiddleware — no auth or Idempotency-Key header required.
 
-public_router = APIRouter(tags=["intake-public"])
+public_router = APIRouter(prefix="/api", tags=["intake-public"])
 
 
 def _client_ip(request: Request) -> str | None:
@@ -287,9 +287,10 @@ async def send_intake_form(body: SendIntakeForm, request: Request) -> SendIntake
         await sms.send_sms(to=patient.phone, body=message)
     except Exception:
         logger.warning(
-            "SMS delivery failed for intake form %s (patient %s) — form was created",
+            "SMS delivery failed for intake form %s (patient %s) — form was created; form_url=%s",
             form.id,
             body.patient_id,
+            form_url,
             exc_info=True,
         )
 
