@@ -13,7 +13,6 @@ Run with:
 from __future__ import annotations
 
 import asyncio
-import uuid
 
 import pytest
 from httpx import AsyncClient
@@ -165,7 +164,6 @@ class TestAuditLogCoverage:
             "/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers)
         )
         assert resp.status_code == 201
-        patient_id = resp.json()["id"]
 
         await self._flush_audit_tasks()
 
