@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, UserPlus } from "lucide-react";
 
@@ -31,7 +31,7 @@ function formatSex(sex: Patient["sex"]): string {
   return sex.charAt(0).toUpperCase() + sex.slice(1);
 }
 
-export default function PatientsPage() {
+function PatientsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -191,5 +191,13 @@ export default function PatientsPage() {
 
       <NewPatientModal open={showNewModal} onOpenChange={setShowNewModal} />
     </div>
+  );
+}
+
+export default function PatientsPage() {
+  return (
+    <Suspense>
+      <PatientsPageContent />
+    </Suspense>
   );
 }
