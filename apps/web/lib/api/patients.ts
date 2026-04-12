@@ -6,7 +6,7 @@ import {
   type UseMutationResult,
 } from "@tanstack/react-query";
 
-import { apiClient, ApiError } from "@/lib/api-client";
+import { apiClient, ApiError, generateId } from "@/lib/api-client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -106,13 +106,13 @@ export async function getPatient(id: string): Promise<Patient> {
 
 export async function createPatient(body: CreatePatientBody): Promise<Patient> {
   return apiClient.post<Patient>("/api/v1/patients", body, {
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey: generateId(),
   });
 }
 
 export async function updatePatient(id: string, body: UpdatePatientBody): Promise<Patient> {
   return apiClient.patch<Patient>(`/api/v1/patients/${id}`, body, {
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey: generateId(),
   });
 }
 

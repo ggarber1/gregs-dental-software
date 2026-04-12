@@ -6,7 +6,7 @@ import {
   type UseMutationResult,
 } from "@tanstack/react-query";
 
-import { apiClient } from "@/lib/api-client";
+import { apiClient, generateId } from "@/lib/api-client";
 import type { Patient } from "@/lib/api/patients";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ export const intakeKeys = {
 
 export async function sendIntakeForm(body: SendIntakeFormBody): Promise<SendIntakeFormResponse> {
   return apiClient.post<SendIntakeFormResponse>("/api/v1/intake/send", body, {
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey: generateId(),
   });
 }
 
@@ -61,7 +61,7 @@ export async function getIntakeFormDetail(id: string): Promise<IntakeFormDetail>
 
 export async function applyIntakeForm(id: string): Promise<Patient> {
   return apiClient.post<Patient>(`/api/v1/intake/${id}/apply`, {}, {
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey: generateId(),
   });
 }
 
