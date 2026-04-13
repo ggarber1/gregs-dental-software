@@ -74,6 +74,15 @@ Dad explicitly said he likes paper charts because history is easy to flip throug
 
 **Note:** We are not building imaging software. Measurement tools, bone level analysis, and pathology detection stay in the dedicated imaging platform. Replacing those would require FDA 510(k) clearance and is out of scope indefinitely.
 
+### 2.8 Family Member Linking
+
+- `patient_relationships` table (`patient_id`, `related_patient_id`, `relationship_type`)
+- Relationship types: `spouse`, `parent`, `child`, `sibling`, `guardian`, `dependent`, `other`
+- Read-only section on patient chart showing linked family members with quick-nav to their charts
+- Both patients must share the same `practice_id`; store both directions (A→B and B→A) for query simplicity
+- Use `PHIMixin` — social graph is PHI-sensitive even without raw demographics
+- **Priority note:** Confirmed low priority with dad. Front desk can achieve the same via last-name search today. Revisit after scheduling is live, or if dad explicitly requests it.
+
 ### 2.7 Offline Resilience
 - Read-only mode when internet is down — staff can view today's schedule and patient charts
 - Queue writes locally, sync when connection restores
