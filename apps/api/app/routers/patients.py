@@ -76,6 +76,7 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         dateOfBirth=row.date_of_birth,
         sex=row.sex,  # type: ignore[arg-type]
         maritalStatus=row.marital_status,  # type: ignore[arg-type]
+        lastXrayDate=row.last_xray_date,
         phone=row.phone,
         email=row.email,
         addressLine1=row.address_line1,

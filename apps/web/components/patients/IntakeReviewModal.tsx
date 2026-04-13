@@ -66,6 +66,12 @@ function IntakeResponses({ responses }: { responses: Record<string, unknown> }) 
         <Row label="City" value={responses.city} />
         <Row label="State" value={responses.state} />
         <Row label="Zip" value={responses.zip} />
+        <Row label="Marital status" value={responses.maritalStatus} />
+        <Row label="Emergency contact" value={responses.emergencyContactName} />
+        <Row label="Emergency phone" value={responses.emergencyContactPhone} />
+        <Row label="Occupation" value={responses.occupation} />
+        <Row label="Employer" value={responses.employer} />
+        <Row label="Referred by" value={responses.referralSource} />
       </Section>
       <Section title="Medical history">
         <Row label="Conditions" value={responses.medicalConditions} />
@@ -74,6 +80,7 @@ function IntakeResponses({ responses }: { responses: Record<string, unknown> }) 
       </Section>
       <Section title="Dental history">
         <Row label="Last dental visit" value={responses.lastDentalVisit} />
+        <Row label="Last X-rays" value={responses.lastXrayDate} />
         <Row label="Previous dentist" value={responses.previousDentist} />
         <Row label="Chief complaint" value={responses.chiefComplaint} />
       </Section>

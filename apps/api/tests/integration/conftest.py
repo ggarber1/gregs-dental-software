@@ -261,7 +261,7 @@ def intake_submit_payload(**overrides: object) -> dict:
         "medications": ["metformin", "lisinopril"],
         "allergies": ["penicillin"],
         "lastDentalVisit": "2024-01-10",
-        "lastXrayDate": "About 1 year ago",
+        "lastXrayDate": "2024-06-15",
         "chiefComplaint": "Tooth pain upper left",
         "insuranceCarrier": "Delta Dental",
         "insuranceMemberId": "DD123456",
