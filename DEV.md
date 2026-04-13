@@ -242,7 +242,27 @@ aws ssm put-parameter --name /dental/staging/app/api_url \
   --value "https://api.staging.yourdomain.com" \
   --type String --overwrite
 
-# Twilio — set when building Module 4 (reminders). Leave as placeholder until then.
+# Web URL — the public-facing URL of the Next.js ALB (used by the E2E tests after deploy
+# and baked into the API as APP_URL for building intake form SMS links).
+aws ssm put-parameter --name /dental/staging/app/web_url \
+  --value "https://web.staging.yourdomain.com" \
+  --type String --overwrite
+
+# Encryption key — AES-256 key for PHI encryption (SSN, intake form responses).
+# Generate with: openssl rand -base64 32
+aws ssm put-parameter --name /dental/staging/app/encryption_key \
+  --value "$(openssl rand -base64 32)" \
+  --type SecureString --overwrite
+
+# Twilio — required for intake form SMS delivery (Module 2.4+) and reminders (Module 4).
+# SMS is gracefully skipped in dev if these are blank (form URL is logged instead).
+#
+# BEFORE POPULATING FOR STAGING/PROD:
+#   A2P 10DLC registration is required by US carriers or messages will be silently filtered.
+#   Prerequisites: business entity (LLC + EIN), website, local Twilio phone number.
+#   Steps: Twilio Console → Messaging → Regulatory Compliance → Register Brand → Register Campaign
+#   Approval takes 1-5 business days. Do this before onboarding the first real practice.
+#
 # aws ssm put-parameter --name /dental/staging/twilio/account_sid \
 #   --value "ACxxx" --type SecureString --overwrite
 # aws ssm put-parameter --name /dental/staging/twilio/auth_token \

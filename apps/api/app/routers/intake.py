@@ -16,6 +16,7 @@ from app.core.db import get_session_factory
 from app.core.encryption import decrypt, encrypt
 from app.models.intake_form import IntakeForm
 from app.models.patient import Patient as PatientModel
+from app.models.patient_insurance import PatientInsurance
 from app.models.practice import Practice
 from app.routers.patients import _require_practice_scope, _require_write_role, _row_to_schema
 from app.schemas.generated import (
@@ -451,28 +452,70 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
         if data.get("zip") is not None:
             patient.zip = data["zip"] or None
 
-        # SSN last 4 — encrypt before storage (never store plaintext)
+        # SSN — encrypt before storage (never store plaintext)
         if data.get("ssnLastFour"):
             patient.ssn_encrypted = encrypt(data["ssnLastFour"])
 
-        # Clinical flags
+        # Clinical flags — split medications and conditions into separate fields
         if data.get("allergies"):
-            patient.allergies = data["allergies"]
+            patient.allergies = [a for a in data["allergies"] if a]
 
-        # Combine medical conditions and medications into medical_alerts
-        medical_alerts: list[str] = []
         if data.get("medicalConditions"):
-            medical_alerts.extend(data["medicalConditions"])
+            patient.medical_alerts = [c for c in data["medicalConditions"] if c]
+
         if data.get("medications"):
-            medical_alerts.extend(data["medications"])
-        if medical_alerts:
-            patient.medical_alerts = medical_alerts
+            patient.medications = [m for m in data["medications"] if m]
 
         # SMS opt-in → invert to sms_opt_out
         if "smsOptIn" in data:
             patient.sms_opt_out = not data["smsOptIn"]
 
         patient.updated_at = datetime.now(UTC)
+
+        # Insurance — create/upsert primary insurance row if carrier is provided
+        if data.get("insuranceCarrier"):
+            # Soft-delete any existing primary insurance to avoid duplicates on re-apply
+            existing_primary = await session.scalar(
+                select(PatientInsurance).where(
+                    PatientInsurance.patient_id == patient.id,
+                    PatientInsurance.practice_id == practice_id,
+                    PatientInsurance.priority == "primary",
+                    PatientInsurance.deleted_at.is_(None),
+                )
+            )
+            if existing_primary is not None:
+                existing_primary.deleted_at = datetime.now(UTC)
+
+            holder_name: str = data.get("insuranceHolderName") or ""
+            holder_parts = holder_name.split(" ", 1) if holder_name else []
+            insured_first = holder_parts[0] if holder_parts else None
+            insured_last = holder_parts[1] if len(holder_parts) > 1 else None
+
+            insured_dob_raw = data.get("insuranceHolderDob")
+            insured_dob = None
+            if insured_dob_raw:
+                try:
+                    insured_dob = date.fromisoformat(insured_dob_raw)
+                except ValueError:
+                    pass
+
+            relationship = data.get("relationshipToInsured") or "self"
+
+            insurance_row = PatientInsurance(
+                id=uuid.uuid4(),
+                patient_id=patient.id,
+                practice_id=practice_id,
+                priority="primary",
+                carrier=data["insuranceCarrier"],
+                member_id=data.get("insuranceMemberId"),
+                group_number=data.get("insuranceGroupNumber"),
+                relationship_to_insured=relationship,
+                insured_first_name=insured_first if relationship != "self" else None,
+                insured_last_name=insured_last if relationship != "self" else None,
+                insured_date_of_birth=insured_dob if relationship != "self" else None,
+                is_active=True,
+            )
+            session.add(insurance_row)
 
         await session.commit()
         await session.refresh(patient)

@@ -11,6 +11,14 @@ import { apiClient, ApiError, generateId } from "@/lib/api-client";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type Sex = "male" | "female" | "other" | "unknown";
+export type MaritalStatus =
+  | "single"
+  | "married"
+  | "divorced"
+  | "widowed"
+  | "separated"
+  | "domestic_partner"
+  | "other";
 
 export interface Patient {
   id: string;
@@ -19,6 +27,7 @@ export interface Patient {
   lastName: string;
   dateOfBirth: string; // ISO date string YYYY-MM-DD
   sex: Sex | null;
+  maritalStatus: MaritalStatus | null;
   phone: string | null;
   email: string | null;
   addressLine1: string | null;
@@ -26,9 +35,12 @@ export interface Patient {
   city: string | null;
   state: string | null;
   zip: string | null;
-  ssnLastFour: string | null;
+  /** PHI — 4-digit last-four or full 9-digit SSN, AES-256 encrypted at rest */
+  ssn: string | null;
   allergies: string[];
   medicalAlerts: string[];
+  medications: string[];
+  doctorNotes: string | null;
   smsOptOut: boolean;
   deletedAt: string | null;
   createdAt: string;
@@ -52,6 +64,7 @@ export interface CreatePatientBody {
   lastName: string;
   dateOfBirth: string;
   sex?: Sex | null;
+  maritalStatus?: MaritalStatus | null;
   phone?: string | null;
   email?: string | null;
   addressLine1?: string | null;
@@ -59,9 +72,11 @@ export interface CreatePatientBody {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
-  ssnLastFour?: string | null;
+  ssn?: string | null;
   allergies?: string[];
   medicalAlerts?: string[];
+  medications?: string[];
+  doctorNotes?: string | null;
   smsOptOut?: boolean;
 }
 
@@ -70,6 +85,7 @@ export interface UpdatePatientBody {
   lastName?: string;
   dateOfBirth?: string;
   sex?: Sex | null;
+  maritalStatus?: MaritalStatus | null;
   phone?: string | null;
   email?: string | null;
   addressLine1?: string | null;
@@ -77,9 +93,11 @@ export interface UpdatePatientBody {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
-  ssnLastFour?: string | null;
+  ssn?: string | null;
   allergies?: string[];
   medicalAlerts?: string[];
+  medications?: string[];
+  doctorNotes?: string | null;
   smsOptOut?: boolean;
 }
 
@@ -145,7 +163,8 @@ export function useCreatePatient(): UseMutationResult<Patient, Error, CreatePati
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createPatient,
-    onSuccess: () => {
+    onSuccess: (created) => {
+      queryClient.setQueryData(patientKeys.detail(created.id), created);
       void queryClient.invalidateQueries({ queryKey: patientKeys.all });
     },
   });

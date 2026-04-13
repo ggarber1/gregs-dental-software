@@ -16,7 +16,7 @@ from app.middleware.audit import AuditLogMiddleware
 from app.middleware.auth import CognitoAuthMiddleware
 from app.middleware.idempotency import IdempotencyMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
-from app.routers import intake, patients
+from app.routers import insurance, intake, patients
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
 
     # Additional routers registered here per module (2.x onward)
     app.include_router(patients.router)
+    app.include_router(insurance.router)
     app.include_router(intake.public_router)
     app.include_router(intake.staff_router)
 

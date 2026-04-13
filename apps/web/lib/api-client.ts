@@ -75,6 +75,9 @@ async function request<T>(
     throw new ApiError(response.status, errorBody);
   }
 
+  if (response.status === 204 || response.status === 205) {
+    return undefined as T;
+  }
   return response.json() as Promise<T>;
 }
 

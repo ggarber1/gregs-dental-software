@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,10 @@ const schema = z.object({
   lastName: z.string().min(1, "Required").max(100),
   dateOfBirth: z.string().min(1, "Required").regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
   sex: z.enum(["male", "female", "other", "unknown"]).nullable().optional(),
+  maritalStatus: z
+    .enum(["single", "married", "divorced", "widowed", "separated", "domestic_partner", "other"])
+    .nullable()
+    .optional(),
   phone: z.string().max(20).nullable().optional(),
   email: z.string().email("Invalid email").max(255).nullable().or(z.literal("")).optional(),
   addressLine1: z.string().max(255).nullable().optional(),
@@ -34,10 +39,9 @@ const schema = z.object({
   city: z.string().max(100).nullable().optional(),
   state: z.string().length(2, "2-letter code").nullable().or(z.literal("")).optional(),
   zip: z.string().max(10).nullable().optional(),
-  ssnLastFour: z
+  ssn: z
     .string()
-    .length(4, "Must be exactly 4 digits")
-    .regex(/^\d{4}$/, "Digits only")
+    .regex(/^\d{4}$|^\d{9}$/, "Enter last 4 or full 9 digits")
     .nullable()
     .or(z.literal(""))
     .optional(),
@@ -54,6 +58,7 @@ const EMPTY: FormValues = {
   lastName: "",
   dateOfBirth: "",
   sex: null,
+  maritalStatus: null,
   phone: "",
   email: "",
   addressLine1: "",
@@ -61,7 +66,7 @@ const EMPTY: FormValues = {
   city: "",
   state: "",
   zip: "",
-  ssnLastFour: "",
+  ssn: "",
   allergiesRaw: "",
   medicalAlertsRaw: "",
   smsOptOut: false,
@@ -81,6 +86,7 @@ function splitComma(raw: string | undefined): string[] {
 }
 
 export function NewPatientModal({ open, onOpenChange }: Props) {
+  const router = useRouter();
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -115,6 +121,7 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
       lastName: values.lastName,
       dateOfBirth: values.dateOfBirth,
       sex: values.sex ?? null,
+      maritalStatus: values.maritalStatus ?? null,
       phone: values.phone || null,
       email: values.email || null,
       addressLine1: values.addressLine1 || null,
@@ -122,17 +129,18 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
       city: values.city || null,
       state: values.state || null,
       zip: values.zip || null,
-      ssnLastFour: values.ssnLastFour || null,
+      ssn: values.ssn || null,
       allergies: splitComma(values.allergiesRaw),
       medicalAlerts: splitComma(values.medicalAlertsRaw),
       smsOptOut: values.smsOptOut ?? false,
     };
 
     createPatient(body, {
-      onSuccess: () => {
+      onSuccess: (patient) => {
         setValues(EMPTY);
         setErrors({});
         onOpenChange(false);
+        router.push(`/patients/${patient.id}`);
       },
     });
   }
@@ -201,6 +209,29 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
               </Field>
             </div>
 
+            {/* Marital status */}
+            <Field label="Marital status" error={errors.maritalStatus}>
+              <Select
+                value={values.maritalStatus ?? ""}
+                onValueChange={(v) =>
+                  set("maritalStatus", v === "" ? null : (v as FormValues["maritalStatus"]))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="married">Married</SelectItem>
+                  <SelectItem value="divorced">Divorced</SelectItem>
+                  <SelectItem value="widowed">Widowed</SelectItem>
+                  <SelectItem value="separated">Separated</SelectItem>
+                  <SelectItem value="domestic_partner">Domestic partner</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
             {/* Phone + Email */}
             <div className="grid grid-cols-2 gap-4">
               <Field label="Phone" error={errors.phone}>
@@ -261,14 +292,14 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
               </Field>
             </div>
 
-            {/* SSN last 4 */}
-            <Field label="SSN last 4" error={errors.ssnLastFour}>
+            {/* SSN */}
+            <Field label="SSN (last 4 or full 9 digits)" error={errors.ssn}>
               <Input
-                value={values.ssnLastFour ?? ""}
-                onChange={(e) => set("ssnLastFour", e.target.value)}
-                placeholder="1234"
-                maxLength={4}
-                className="max-w-[8rem]"
+                value={values.ssn ?? ""}
+                onChange={(e) => set("ssn", e.target.value)}
+                placeholder="1234 or 123456789"
+                maxLength={9}
+                className="max-w-[12rem]"
               />
             </Field>
 

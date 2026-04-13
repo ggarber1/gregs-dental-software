@@ -64,6 +64,10 @@ python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "app.schemas.generated"
+ignore_errors = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 # All async code (fixtures AND test functions) shares one session-scoped event loop.

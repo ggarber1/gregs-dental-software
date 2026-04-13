@@ -9,6 +9,7 @@ Run with:
 
 All tables are truncated between tests — never run against production.
 """
+
 from __future__ import annotations
 
 import os
@@ -39,6 +40,7 @@ _TEST_DB_URL = "postgresql+asyncpg://dental:dental@localhost:5432/dental_test"
 _TRUNCATE_TABLES = (
     "intake_forms",
     "audit_logs",
+    "patient_insurances",
     "patients",
     "practice_users",
     "users",
@@ -54,9 +56,7 @@ async def _ensure_test_db() -> None:
     """Create the dental_test database if it does not exist."""
     conn = await asyncpg.connect("postgresql://dental:dental@localhost:5432/dental")
     try:
-        exists = await conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = 'dental_test'"
-        )
+        exists = await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = 'dental_test'")
         if not exists:
             await conn.execute("CREATE DATABASE dental_test")
     finally:

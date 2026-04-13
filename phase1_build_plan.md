@@ -8,6 +8,46 @@ Replace the core Eaglesoft workflow for a solo dental practice. Dad runs Eagleso
 
 ---
 
+## Business Prerequisites (Do In Parallel With the Build)
+
+These are not software tasks but they gate real milestones. Start them early — several have multi-week lead times.
+
+### Entity & Identity
+- [ ] Form an LLC (recommend single-member LLC for simplicity; consult a CPA/attorney on state)
+- [ ] Obtain EIN from IRS (free, instant online at irs.gov)
+- [ ] Open a business bank account
+- [ ] Register a business domain (e.g. `molardental.com` or similar)
+
+### Website (Required for A2P + Credibility)
+- [ ] Publish a minimal website on the business domain — even a single landing page counts
+- [ ] Must include: business name, description of service, contact info
+- [ ] Required by Twilio A2P 10DLC brand registration and Availity enrollment
+
+### Twilio A2P 10DLC (Required Before SMS Works in Prod)
+- [ ] Purchase a local Twilio phone number (pick an area code local to the practice)
+- [ ] Submit Brand registration (business name, EIN, address, website)
+- [ ] Submit Campaign registration (use case: "customer notifications / appointment reminders")
+- [ ] Link Twilio number to approved campaign
+- [ ] **Start this at Module 2 complete** — approval takes 1–5 business days, blocks Staging Checkpoint 2 SMS item and all of Module 4
+
+### Clearinghouse Enrollment (Required Before Claims Work in Prod)
+- [ ] Submit Availity production application (NPI + EIN required)
+- [ ] Enroll for each target payer (Delta Dental, MassHealth/DentaQuest, Cigna, Aetna, MetLife)
+- [ ] Pass Availity test transaction requirements
+- [ ] Sign BAA with Availity
+- [ ] **Start this at Module 4 complete** — enrollment queues run 4–8 weeks, blocks Staging Checkpoint 6
+
+### HIPAA BAAs (Required Before Any Real Patient Data)
+- [ ] AWS BAA — sign via AWS console (Artifact → Agreements) before staging handles real PHI
+- [ ] Twilio BAA — required before SMS contains any PHI (intake form links are low-risk but get this done)
+- [ ] Any other vendor touching PHI gets a BAA before go-live
+
+### Insurance & Legal
+- [ ] Cyber liability insurance (covers breach notification costs — important for a PHI-handling product)
+- [ ] Review Terms of Service and Privacy Policy with a lawyer before onboarding paying customers
+
+---
+
 ## Optional Modules — Feature Flags
 
 Modules 5 (Insurance Verification), 6 (Co-pay Estimation), and 7 (Claims Submission) are **opt-in per practice**. A practice must explicitly enable each one. The system is fully usable for scheduling, patient records, and reminders without any of them active.
@@ -361,25 +401,30 @@ A basic upload/display viewer provides no value because:
 - [x] Completed intake data available for staff review; staff explicitly applies to patient record
 - [x] `/intake/[token]/complete` — confirmation page
 - [x] Reject resubmission on already-completed tokens
-- Note: Twilio credentials not yet wired — SMS logs in dev mode. Add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` to SSM/env for production.
+- Note: SMS is live in code. In dev, leave Twilio credentials blank and the form URL is logged instead (no Twilio account needed). For staging/prod, populate SSM params (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`) **and** complete Twilio A2P 10DLC registration — without it, US carriers will silently filter messages. A2P requires a business entity (LLC + EIN) and website; submit brand + campaign registration early as approval takes 1–5 business days.
 
 --
-
-CREATE E2E TESTS THAT RUN AS PART OF STAGING AND PROD DEPLOY
 
 ## 🚦 Staging Checkpoint 2 — End of Module 2 (after 2.1–2.4)
 
 **Why here:** First real PHI in the system. Also the right moment to get dad's eyes on the first screens before building scheduling on top.
 
 Verify:
-- [ ] Create a patient — confirm SSN is stored as encrypted `bytea` in RDS (not plaintext)
-- [ ] Audit log rows appear in `audit_logs` for every patient read and write
-- [ ] Send a live intake form SMS via Twilio to a test phone number; complete the form on mobile
-- [ ] Token is rejected on second submission (single-use enforced)
-- [ ] Completed intake data appears on patient chart
-- [ ] **Dad review:** walk through patient list, chart, and intake form UX — capture feedback before continuing
+- [x] Create a patient — confirm SSN is stored as encrypted `bytea` in RDS (not plaintext) — covered by `tests/integration/test_checkpoint2.py::TestSSNEncryptedAtRest`
+- [x] Audit log rows appear in `audit_logs` for every patient read and write — covered by `tests/integration/test_checkpoint2.py::TestAuditLogCoverage`
+- [x] Send a live intake form SMS via Twilio to a test phone number; complete the form on mobile (**blocked on A2P 10DLC registration** — requires LLC/EIN/website; initiate early, approval takes 1–5 days; form URL is logged in dev so the rest of this checkpoint can proceed without it) — code verified via E2E mock; form URL logged in dev
+- [x] Token is rejected on second submission (single-use enforced) — covered by `test_submit_second_time_returns_410` + E2E
+- [x] Completed intake data appears on patient chart — covered by `test_apply_updates_patient_record` + E2E full flow
+- [x] **Dad review (Checkpoint 2):** marital status, full SSN, insurance card, medications split, auto-redirect after create, doctor's note — all addressed in post-checkpoint patch (see deferred items below)
 
----
+### Post-Checkpoint 2 Deferred Items
+
+These were identified during dad's Checkpoint 2 review and intentionally excluded from the main pass. Pick these up before or alongside Module 3.
+
+- [ ] **Intake form field review vs. `garber_new_patient_forms.pdf`** — Install poppler (`brew install poppler`) and compare every field on the paper form against the digital intake form. Known gaps to check: emergency contact, responsible party, prior X-rays, dental anxiety level, occupation/employer, how they heard about the practice. Do this before making any intake form UI changes so nothing is missed.
+- [ ] **Intake form UI updates** — After the PDF review above, add missing fields to the patient-facing intake form: marital status, optional SSN (last 4), emergency contact, and a preset carrier dropdown for insurance. Scope the changes to exactly what the PDF review reveals — no more, no less.
+- [ ] **Family member linking** — Add a `patient_relationships` table (patient_id, related_patient_id, relationship_type) and a UI section on the patient chart to link spouses and children. Confirm priority with dad before building — may be lower priority than scheduling.
+- [ ] **MFA enrollment flow** — Build a TOTP enrollment screen (QR code + verify code) that fires on first login before production go-live. This was flagged as a pre-production gate in Checkpoint 1 notes.
 
 ## Module 3: Scheduling
 
@@ -461,7 +506,7 @@ Do not wait until Module 7 to start this. Payer enrollment queues run 4–8 week
 **Why here:** First async worker (ECS `reminder-worker`) and first Twilio integration. The inbound webhook cannot be tested locally — it needs a real publicly reachable URL.
 
 Verify:
-- [ ] Create an appointment → SQS reminder job enqueued → worker dequeues → Twilio SMS delivered to test number
+- [ ] Create an appointment → SQS reminder job enqueued → worker dequeues → Twilio SMS delivered to test number (**A2P 10DLC registration must be complete by this checkpoint** — see Module 2.4 note)
 - [ ] Email reminder also delivered via SES
 - [ ] Duplicate send prevention: kill the worker mid-job, restart it — same SMS not sent twice
 - [ ] Twilio inbound "YES" reply marks appointment confirmed; visible on day sheet

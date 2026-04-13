@@ -4,22 +4,33 @@ Staging Checkpoint 2 verification tests — End of Module 2 (after 2.1–2.4).
 These tests encode the specific security properties that must hold before
 Checkpoint 2 can be signed off:
 
-  1. SSN is stored as encrypted BYTEA, not plaintext.
+  1. SSN is stored as encrypted BYTEA, not plaintext (field renamed ssn → ssn).
   2. Every patient create and read produces an audit_logs row.
+  3. Intake apply maps medicalConditions → medical_alerts and medications
+     → medications as separate fields (not merged).
 
 Run with:
     pytest -m integration tests/integration/test_checkpoint2.py
 """
+
 from __future__ import annotations
 
 import asyncio
+import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.integration.conftest import mut
+from app.models.intake_form import IntakeForm
+from tests.integration.conftest import intake_submit_payload, mut
+
+
+def _mock_sms_ctx():
+    return patch("app.services.sms.send_sms", new=AsyncMock())
+
 
 pytestmark = pytest.mark.integration
 
@@ -49,10 +60,8 @@ class TestSSNEncryptedAtRest:
     async def test_ssn_stored_as_bytea_not_plaintext(
         self, client: AsyncClient, auth_headers, db_session: AsyncSession
     ):
-        body = {**_PATIENT_BODY, "ssnLastFour": "7890"}
-        resp = await client.post(
-            "/api/v1/patients", json=body, headers=mut(auth_headers)
-        )
+        body = {**_PATIENT_BODY, "ssn": "7890"}
+        resp = await client.post("/api/v1/patients", json=body, headers=mut(auth_headers))
         assert resp.status_code == 201
         patient_id = resp.json()["id"]
 
@@ -66,17 +75,13 @@ class TestSSNEncryptedAtRest:
 
         raw = bytes(row[0])
         assert len(raw) > 0, "ssn_encrypted must not be empty"
-        assert b"7890" not in raw, (
-            "SSN must not appear as plaintext inside the stored bytes"
-        )
+        assert b"7890" not in raw, "SSN must not appear as plaintext inside the stored bytes"
 
     async def test_ssn_decrypts_to_original_value(
         self, client: AsyncClient, auth_headers, db_session: AsyncSession
     ):
-        body = {**_PATIENT_BODY, "ssnLastFour": "4321"}
-        resp = await client.post(
-            "/api/v1/patients", json=body, headers=mut(auth_headers)
-        )
+        body = {**_PATIENT_BODY, "ssn": "4321"}
+        resp = await client.post("/api/v1/patients", json=body, headers=mut(auth_headers))
         assert resp.status_code == 201
         patient_id = resp.json()["id"]
 
@@ -90,12 +95,29 @@ class TestSSNEncryptedAtRest:
 
         assert decrypt(raw) == "4321", "Decrypted value must match the original SSN"
 
+    async def test_full_ssn_nine_digits_encrypted(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession
+    ):
+        """The renamed `ssn` field now accepts 9 digits as well as 4."""
+        body = {**_PATIENT_BODY, "ssn": "123456789", "email": "checkpoint2-full@test.internal"}
+        resp = await client.post("/api/v1/patients", json=body, headers=mut(auth_headers))
+        assert resp.status_code == 201
+        patient_id = resp.json()["id"]
+
+        result = await db_session.execute(
+            text("SELECT ssn_encrypted FROM patients WHERE id = CAST(:id AS uuid)"),
+            {"id": patient_id},
+        )
+        raw = bytes(result.fetchone()[0])
+
+        from app.core.encryption import decrypt
+
+        assert decrypt(raw) == "123456789"
+
     async def test_ssn_null_when_not_provided(
         self, client: AsyncClient, auth_headers, db_session: AsyncSession
     ):
-        resp = await client.post(
-            "/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers)
-        )
+        resp = await client.post("/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers))
         assert resp.status_code == 201
         patient_id = resp.json()["id"]
 
@@ -111,11 +133,9 @@ class TestSSNEncryptedAtRest:
     ):
         """AES-GCM uses a random nonce — the same SSN encrypted twice must not
         produce the same ciphertext."""
-        body = {**_PATIENT_BODY, "ssnLastFour": "1111"}
+        body = {**_PATIENT_BODY, "ssn": "1111"}
 
-        resp1 = await client.post(
-            "/api/v1/patients", json=body, headers=mut(auth_headers)
-        )
+        resp1 = await client.post("/api/v1/patients", json=body, headers=mut(auth_headers))
         resp2 = await client.post(
             "/api/v1/patients",
             json={**body, "email": "checkpoint2b@test.internal"},
@@ -126,9 +146,7 @@ class TestSSNEncryptedAtRest:
 
         ids = [resp1.json()["id"], resp2.json()["id"]]
         result = await db_session.execute(
-            text(
-                "SELECT ssn_encrypted FROM patients WHERE id = ANY(CAST(:ids AS uuid[]))"
-            ),
+            text("SELECT ssn_encrypted FROM patients WHERE id = ANY(CAST(:ids AS uuid[]))"),
             {"ids": ids},
         )
         blobs = [bytes(r[0]) for r in result.fetchall()]
@@ -160,9 +178,7 @@ class TestAuditLogCoverage:
     ):
         from app.models.audit_log import AuditLog
 
-        resp = await client.post(
-            "/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers)
-        )
+        resp = await client.post("/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers))
         assert resp.status_code == 201
 
         await self._flush_audit_tasks()
@@ -194,9 +210,7 @@ class TestAuditLogCoverage:
         patient_id = create.json()["id"]
 
         # Read
-        get_resp = await client.get(
-            f"/api/v1/patients/{patient_id}", headers=auth_headers
-        )
+        get_resp = await client.get(f"/api/v1/patients/{patient_id}", headers=auth_headers)
         assert get_resp.status_code == 200
 
         await self._flush_audit_tasks()
@@ -213,9 +227,7 @@ class TestAuditLogCoverage:
             )
         ).all()
 
-        assert len(rows) >= 1, (
-            "An audit_logs row must be written for every patient read (GET 200)"
-        )
+        assert len(rows) >= 1, "An audit_logs row must be written for every patient read (GET 200)"
 
     async def test_patient_update_writes_audit_log(
         self, client: AsyncClient, auth_headers, db_session: AsyncSession, practice
@@ -246,9 +258,7 @@ class TestAuditLogCoverage:
             )
         ).all()
 
-        assert len(rows) >= 1, (
-            "An audit_logs row must be written for every patient update (PATCH)"
-        )
+        assert len(rows) >= 1, "An audit_logs row must be written for every patient update (PATCH)"
 
     async def test_audit_log_captures_practice_and_user(
         self, client: AsyncClient, auth_headers, db_session: AsyncSession, practice, staff_user
@@ -258,9 +268,7 @@ class TestAuditLogCoverage:
 
         user, cognito_sub = staff_user
 
-        await client.post(
-            "/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers)
-        )
+        await client.post("/api/v1/patients", json=_PATIENT_BODY, headers=mut(auth_headers))
 
         await self._flush_audit_tasks()
 
@@ -277,3 +285,105 @@ class TestAuditLogCoverage:
         assert row is not None, "Audit log row not found"
         assert row.practice_id == practice.id, "Audit log must record practice_id"
         assert row.user_id == cognito_sub, "Audit log must record the authenticated user's sub"
+
+
+# ── 3. Intake apply field mapping ──────────────────────────────────────────────
+
+
+class TestIntakeApplyFieldMapping:
+    """
+    Verify that the intake apply endpoint maps medicalConditions and medications
+    into separate patient columns — not merged together as before.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _mock_sms(self):
+        with _mock_sms_ctx():
+            yield
+
+    async def _submit_and_apply(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        patient,
+        db_session,
+        **form_overrides: object,
+    ) -> dict:
+
+        send = await client.post(
+            "/api/v1/intake/send",
+            json={"patientId": str(patient.id)},
+            headers=mut(auth_headers),
+        )
+        assert send.status_code == 201
+        form_id = send.json()["intakeFormId"]
+
+        form = await db_session.scalar(
+            select(IntakeForm).where(IntakeForm.id == uuid.UUID(form_id))
+        )
+        token = form.token
+
+        payload = intake_submit_payload(**form_overrides)
+        submit = await client.post(f"/api/intake/form/{token}/submit", json=payload)
+        assert submit.status_code == 204
+
+        apply = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
+        assert apply.status_code == 200
+        return apply.json()
+
+    async def test_medical_conditions_go_to_medical_alerts(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client,
+            auth_headers,
+            patient,
+            db_session,
+            medicalConditions=["diabetes", "hypertension"],
+            medications=[],
+        )
+        assert "diabetes" in updated["medicalAlerts"]
+        assert "hypertension" in updated["medicalAlerts"]
+        assert (
+            updated.get("medications") == []
+            or updated.get("medications") is None
+            or all(
+                m not in ["diabetes", "hypertension"] for m in (updated.get("medications") or [])
+            )
+        )
+
+    async def test_medications_go_to_medications_not_medical_alerts(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client,
+            auth_headers,
+            patient,
+            db_session,
+            medicalConditions=[],
+            medications=["metformin", "lisinopril"],
+        )
+        assert updated.get("medications") is not None
+        assert "metformin" in updated["medications"]
+        assert "lisinopril" in updated["medications"]
+        # Must NOT bleed into medicalAlerts
+        medical_alerts = updated.get("medicalAlerts") or []
+        assert "metformin" not in medical_alerts
+        assert "lisinopril" not in medical_alerts
+
+    async def test_conditions_and_medications_are_independent(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        """Both arrays populated — each lands in its own column."""
+        updated = await self._submit_and_apply(
+            client,
+            auth_headers,
+            patient,
+            db_session,
+            medicalConditions=["asthma"],
+            medications=["albuterol"],
+        )
+        assert "asthma" in updated["medicalAlerts"]
+        assert "albuterol" in updated["medications"]
+        assert "albuterol" not in (updated.get("medicalAlerts") or [])
+        assert "asthma" not in (updated.get("medications") or [])
