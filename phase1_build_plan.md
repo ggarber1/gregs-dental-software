@@ -422,14 +422,14 @@ Verify:
 These were identified during dad's Checkpoint 2 review and intentionally excluded from the main pass. Pick these up before or alongside Module 3.
 
 - [x] **Intake form field review vs. `garber_new_patient_forms.pdf`** — PDF reviewed (2026-04-13). Fields already present: name, DOB, sex, address, phone, email, SSN last 4, insurance carrier/group/member/holder, last dental visit, former dentist, chief complaint, medications, allergies, HIPAA consent. **Fields being added (items 2–3 below):** marital status, emergency contact, occupation/employer, referral source, last X-ray date. **Deferred gaps (see section below):** responsible party/billing guarantor, secondary insurance, expanded medical conditions (44 on paper vs 16 digital), dental symptoms checklist, dental goals/smile rating page. Note: "dental anxiety level" is not on the paper form — skip.
-- [ ] **Intake form UI updates** — Add to patient-facing intake form: marital status (Step 1), emergency contact name+phone (Step 1), occupation+employer (Step 1), referral source (Step 1), date of last X-rays (Step 3). SSN last 4 and carrier dropdown already present. Requires DB migration for new patient columns (emergency_contact_name/phone, occupation, employer, referral_source) and updates to SubmitIntakeForm schema and apply logic.
-- [ ] **Staff create patient form alignment** — Add to NewPatientModal.tsx: medications textarea, emergency contact, occupation/employer. All fields optional; form works with name+DOB only. Insurance added separately post-creation. Handles elderly/non-digital-patient use case.
+- [x] **Intake form UI updates** — Add to patient-facing intake form: marital status (Step 1), emergency contact name+phone (Step 1), occupation+employer (Step 1), referral source (Step 1), date of last X-rays (Step 3). SSN last 4 and carrier dropdown already present. Requires DB migration for new patient columns (emergency_contact_name/phone, occupation, employer, referral_source) and updates to SubmitIntakeForm schema and apply logic.
+- [x] **Staff create patient form alignment** — Add to NewPatientModal.tsx: medications textarea, emergency contact, occupation/employer. All fields optional; form works with name+DOB only. Insurance added separately post-creation. Handles elderly/non-digital-patient use case.
 
 #### PDF Review Deferred Gaps (pick up in later modules)
 These were identified in the PDF review and intentionally excluded from items 2–3 above:
 - **Responsible party / billing guarantor** — "Person Responsible for Account" section (name, address, employer, SSN). Belongs in billing module (Module 6); this is the guarantor concept, not emergency contact.
-- **Secondary insurance** — "Additional Insurance" section on PDF. Multi-plan support is a larger feature; defer until primary insurance is validated in production.
-- **Expanded medical conditions checklist** — PDF has ~44 conditions; digital form has 16. Expand as a standalone task before production go-live; low risk to defer.
+- ~~**Secondary insurance**~~ — moved into Module 5.1; schema already supports multiple rows, UI is the same form at a different priority.
+- ~~**Expanded medical conditions checklist**~~ — done; expanded from 16 to 46 conditions matching PDF verbatim, plus retained Pregnancy and Latex allergy (clinically relevant for dentistry, not on original paper form). Medications (Blood thinners, Bisphosphonates) removed — captured in the medications textarea.
 - **Dental symptoms checklist** — PDF page 2 (Bad breath, Grinding teeth, Sensitivity to hot/cold, etc.). Add as a standalone task; does not block scheduling or billing.
 - **Dental goals / smile preferences** — PDF page 3. Marketing/preference data; low clinical value for Eaglesoft replacement, may skip entirely.
 - [ ] **Family member linking** — Add a `patient_relationships` table (patient_id, related_patient_id, relationship_type) and a UI section on the patient chart to link spouses and children. Confirm priority with dad before building — may be lower priority than scheduling.
@@ -531,7 +531,7 @@ Verify:
 - [ ] `insurance_plans` CRUD — carrier name, payer ID (clearinghouse ID), group number, in/out of network flag
 - [ ] Seed common carriers (Delta Dental, MassHealth `CKMA1`, Cigna, Aetna, United, MetLife)
 - [ ] `patient_insurance` — link patient to plan, subscriber info, priority (primary/secondary)
-- [ ] UI for adding/editing patient insurance on patient chart
+- [ ] UI for adding/editing patient insurance on patient chart; supports adding a secondary plan (`priority = 'secondary'`); patients with secondary flagged for manual co-pay review
 
 ### 5.2 Eligibility Verification API
 - [ ] Abstract `EligibilityProvider` interface — swappable between Stedi (dev/staging), Availity (production primary), and DentalXChange (secondary for dental-specific payers)
@@ -571,6 +571,17 @@ Verify:
 ---
 
 ## Module 6: Co-pay Calculation
+
+### 6.0 Guarantor / Responsible Party
+
+- [ ] `patient_guarantors` migration — columns: `id`, `patient_id`, `practice_id`, `relationship` (`self` | `parent` | `spouse` | `guardian` | `other`), `guarantor_patient_id` (nullable FK → patients), `first_name`, `last_name`, `date_of_birth`, `address_line1`, `address_line2`, `city`, `state`, `zip`, `phone`, `employer`, `ssn_encrypted` (BYTEA, AES-256-GCM), `created_at`, `updated_at`, `deleted_at`
+- [ ] Constraints: UNIQUE `(patient_id, deleted_at)` (one active guarantor per patient); CHECK `guarantor_patient_id IS NOT NULL OR (first_name IS NOT NULL AND last_name IS NOT NULL)`
+- [ ] **Null means self** — absence of a row = patient is their own guarantor; Module 6 billing queries must treat no row as "bill the patient directly"
+- [ ] `patient_guarantors` ORM model + Pydantic schemas
+- [ ] `GET /api/v1/patients/{id}/guarantor` — returns guarantor if set, otherwise `{"relationship": "self"}`
+- [ ] `PUT /api/v1/patients/{id}/guarantor` — upsert (create or replace active guarantor row)
+- [ ] `DELETE /api/v1/patients/{id}/guarantor` — soft delete (reverts patient to self-guarantor)
+- [ ] UI section on patient chart — "Responsible Party" with inline edit; hidden/collapsed when self
 
 ### 6.1 Copay Calculation Service
 - [ ] Pure function: takes `eligibility_check` + list of `appointment_procedures` → returns `PatientResponsibilityBreakdown`

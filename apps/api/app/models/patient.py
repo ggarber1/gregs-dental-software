@@ -69,6 +69,11 @@ class Patient(Base, PHIMixin):
         nullable=False,
         server_default="{}",
     )
+    dental_symptoms: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        nullable=False,
+        server_default="{}",
+    )
     doctor_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     sms_opt_out: Mapped[bool] = mapped_column(
         Boolean,

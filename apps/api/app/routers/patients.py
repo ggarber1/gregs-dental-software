@@ -93,6 +93,7 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         allergies=row.allergies or [],
         medicalAlerts=row.medical_alerts or [],
         medications=row.medications or [],
+        dentalSymptoms=row.dental_symptoms or [],
         doctorNotes=row.doctor_notes,
         smsOptOut=row.sms_opt_out,
         deletedAt=row.deleted_at,
@@ -149,6 +150,7 @@ async def create_patient(body: CreatePatient, request: Request) -> Patient:
         allergies=body.allergies or [],
         medical_alerts=body.medical_alerts or [],
         medications=body.medications or [],
+        dental_symptoms=body.dental_symptoms or [],
         doctor_notes=body.doctor_notes,
         sms_opt_out=body.sms_opt_out or False,
     )
@@ -304,6 +306,7 @@ async def update_patient(
             "allergies": "allergies",
             "medical_alerts": "medical_alerts",
             "medications": "medications",
+            "dental_symptoms": "dental_symptoms",
             "doctor_notes": "doctor_notes",
             "sms_opt_out": "sms_opt_out",
         }

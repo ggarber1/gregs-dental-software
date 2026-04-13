@@ -471,6 +471,9 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
         if data.get("medications"):
             patient.medications = [m for m in data["medications"] if m]
 
+        if data.get("dentalSymptoms"):
+            patient.dental_symptoms = [s for s in data["dentalSymptoms"] if s]
+
         # SMS opt-in → invert to sms_opt_out
         if "smsOptIn" in data:
             patient.sms_opt_out = not data["smsOptIn"]

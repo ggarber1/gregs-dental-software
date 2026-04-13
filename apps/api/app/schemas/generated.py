@@ -157,6 +157,7 @@ class Patient(BaseModel):
     allergies: list[str] | None = []
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
+    dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
     doctor_notes: str | None = Field(None, alias='doctorNotes', max_length=5000)
     sms_opt_out: bool | None = Field(False, alias='smsOptOut')
     deleted_at: AwareDatetime | None = Field(None, alias='deletedAt')
@@ -191,6 +192,7 @@ class CreatePatient(BaseModel):
     allergies: list[str] | None = []
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
+    dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
     doctor_notes: str | None = Field(None, alias='doctorNotes', max_length=5000)
     sms_opt_out: bool | None = Field(False, alias='smsOptOut')
 
@@ -222,6 +224,7 @@ class UpdatePatient(BaseModel):
     allergies: list[str] | None = []
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
+    dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
     doctor_notes: str | None = Field(None, alias='doctorNotes', max_length=5000)
     sms_opt_out: bool | None = Field(False, alias='smsOptOut')
 
@@ -309,6 +312,7 @@ class SubmitIntakeForm(BaseModel):
     medical_conditions: list[str] | None = Field([], alias='medicalConditions')
     medications: list[str] | None = []
     allergies: list[str] | None = []
+    dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
     last_dental_visit: str | None = Field(None, alias='lastDentalVisit')
     last_xray_date: str | None = Field(None, alias='lastXrayDate')
     previous_dentist: str | None = Field(None, alias='previousDentist')
@@ -384,6 +388,7 @@ class Responses(BaseModel):
     medical_conditions: list[str] | None = Field([], alias='medicalConditions')
     medications: list[str] | None = []
     allergies: list[str] | None = []
+    dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
     last_dental_visit: str | None = Field(None, alias='lastDentalVisit')
     last_xray_date: str | None = Field(None, alias='lastXrayDate')
     previous_dentist: str | None = Field(None, alias='previousDentist')
