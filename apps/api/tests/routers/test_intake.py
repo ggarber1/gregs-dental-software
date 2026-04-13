@@ -62,6 +62,7 @@ def _make_patient(**overrides: Any) -> MagicMock:
         "occupation": None,
         "employer": None,
         "referral_source": None,
+        "last_xray_date": None,
     }
     for k, v in {**defaults, **overrides}.items():
         setattr(row, k, v)

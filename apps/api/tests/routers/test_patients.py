@@ -55,6 +55,7 @@ _PATIENT_ROW_DEFAULTS: dict[str, Any] = {
     "occupation": None,
     "employer": None,
     "referral_source": None,
+    "last_xray_date": None,
 }
 
 

@@ -19,6 +19,7 @@ export const PatientSchema = z.object({
   dateOfBirth: z.string().date(), // ISO 8601 date string, YYYY-MM-DD
   sex: z.enum(["male", "female", "other", "unknown"]).optional(),
   maritalStatus: MaritalStatusSchema.optional(),
+  lastXrayDate: z.string().date().optional(),
   phone: z.string().max(20).optional(),
   email: z.string().email().max(255).optional(),
   addressLine1: z.string().max(255).optional(),

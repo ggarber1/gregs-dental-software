@@ -430,6 +430,8 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
             patient.sex = data["sex"]
         if data.get("maritalStatus"):
             patient.marital_status = data["maritalStatus"]
+        if data.get("lastXrayDate"):
+            patient.last_xray_date = date.fromisoformat(data["lastXrayDate"])
         if data.get("emergencyContactName") is not None:
             patient.emergency_contact_name = data["emergencyContactName"] or None
         if data.get("emergencyContactPhone") is not None:

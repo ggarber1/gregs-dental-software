@@ -377,14 +377,14 @@ class TestIntakeApplyNewFields:
         )
         assert updated["referralSource"] == "Friend"
 
-    async def test_last_xray_date_not_on_patient(
+    async def test_last_xray_date_applied(
         self, client: AsyncClient, auth_headers, patient, db_session
     ):
-        """lastXrayDate is blob-only — must not appear on the returned patient object."""
+        """lastXrayDate is applied to the patient record."""
         updated = await self._submit_and_apply(
-            client, auth_headers, patient, db_session, lastXrayDate="About 2 years ago"
+            client, auth_headers, patient, db_session, lastXrayDate="2023-03-10"
         )
-        assert "lastXrayDate" not in updated
+        assert updated["lastXrayDate"] == "2023-03-10"
 
 
 class TestIntakeApplyFieldMapping:

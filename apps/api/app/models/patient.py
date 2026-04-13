@@ -27,6 +27,7 @@ class Patient(Base, PHIMixin):
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
     sex: Mapped[str | None] = mapped_column(String(10), nullable=True)
     marital_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_xray_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Emergency contact
     emergency_contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
