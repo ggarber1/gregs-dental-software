@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,18 +10,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   useIntakeFormDetail,
   useApplyIntakeForm,
 } from "@/lib/api/intake";
+import { useUpdatePatient, type UpdatePatientBody, type Sex } from "@/lib/api/patients";
 
-interface IntakeReviewModalProps {
-  intakeFormId: string;
-  patientId: string;
-  open: boolean;
-  onClose: () => void;
-  onApplied: () => void;
-}
+// ── Read-only display helpers ─────────────────────────────────────────────────
 
 function Row({ label, value }: { label: string; value: unknown }) {
   if (value === null || value === undefined || value === "") return null;
@@ -88,6 +94,240 @@ function IntakeResponses({ responses }: { responses: Record<string, unknown> }) 
   );
 }
 
+// ── Edit form types ───────────────────────────────────────────────────────────
+
+interface EditFields {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  sex: Sex | "";
+  phone: string;
+  email: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  zip: string;
+  allergiesRaw: string;
+  medicalAlertsRaw: string;
+}
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+function responsesToEditFields(responses: Record<string, unknown>): EditFields {
+  const conditions = Array.isArray(responses.medicalConditions)
+    ? (responses.medicalConditions as string[])
+    : [];
+  const medications = Array.isArray(responses.medications)
+    ? (responses.medications as string[])
+    : [];
+  const allergies = Array.isArray(responses.allergies)
+    ? (responses.allergies as string[])
+    : [];
+
+  return {
+    firstName: str(responses.firstName),
+    lastName: str(responses.lastName),
+    dateOfBirth: str(responses.dateOfBirth),
+    sex: (responses.sex as Sex) ?? "",
+    phone: str(responses.phone),
+    email: str(responses.email),
+    addressLine1: str(responses.addressLine1),
+    addressLine2: str(responses.addressLine2),
+    city: str(responses.city),
+    state: str(responses.state),
+    zip: str(responses.zip),
+    allergiesRaw: allergies.join(", "),
+    medicalAlertsRaw: [...conditions, ...medications].join(", "),
+  };
+}
+
+function splitComma(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// ── Edit form UI ──────────────────────────────────────────────────────────────
+
+function EditField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function IntakeEditForm({
+  fields,
+  onChange,
+  responses,
+}: {
+  fields: EditFields;
+  onChange: (patch: Partial<EditFields>) => void;
+  responses: Record<string, unknown>;
+}) {
+  return (
+    <div className="grid gap-5">
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Personal
+        </p>
+        <div className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <EditField label="First name">
+              <Input
+                value={fields.firstName}
+                onChange={(e) => onChange({ firstName: e.target.value })}
+              />
+            </EditField>
+            <EditField label="Last name">
+              <Input
+                value={fields.lastName}
+                onChange={(e) => onChange({ lastName: e.target.value })}
+              />
+            </EditField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <EditField label="Date of birth">
+              <Input
+                type="date"
+                value={fields.dateOfBirth}
+                onChange={(e) => onChange({ dateOfBirth: e.target.value })}
+              />
+            </EditField>
+            <EditField label="Sex">
+              <Select
+                value={fields.sex}
+                onValueChange={(v) => onChange({ sex: v as Sex | "" })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="unknown">Unknown</SelectItem>
+                </SelectContent>
+              </Select>
+            </EditField>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <EditField label="Phone">
+              <Input
+                value={fields.phone}
+                onChange={(e) => onChange({ phone: e.target.value })}
+              />
+            </EditField>
+            <EditField label="Email">
+              <Input
+                type="email"
+                value={fields.email}
+                onChange={(e) => onChange({ email: e.target.value })}
+              />
+            </EditField>
+          </div>
+          <EditField label="Address">
+            <Input
+              value={fields.addressLine1}
+              onChange={(e) => onChange({ addressLine1: e.target.value })}
+            />
+          </EditField>
+          <EditField label="Address line 2">
+            <Input
+              value={fields.addressLine2}
+              onChange={(e) => onChange({ addressLine2: e.target.value })}
+            />
+          </EditField>
+          <div className="grid grid-cols-3 gap-3">
+            <EditField label="City">
+              <Input
+                value={fields.city}
+                onChange={(e) => onChange({ city: e.target.value })}
+              />
+            </EditField>
+            <EditField label="State">
+              <Input
+                value={fields.state}
+                onChange={(e) =>
+                  onChange({ state: e.target.value.toUpperCase() })
+                }
+                maxLength={2}
+              />
+            </EditField>
+            <EditField label="Zip">
+              <Input
+                value={fields.zip}
+                onChange={(e) => onChange({ zip: e.target.value })}
+              />
+            </EditField>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Clinical
+        </p>
+        <div className="grid gap-3">
+          <EditField label="Allergies (comma-separated)">
+            <Input
+              value={fields.allergiesRaw}
+              onChange={(e) => onChange({ allergiesRaw: e.target.value })}
+              placeholder="Penicillin, Latex"
+            />
+          </EditField>
+          <EditField label="Medical alerts (comma-separated)">
+            <Input
+              value={fields.medicalAlertsRaw}
+              onChange={(e) => onChange({ medicalAlertsRaw: e.target.value })}
+              placeholder="Diabetic, Pacemaker"
+            />
+          </EditField>
+        </div>
+      </div>
+
+      {/* Insurance shown read-only — no insurance fields on patient record yet */}
+      {!!(responses.insuranceCarrier || responses.insuranceMemberId) && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Insurance (read-only)
+          </p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <Row label="Carrier" value={responses.insuranceCarrier} />
+            <Row label="Member ID" value={responses.insuranceMemberId} />
+            <Row label="Group number" value={responses.insuranceGroupNumber} />
+            <Row label="Holder name" value={responses.insuranceHolderName} />
+            <Row label="Holder DOB" value={responses.insuranceHolderDob} />
+            <Row label="Relationship" value={responses.relationshipToInsured} />
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+
+interface IntakeReviewModalProps {
+  intakeFormId: string;
+  patientId: string;
+  open: boolean;
+  onClose: () => void;
+  onApplied: () => void;
+}
+
 export function IntakeReviewModal({
   intakeFormId,
   patientId,
@@ -97,28 +337,95 @@ export function IntakeReviewModal({
 }: IntakeReviewModalProps) {
   const { data: form, isLoading } = useIntakeFormDetail(open ? intakeFormId : null);
   const { mutate: applyIntake, isPending: isApplying, error: applyError } = useApplyIntakeForm(patientId);
+  const { mutate: updatePatient, isPending: isUpdating } = useUpdatePatient(patientId);
+
+  const [editing, setEditing] = useState(false);
+  const [editFields, setEditFields] = useState<EditFields | null>(null);
+
+  // Seed edit fields whenever responses load
+  useEffect(() => {
+    if (form?.responses) {
+      setEditFields(responsesToEditFields(form.responses));
+    }
+  }, [form?.responses]);
+
+  function handleEditChange(patch: Partial<EditFields>) {
+    setEditFields((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
 
   function handleApply() {
     applyIntake(intakeFormId, {
       onSuccess: () => {
-        onApplied();
-        onClose();
+        if (editing && editFields) {
+          // Override with front-desk corrections (omit empty required fields to avoid validation errors)
+          const body: UpdatePatientBody = {
+            sex: editFields.sex || null,
+            phone: editFields.phone || null,
+            email: editFields.email || null,
+            addressLine1: editFields.addressLine1 || null,
+            addressLine2: editFields.addressLine2 || null,
+            city: editFields.city || null,
+            state: editFields.state || null,
+            zip: editFields.zip || null,
+            allergies: splitComma(editFields.allergiesRaw),
+            medicalAlerts: splitComma(editFields.medicalAlertsRaw),
+          };
+          if (editFields.firstName) body.firstName = editFields.firstName;
+          if (editFields.lastName) body.lastName = editFields.lastName;
+          if (editFields.dateOfBirth) body.dateOfBirth = editFields.dateOfBirth;
+          updatePatient(body, {
+            onSuccess: () => {
+              onApplied();
+              onClose();
+            },
+          });
+        } else {
+          onApplied();
+          onClose();
+        }
       },
     });
   }
+
+  const isBusy = isApplying || isUpdating;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Review intake form
-            {form && (
-              <Badge variant="secondary" className="capitalize">
-                {form.status}
-              </Badge>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2">
+              Review intake form
+              {form && (
+                <Badge variant="secondary" className="capitalize">
+                  {form.status}
+                </Badge>
+              )}
+            </DialogTitle>
+            {form?.status === "completed" && !editing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing(true)}
+              >
+                Edit before applying
+              </Button>
             )}
-          </DialogTitle>
+            {editing && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (form?.responses) {
+                    setEditFields(responsesToEditFields(form.responses));
+                  }
+                  setEditing(false);
+                }}
+              >
+                Cancel edits
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {isLoading && (
@@ -130,7 +437,15 @@ export function IntakeReviewModal({
         {form && !isLoading && (
           <>
             {form.responses ? (
-              <IntakeResponses responses={form.responses} />
+              editing && editFields ? (
+                <IntakeEditForm
+                  fields={editFields}
+                  onChange={handleEditChange}
+                  responses={form.responses}
+                />
+              ) : (
+                <IntakeResponses responses={form.responses} />
+              )
             ) : (
               <p className="text-sm text-muted-foreground">No responses on file.</p>
             )}
@@ -143,8 +458,12 @@ export function IntakeReviewModal({
 
             {form.status === "completed" && (
               <div className="mt-2 flex justify-end">
-                <Button onClick={handleApply} disabled={isApplying}>
-                  {isApplying ? "Applying…" : "Apply to patient record"}
+                <Button onClick={handleApply} disabled={isBusy}>
+                  {isBusy
+                    ? "Applying…"
+                    : editing
+                      ? "Apply with corrections"
+                      : "Apply to patient record"}
                 </Button>
               </div>
             )}

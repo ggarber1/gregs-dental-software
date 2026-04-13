@@ -174,11 +174,11 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
 
             {/* DOB + Sex */}
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Date of birth * (YYYY-MM-DD)" error={errors.dateOfBirth}>
+              <Field label="Date of birth *" error={errors.dateOfBirth}>
                 <Input
+                  type="date"
                   value={values.dateOfBirth}
                   onChange={(e) => set("dateOfBirth", e.target.value)}
-                  placeholder="1990-01-15"
                 />
               </Field>
               <Field label="Sex" error={errors.sex}>

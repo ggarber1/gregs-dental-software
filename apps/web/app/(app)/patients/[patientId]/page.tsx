@@ -136,11 +136,11 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
               </EditField>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <EditField label="Date of birth * (YYYY-MM-DD)">
+              <EditField label="Date of birth *">
                 <Input
+                  type="date"
                   value={fields.dateOfBirth}
                   onChange={(e) => setFields((p) => ({ ...p, dateOfBirth: e.target.value }))}
-                  placeholder="1990-01-15"
                 />
               </EditField>
               <EditField label="Sex">
@@ -396,6 +396,107 @@ function EditField({
   );
 }
 
+// ── Clinical card ─────────────────────────────────────────────────────────────
+
+function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: string }) {
+  const [editing, setEditing] = useState(false);
+  const [fields, setFields] = useState({
+    allergiesRaw: (patient.allergies ?? []).join(", "),
+    medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const { mutate, isPending } = useUpdatePatient(patientId);
+
+  function handleCancel() {
+    setFields({
+      allergiesRaw: (patient.allergies ?? []).join(", "),
+      medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
+    });
+    setError(null);
+    setEditing(false);
+  }
+
+  function splitComma(raw: string): string[] {
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function handleSave() {
+    mutate(
+      {
+        allergies: splitComma(fields.allergiesRaw),
+        medicalAlerts: splitComma(fields.medicalAlertsRaw),
+      },
+      {
+        onSuccess: () => {
+          setError(null);
+          setEditing(false);
+        },
+        onError: () => setError("Failed to save. Please try again."),
+      },
+    );
+  }
+
+  const allergiesDisplay = (patient.allergies ?? []).join(", ") || "—";
+  const alertsDisplay = (patient.medicalAlerts ?? []).join(", ") || "—";
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-base font-semibold">Clinical</CardTitle>
+        {!editing ? (
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+        ) : (
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending}>
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={isPending}>
+              <Check className="h-4 w-4" />
+              {isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        {editing ? (
+          <div className="grid gap-4">
+            <EditField label="Allergies (comma-separated)">
+              <Input
+                value={fields.allergiesRaw}
+                onChange={(e) => setFields((p) => ({ ...p, allergiesRaw: e.target.value }))}
+                placeholder="Penicillin, Latex"
+              />
+            </EditField>
+            <EditField label="Medical alerts (comma-separated)">
+              <Input
+                value={fields.medicalAlertsRaw}
+                onChange={(e) =>
+                  setFields((p) => ({ ...p, medicalAlertsRaw: e.target.value }))
+                }
+                placeholder="Diabetic, Pacemaker"
+              />
+            </EditField>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+        ) : (
+          <dl className="grid gap-y-3 text-sm">
+            <DataRow label="Allergies" value={allergiesDisplay} />
+            <DataRow label="Medical alerts" value={alertsDisplay} />
+          </dl>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Intake forms card ─────────────────────────────────────────────────────────
 
 function statusBadgeVariant(status: IntakeFormSummary["status"]) {
@@ -547,6 +648,7 @@ export default function PatientDetailPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <DemographicsCard patient={patient} patientId={patientId} />
         <ContactCard patient={patient} patientId={patientId} />
+        <ClinicalCard patient={patient} patientId={patientId} />
       </div>
 
       {/* Intake forms */}

@@ -449,6 +449,10 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
         if data.get("zip") is not None:
             patient.zip = data["zip"] or None
 
+        # SSN last 4 — encrypt before storage (never store plaintext)
+        if data.get("ssnLastFour"):
+            patient.ssn_encrypted = encrypt(data["ssnLastFour"])
+
         # Clinical flags
         if data.get("allergies"):
             patient.allergies = data["allergies"]

@@ -16,6 +16,23 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+const INSURANCE_CARRIERS = [
+  "Delta Dental",
+  "MetLife",
+  "Cigna",
+  "Aetna",
+  "Guardian",
+  "United Concordia",
+  "Humana",
+  "BlueCross BlueShield",
+  "Ameritas",
+  "Principal Financial",
+  "Sun Life",
+  "MassHealth / DentaQuest",
+  "Anthem",
+  "Other",
+];
+
 const MEDICAL_CONDITIONS = [
   "Diabetes",
   "Heart disease / heart condition",
@@ -55,6 +72,7 @@ interface FormData {
   city: string;
   state: string;
   zip: string;
+  ssnLastFour: string;
   // Step 2: Medical history
   medicalConditions: string[];
   medications: string; // newline-separated, split before submit
@@ -64,6 +82,7 @@ interface FormData {
   previousDentist: string;
   chiefComplaint: string;
   insuranceCarrier: string;
+  insuranceCarrierCustom: string;
   insuranceMemberId: string;
   insuranceGroupNumber: string;
   insuranceHolderName: string;
@@ -87,6 +106,7 @@ const emptyForm = (): FormData => ({
   city: "",
   state: "",
   zip: "",
+  ssnLastFour: "",
   medicalConditions: [],
   medications: "",
   allergies: "",
@@ -94,6 +114,7 @@ const emptyForm = (): FormData => ({
   previousDentist: "",
   chiefComplaint: "",
   insuranceCarrier: "",
+  insuranceCarrierCustom: "",
   insuranceMemberId: "",
   insuranceGroupNumber: "",
   insuranceHolderName: "",
@@ -154,12 +175,11 @@ function Step1Personal({ form, onChange }: StepProps) {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Date of birth (YYYY-MM-DD)" required>
+        <Field label="Date of birth" required>
           <Input
+            type="date"
             value={form.dateOfBirth}
             onChange={(e) => onChange({ dateOfBirth: e.target.value })}
-            placeholder="1990-01-15"
-            inputMode="numeric"
             autoComplete="bday"
           />
         </Field>
@@ -241,6 +261,17 @@ function Step1Personal({ form, onChange }: StepProps) {
           />
         </Field>
       </div>
+      <Field label="SSN last 4 digits (optional)">
+        <Input
+          value={form.ssnLastFour}
+          onChange={(e) => onChange({ ssnLastFour: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+          placeholder="1234"
+          inputMode="numeric"
+          maxLength={4}
+          className="max-w-[8rem]"
+          autoComplete="off"
+        />
+      </Field>
     </div>
   );
 }
@@ -330,11 +361,31 @@ function Step3DentalInsurance({ form, onChange }: StepProps) {
         <p className="text-sm font-semibold">Dental insurance (if applicable)</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Insurance carrier">
-            <Input
+            <Select
               value={form.insuranceCarrier}
-              onChange={(e) => onChange({ insuranceCarrier: e.target.value })}
-              placeholder="Delta Dental"
-            />
+              onValueChange={(v) =>
+                onChange({ insuranceCarrier: v, insuranceCarrierCustom: "" })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select carrier…" />
+              </SelectTrigger>
+              <SelectContent>
+                {INSURANCE_CARRIERS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.insuranceCarrier === "Other" && (
+              <Input
+                className="mt-2"
+                value={form.insuranceCarrierCustom}
+                onChange={(e) => onChange({ insuranceCarrierCustom: e.target.value })}
+                placeholder="Enter carrier name"
+              />
+            )}
           </Field>
           <Field label="Member ID">
             <Input
@@ -380,9 +431,9 @@ function Step3DentalInsurance({ form, onChange }: StepProps) {
             </Field>
             <Field label="Insured's date of birth">
               <Input
+                type="date"
                 value={form.insuranceHolderDob}
                 onChange={(e) => onChange({ insuranceHolderDob: e.target.value })}
-                placeholder="1965-03-20"
               />
             </Field>
           </div>
@@ -540,6 +591,7 @@ export default function IntakeFormPage() {
       city: form.city || undefined,
       state: form.state || undefined,
       zip: form.zip || undefined,
+      ssnLastFour: form.ssnLastFour || undefined,
       medicalConditions: form.medicalConditions,
       medications: form.medications
         .split("\n")
@@ -552,7 +604,7 @@ export default function IntakeFormPage() {
       lastDentalVisit: form.lastDentalVisit || undefined,
       previousDentist: form.previousDentist || undefined,
       chiefComplaint: form.chiefComplaint || undefined,
-      insuranceCarrier: form.insuranceCarrier || undefined,
+      insuranceCarrier: (form.insuranceCarrier === "Other" ? form.insuranceCarrierCustom : form.insuranceCarrier) || undefined,
       insuranceMemberId: form.insuranceMemberId || undefined,
       insuranceGroupNumber: form.insuranceGroupNumber || undefined,
       insuranceHolderName: form.insuranceHolderName || undefined,
