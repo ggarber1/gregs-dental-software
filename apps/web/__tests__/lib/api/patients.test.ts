@@ -47,7 +47,7 @@ const PATIENT: Patient = {
   city: "Boston",
   state: "MA",
   zip: "02101",
-  ssnLastFour: null,
+  ssn: null,
   allergies: ["Penicillin"],
   medicalAlerts: [],
   smsOptOut: false,

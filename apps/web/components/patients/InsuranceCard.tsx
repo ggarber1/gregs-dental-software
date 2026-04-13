@@ -111,7 +111,7 @@ interface InsuranceFormProps {
   onSave: () => void;
   onCancel: () => void;
   isSaving: boolean;
-  error?: string;
+  error?: string | undefined;
 }
 
 function InsuranceForm({ form, onChange, onSave, onCancel, isSaving, error }: InsuranceFormProps) {
