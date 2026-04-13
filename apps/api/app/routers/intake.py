@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import secrets
@@ -494,10 +495,8 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
             insured_dob_raw = data.get("insuranceHolderDob")
             insured_dob = None
             if insured_dob_raw:
-                try:
+                with contextlib.suppress(ValueError):
                     insured_dob = date.fromisoformat(insured_dob_raw)
-                except ValueError:
-                    pass
 
             relationship = data.get("relationshipToInsured") or "self"
 
