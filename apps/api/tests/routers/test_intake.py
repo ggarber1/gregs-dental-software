@@ -420,7 +420,12 @@ async def test_get_intake_form_detail_returns_responses():
     session.__aexit__ = AsyncMock(return_value=False)
     session.scalar = AsyncMock(return_value=form)
 
-    decrypted = '{"firstName": "Jane", "lastName": "Doe"}'
+    decrypted = (
+        '{"firstName": "Jane", "lastName": "Doe", "dateOfBirth": "1990-01-01",'
+        ' "phone": "555-555-5555", "hipaaConsentAccepted": true,'
+        ' "hipaaConsentTimestamp": "2024-01-01T00:00:00Z",'
+        ' "hipaaConsentSignature": "Jane Doe", "smsOptIn": false}'
+    )
 
     with (
         _auth_patches() as headers,

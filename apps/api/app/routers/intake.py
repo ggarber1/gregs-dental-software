@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import AnyUrl
 from sqlalchemy import select, update
 
 from app.core.config import get_settings
@@ -24,6 +25,7 @@ from app.schemas.generated import (
     IntakeFormSummary,
     IntakeFormTokenInfo,
     Patient,
+    Responses,
     SendIntakeForm,
     SendIntakeFormResponse,
     SubmitIntakeForm,
@@ -297,7 +299,7 @@ async def send_intake_form(body: SendIntakeForm, request: Request) -> SendIntake
     return SendIntakeFormResponse(
         intakeFormId=form.id,
         expiresAt=form.expires_at.replace(tzinfo=UTC),
-        formUrl=form_url,
+        formUrl=AnyUrl(form_url),
     )
 
 
@@ -350,9 +352,9 @@ async def get_intake_form_detail(intake_form_id: uuid.UUID, request: Request) ->
             detail={"error": {"code": "INTAKE_NOT_FOUND", "message": "Intake form not found"}},
         )
 
-    responses: dict[str, Any] | None = None
+    parsed_responses: Responses | None = None
     if form.responses_encrypted:
-        responses = json.loads(decrypt(form.responses_encrypted))
+        parsed_responses = Responses.model_validate(json.loads(decrypt(form.responses_encrypted)))
 
     return IntakeFormDetail(
         id=form.id,
@@ -361,7 +363,7 @@ async def get_intake_form_detail(intake_form_id: uuid.UUID, request: Request) ->
         expiresAt=form.expires_at.replace(tzinfo=UTC),
         createdAt=form.created_at.replace(tzinfo=UTC),
         createdBy=form.created_by,
-        responses=responses,
+        responses=parsed_responses,
     )
 
 
@@ -448,6 +450,10 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
             patient.state = data["state"] or None
         if data.get("zip") is not None:
             patient.zip = data["zip"] or None
+
+        # SSN last 4 — encrypt before storage (never store plaintext)
+        if data.get("ssnLastFour"):
+            patient.ssn_encrypted = encrypt(data["ssnLastFour"])
 
         # Clinical flags
         if data.get("allergies"):
