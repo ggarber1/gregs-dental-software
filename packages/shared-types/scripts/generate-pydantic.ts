@@ -43,6 +43,11 @@ import {
   IntakeFormDetailSchema,
 } from "../src/schemas/intake.js";
 import {
+  InsuranceSchema,
+  CreateInsuranceSchema,
+  UpdateInsuranceSchema,
+} from "../src/schemas/insurance.js";
+import {
   PaginationQuerySchema,
   PaginationMetaSchema,
   ApiErrorSchema,
@@ -69,6 +74,9 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   SendIntakeFormResponse: SendIntakeFormResponseSchema,
   IntakeFormSummary: IntakeFormSummarySchema,
   IntakeFormDetail: IntakeFormDetailSchema,
+  Insurance: InsuranceSchema,
+  CreateInsurance: CreateInsuranceSchema,
+  UpdateInsurance: UpdateInsuranceSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

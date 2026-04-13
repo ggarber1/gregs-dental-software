@@ -1,38 +1,45 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Pill, Stethoscope } from "lucide-react";
 
 interface Props {
   allergies: string[];
   medicalAlerts: string[];
+  medications: string[];
 }
 
-export function MedicalAlertsBar({ allergies, medicalAlerts }: Props) {
-  if (allergies.length === 0 && medicalAlerts.length === 0) return null;
-
-  const hasAllergies = allergies.length > 0;
+export function MedicalAlertsBar({ allergies, medicalAlerts, medications }: Props) {
+  if (allergies.length === 0 && medicalAlerts.length === 0 && medications.length === 0) {
+    return null;
+  }
 
   return (
-    <div
-      className={`flex items-start gap-2 rounded-md border px-4 py-3 text-sm font-medium ${
-        hasAllergies
-          ? "border-destructive/40 bg-destructive/10 text-destructive"
-          : "border-yellow-400/40 bg-yellow-50 text-yellow-800"
-      }`}
-    >
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-      <div className="flex flex-wrap gap-x-6 gap-y-1">
-        {hasAllergies && (
+    <div className="flex flex-col gap-2">
+      {allergies.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             <span className="uppercase tracking-wide">Allergies:</span>{" "}
             {allergies.join(", ")}
           </span>
-        )}
-        {medicalAlerts.length > 0 && (
+        </div>
+      )}
+      {medicalAlerts.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-yellow-400/40 bg-yellow-50 px-4 py-2 text-sm font-medium text-yellow-800">
+          <Stethoscope className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            <span className="uppercase tracking-wide">Alerts:</span>{" "}
+            <span className="uppercase tracking-wide">Conditions:</span>{" "}
             {medicalAlerts.join(", ")}
           </span>
-        )}
-      </div>
+        </div>
+      )}
+      {medications.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-300/40 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800">
+          <Pill className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <span className="uppercase tracking-wide">Medications:</span>{" "}
+            {medications.join(", ")}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

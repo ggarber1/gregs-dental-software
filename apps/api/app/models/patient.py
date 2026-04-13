@@ -26,6 +26,7 @@ class Patient(Base, PHIMixin):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
     sex: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    marital_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Contact
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -39,7 +40,7 @@ class Patient(Base, PHIMixin):
     zip: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     # PHI — AES-256-GCM encrypted at the application layer before storage.
-    # We store the last-4 digits only (never full SSN).
+    # Accepts last-4 digits or full 9-digit SSN.
     ssn_encrypted: Mapped[bytes | None] = mapped_column(BYTEA, nullable=True)
 
     # Clinical flags
@@ -53,6 +54,12 @@ class Patient(Base, PHIMixin):
         nullable=False,
         server_default="{}",
     )
+    medications: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        nullable=False,
+        server_default="{}",
+    )
+    doctor_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     sms_opt_out: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -63,6 +70,11 @@ class Patient(Base, PHIMixin):
         CheckConstraint(
             "sex IN ('male', 'female', 'other', 'unknown')",
             name="ck_patients_sex",
+        ),
+        CheckConstraint(
+            "marital_status IN ('single','married','divorced','widowed',"
+            "'separated','domestic_partner','other')",
+            name="ck_patients_marital_status",
         ),
         # Search: last_name-first_name prefix search within a practice
         Index("ix_patients_practice_name", "practice_id", "last_name", "first_name"),

@@ -4,6 +4,7 @@ Integration tests for the full digital intake form flow.
 Covers the staff-initiates → patient-fills → staff-reviews → staff-applies pipeline
 against a real Postgres database. Twilio SMS is mocked to avoid live sends.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -112,9 +113,7 @@ class TestSendIntakeForm:
         assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "PATIENT_SMS_OPT_OUT"
 
-    async def test_send_404_unknown_patient(
-        self, client: AsyncClient, auth_headers, mock_sms
-    ):
+    async def test_send_404_unknown_patient(self, client: AsyncClient, auth_headers, mock_sms):
         resp = await client.post(
             "/api/v1/intake/send",
             json={"patientId": str(uuid.uuid4())},
@@ -123,8 +122,7 @@ class TestSendIntakeForm:
         assert resp.status_code == 404
 
     async def test_send_404_wrong_practice(
-        self, client: AsyncClient, db_session, mock_sms,
-        staff_user, auth_headers, practice
+        self, client: AsyncClient, db_session, mock_sms, staff_user, auth_headers, practice
     ):
         """Patient belonging to a different practice must not be found."""
         from datetime import date
@@ -296,9 +294,7 @@ class TestStaffIntakeEndpoints:
             headers=mut(auth_headers),
         )
 
-        resp = await client.get(
-            f"/api/v1/intake?patient_id={patient.id}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/intake?patient_id={patient.id}", headers=auth_headers)
         assert resp.status_code == 200
         forms = resp.json()
         assert len(forms) == 1
@@ -393,9 +389,7 @@ class TestApplyIntakeForm:
         )
         await client.post(f"/api/intake/form/{token}/submit", json=payload)
 
-        resp = await client.post(
-            f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
-        )
+        resp = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
         assert resp.status_code == 200
         updated = resp.json()
 
@@ -405,9 +399,10 @@ class TestApplyIntakeForm:
         assert updated["email"] == "janet.smith@example.com"
         assert "penicillin" in updated["allergies"]
         assert "latex" in updated["allergies"]
-        # medicalConditions + medications merged into medicalAlerts
+        # medicalConditions → medicalAlerts; medications → medications (separate)
         assert "diabetes" in updated["medicalAlerts"]
-        assert "metformin" in updated["medicalAlerts"]
+        assert "metformin" not in updated["medicalAlerts"]
+        assert "metformin" in updated["medications"]
         # smsOptIn=False → smsOptOut=True
         assert updated["smsOptOut"] is True
 
@@ -421,9 +416,7 @@ class TestApplyIntakeForm:
         )
         form_id = send.json()["intakeFormId"]
 
-        resp = await client.post(
-            f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
-        )
+        resp = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
         assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INTAKE_NOT_COMPLETED"
 
@@ -442,12 +435,8 @@ class TestApplyIntakeForm:
         payload = intake_submit_payload(firstName="Idempotent")
         await client.post(f"/api/intake/form/{token}/submit", json=payload)
 
-        first = await client.post(
-            f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
-        )
-        second = await client.post(
-            f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
-        )
+        first = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
+        second = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
 
         assert first.status_code == 200
         assert second.status_code == 200
@@ -526,9 +515,7 @@ class TestFullIntakeFlow:
         assert detail["responses"]["firstName"] == "EndToEnd"
 
         # 9. Staff: apply — patient record updated
-        apply_resp = await client.post(
-            f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers)
-        )
+        apply_resp = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
         assert apply_resp.status_code == 200
         updated_patient = apply_resp.json()
         assert updated_patient["firstName"] == "EndToEnd"

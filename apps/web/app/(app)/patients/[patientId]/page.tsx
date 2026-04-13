@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, X, Check, Send } from "lucide-react";
 import Link from "next/link";
 
+import { InsuranceCard } from "@/components/patients/InsuranceCard";
 import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   usePatient,
   useUpdatePatient,
@@ -26,6 +28,7 @@ import {
   type Patient,
   type UpdatePatientBody,
   type Sex,
+  type MaritalStatus,
 } from "@/lib/api/patients";
 import {
   usePatientIntakeForms,
@@ -39,8 +42,28 @@ function formatDob(dob: string): string {
 }
 
 function sexLabel(sex: Sex | null): string {
-  if (!sex) return "Unknown";
+  if (!sex) return "—";
   return sex.charAt(0).toUpperCase() + sex.slice(1);
+}
+
+function maritalStatusLabel(status: MaritalStatus | null): string {
+  if (!status) return "—";
+  const labels: Record<MaritalStatus, string> = {
+    single: "Single",
+    married: "Married",
+    divorced: "Divorced",
+    widowed: "Widowed",
+    separated: "Separated",
+    domestic_partner: "Domestic partner",
+    other: "Other",
+  };
+  return labels[status] ?? "—";
+}
+
+function maskSsn(ssn: string | null): string {
+  if (!ssn) return "—";
+  const last4 = ssn.slice(-4);
+  return `•••-••-${last4}`;
 }
 
 // ── Demographics card ─────────────────────────────────────────────────────────
@@ -57,7 +80,8 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
     lastName: patient.lastName,
     dateOfBirth: patient.dateOfBirth,
     sex: patient.sex,
-    ssnLastFour: patient.ssnLastFour ?? "",
+    maritalStatus: patient.maritalStatus,
+    ssn: patient.ssn ?? "",
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -69,7 +93,8 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
       lastName: patient.lastName,
       dateOfBirth: patient.dateOfBirth,
       sex: patient.sex,
-      ssnLastFour: patient.ssnLastFour ?? "",
+      maritalStatus: patient.maritalStatus,
+      ssn: patient.ssn ?? "",
     });
     setError(null);
     setEditing(false);
@@ -80,12 +105,17 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
       setError("First name, last name, and date of birth are required.");
       return;
     }
+    if (fields.ssn && !/^\d{4}$|^\d{9}$/.test(fields.ssn)) {
+      setError("SSN must be 4 digits (last four) or 9 digits (full).");
+      return;
+    }
     const body: UpdatePatientBody = {
       firstName: fields.firstName,
       lastName: fields.lastName,
       dateOfBirth: fields.dateOfBirth,
       sex: fields.sex,
-      ssnLastFour: fields.ssnLastFour || null,
+      maritalStatus: fields.maritalStatus,
+      ssn: fields.ssn || null,
     };
     mutate(body, {
       onSuccess: () => {
@@ -162,13 +192,37 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
                 </Select>
               </EditField>
             </div>
-            <EditField label="SSN last 4">
+            <EditField label="Marital status">
+              <Select
+                value={fields.maritalStatus ?? ""}
+                onValueChange={(v) =>
+                  setFields((p) => ({
+                    ...p,
+                    maritalStatus: v === "" ? null : (v as MaritalStatus),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="married">Married</SelectItem>
+                  <SelectItem value="divorced">Divorced</SelectItem>
+                  <SelectItem value="widowed">Widowed</SelectItem>
+                  <SelectItem value="separated">Separated</SelectItem>
+                  <SelectItem value="domestic_partner">Domestic partner</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </EditField>
+            <EditField label="SSN (last 4 or full 9 digits)">
               <Input
-                value={fields.ssnLastFour}
-                onChange={(e) => setFields((p) => ({ ...p, ssnLastFour: e.target.value }))}
-                placeholder="1234"
-                maxLength={4}
-                className="max-w-[8rem]"
+                value={fields.ssn}
+                onChange={(e) => setFields((p) => ({ ...p, ssn: e.target.value }))}
+                placeholder="1234 or 123456789"
+                maxLength={9}
+                className="max-w-[12rem]"
               />
             </EditField>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -179,10 +233,8 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
             <DataRow label="Last name" value={patient.lastName} />
             <DataRow label="Date of birth" value={formatDob(patient.dateOfBirth)} />
             <DataRow label="Sex" value={sexLabel(patient.sex)} />
-            <DataRow
-              label="SSN"
-              value={patient.ssnLastFour ? `••••••••${patient.ssnLastFour}` : "—"}
-            />
+            <DataRow label="Marital status" value={maritalStatusLabel(patient.maritalStatus)} />
+            <DataRow label="SSN" value={maskSsn(patient.ssn)} />
           </dl>
         )}
       </CardContent>
@@ -403,6 +455,8 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
   const [fields, setFields] = useState({
     allergiesRaw: (patient.allergies ?? []).join(", "),
     medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
+    medicationsRaw: (patient.medications ?? []).join(", "),
+    doctorNotes: patient.doctorNotes ?? "",
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -412,6 +466,8 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
     setFields({
       allergiesRaw: (patient.allergies ?? []).join(", "),
       medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
+      medicationsRaw: (patient.medications ?? []).join(", "),
+      doctorNotes: patient.doctorNotes ?? "",
     });
     setError(null);
     setEditing(false);
@@ -429,6 +485,8 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
       {
         allergies: splitComma(fields.allergiesRaw),
         medicalAlerts: splitComma(fields.medicalAlertsRaw),
+        medications: splitComma(fields.medicationsRaw),
+        doctorNotes: fields.doctorNotes || null,
       },
       {
         onSuccess: () => {
@@ -442,6 +500,7 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
 
   const allergiesDisplay = (patient.allergies ?? []).join(", ") || "—";
   const alertsDisplay = (patient.medicalAlerts ?? []).join(", ") || "—";
+  const medicationsDisplay = (patient.medications ?? []).join(", ") || "—";
 
   return (
     <Card>
@@ -475,13 +534,30 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
                 placeholder="Penicillin, Latex"
               />
             </EditField>
-            <EditField label="Medical alerts (comma-separated)">
+            <EditField label="Medical conditions (comma-separated)">
               <Input
                 value={fields.medicalAlertsRaw}
                 onChange={(e) =>
                   setFields((p) => ({ ...p, medicalAlertsRaw: e.target.value }))
                 }
-                placeholder="Diabetic, Pacemaker"
+                placeholder="Diabetes, Pacemaker"
+              />
+            </EditField>
+            <EditField label="Medications (comma-separated)">
+              <Input
+                value={fields.medicationsRaw}
+                onChange={(e) =>
+                  setFields((p) => ({ ...p, medicationsRaw: e.target.value }))
+                }
+                placeholder="Metformin, Lisinopril"
+              />
+            </EditField>
+            <EditField label="Doctor's note">
+              <Textarea
+                value={fields.doctorNotes}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFields((p) => ({ ...p, doctorNotes: e.target.value }))}
+                placeholder="Important notes for clinical staff…"
+                rows={3}
               />
             </EditField>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -489,7 +565,11 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
         ) : (
           <dl className="grid gap-y-3 text-sm">
             <DataRow label="Allergies" value={allergiesDisplay} />
-            <DataRow label="Medical alerts" value={alertsDisplay} />
+            <DataRow label="Conditions" value={alertsDisplay} />
+            <DataRow label="Medications" value={medicationsDisplay} />
+            {patient.doctorNotes && (
+              <DataRow label="Doctor's note" value={patient.doctorNotes} />
+            )}
           </dl>
         )}
       </CardContent>
@@ -642,6 +722,7 @@ export default function PatientDetailPage() {
       <MedicalAlertsBar
         allergies={patient.allergies ?? []}
         medicalAlerts={patient.medicalAlerts ?? []}
+        medications={patient.medications ?? []}
       />
 
       {/* Cards */}
@@ -649,6 +730,7 @@ export default function PatientDetailPage() {
         <DemographicsCard patient={patient} patientId={patientId} />
         <ContactCard patient={patient} patientId={patientId} />
         <ClinicalCard patient={patient} patientId={patientId} />
+        <InsuranceCard patientId={patientId} />
       </div>
 
       {/* Intake forms */}

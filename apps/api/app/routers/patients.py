@@ -64,9 +64,9 @@ def _require_write_role(request: Request) -> None:
 
 
 def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
-    ssn_last_four: str | None = None
+    ssn: str | None = None
     if include_ssn and row.ssn_encrypted:
-        ssn_last_four = decrypt(row.ssn_encrypted)
+        ssn = decrypt(row.ssn_encrypted)
 
     return Patient(
         id=row.id,
@@ -75,6 +75,7 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         lastName=row.last_name,
         dateOfBirth=row.date_of_birth,
         sex=row.sex,  # type: ignore[arg-type]
+        maritalStatus=row.marital_status,  # type: ignore[arg-type]
         phone=row.phone,
         email=row.email,
         addressLine1=row.address_line1,
@@ -82,9 +83,11 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         city=row.city,
         state=row.state,
         zip=row.zip,
-        ssnLastFour=ssn_last_four,
+        ssn=ssn,
         allergies=row.allergies or [],
         medicalAlerts=row.medical_alerts or [],
+        medications=row.medications or [],
+        doctorNotes=row.doctor_notes,
         smsOptOut=row.sms_opt_out,
         deletedAt=row.deleted_at,
         createdAt=row.created_at,
@@ -113,8 +116,8 @@ async def create_patient(body: CreatePatient, request: Request) -> Patient:
         )
 
     ssn_encrypted: bytes | None = None
-    if body.ssn_last_four is not None:
-        ssn_encrypted = encrypt(body.ssn_last_four)
+    if body.ssn is not None:
+        ssn_encrypted = encrypt(body.ssn)
 
     row = PatientModel(
         id=uuid.uuid4(),
@@ -123,6 +126,7 @@ async def create_patient(body: CreatePatient, request: Request) -> Patient:
         last_name=body.last_name,
         date_of_birth=body.date_of_birth,
         sex=body.sex,
+        marital_status=body.marital_status,
         phone=body.phone,
         email=str(body.email) if body.email else None,
         address_line1=body.address_line1,
@@ -133,6 +137,8 @@ async def create_patient(body: CreatePatient, request: Request) -> Patient:
         ssn_encrypted=ssn_encrypted,
         allergies=body.allergies or [],
         medical_alerts=body.medical_alerts or [],
+        medications=body.medications or [],
+        doctor_notes=body.doctor_notes,
         sms_opt_out=body.sms_opt_out or False,
     )
 
@@ -271,6 +277,7 @@ async def update_patient(
             "last_name": "last_name",
             "date_of_birth": "date_of_birth",
             "sex": "sex",
+            "marital_status": "marital_status",
             "phone": "phone",
             "address_line1": "address_line1",
             "address_line2": "address_line2",
@@ -279,6 +286,8 @@ async def update_patient(
             "zip": "zip",
             "allergies": "allergies",
             "medical_alerts": "medical_alerts",
+            "medications": "medications",
+            "doctor_notes": "doctor_notes",
             "sms_opt_out": "sms_opt_out",
         }
 
@@ -289,8 +298,8 @@ async def update_patient(
         if "email" in provided:
             row.email = str(body.email) if body.email else None
 
-        if "ssn_last_four" in provided:
-            row.ssn_encrypted = encrypt(body.ssn_last_four) if body.ssn_last_four else None
+        if "ssn" in provided:
+            row.ssn_encrypted = encrypt(body.ssn) if body.ssn else None
 
         await session.commit()
         await session.refresh(row)

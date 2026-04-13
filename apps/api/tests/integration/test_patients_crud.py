@@ -3,6 +3,7 @@ Integration tests for Patient CRUD endpoints.
 
 Exercises create / read / update / soft-delete against a real Postgres database.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -51,9 +52,7 @@ class TestCreatePatient:
         assert resp.status_code == 201
         assert resp.json()["practiceId"] == str(practice.id)
 
-    async def test_create_422_missing_required_fields(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_create_422_missing_required_fields(self, client: AsyncClient, auth_headers):
         resp = await client.post(
             "/api/v1/patients",
             json={"firstName": "Incomplete"},
@@ -63,9 +62,7 @@ class TestCreatePatient:
 
     async def test_create_400_practice_id_mismatch(self, client: AsyncClient, auth_headers):
         body = {**_BASE_CREATE_BODY, "practiceId": str(uuid.uuid4())}
-        resp = await client.post(
-            "/api/v1/patients", json=body, headers=mut(auth_headers)
-        )
+        resp = await client.post("/api/v1/patients", json=body, headers=mut(auth_headers))
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "PRACTICE_ID_MISMATCH"
 
@@ -105,9 +102,7 @@ class TestGetPatient:
         db_session.add(other_patient)
         await db_session.commit()
 
-        resp = await client.get(
-            f"/api/v1/patients/{other_patient.id}", headers=auth_headers
-        )
+        resp = await client.get(f"/api/v1/patients/{other_patient.id}", headers=auth_headers)
         assert resp.status_code == 404
 
 
@@ -172,9 +167,7 @@ class TestDeletePatient:
         assert get_resp.status_code == 404
 
     async def test_delete_404_unknown_id(self, client: AsyncClient, auth_headers):
-        resp = await client.delete(
-            f"/api/v1/patients/{uuid.uuid4()}", headers=mut(auth_headers)
-        )
+        resp = await client.delete(f"/api/v1/patients/{uuid.uuid4()}", headers=mut(auth_headers))
         assert resp.status_code == 404
 
     async def test_deleted_patient_excluded_from_list(self, client: AsyncClient, auth_headers):
@@ -183,14 +176,10 @@ class TestDeletePatient:
         )
         patient_id = create.json()["id"]
 
-        await client.delete(
-            f"/api/v1/patients/{patient_id}", headers=mut(auth_headers)
-        )
+        await client.delete(f"/api/v1/patients/{patient_id}", headers=mut(auth_headers))
 
         # Search by last name — should come back empty
-        resp = await client.get(
-            "/api/v1/patients?q=Walker", headers=auth_headers
-        )
+        resp = await client.get("/api/v1/patients?q=Walker", headers=auth_headers)
         assert resp.status_code == 200
         results = resp.json()
         patients = results.get("data", results) if isinstance(results, dict) else results
@@ -220,9 +209,7 @@ class TestListPatients:
         db_session.add(rival_patient)
         await db_session.commit()
 
-        await client.post(
-            "/api/v1/patients", json=_BASE_CREATE_BODY, headers=mut(auth_headers)
-        )
+        await client.post("/api/v1/patients", json=_BASE_CREATE_BODY, headers=mut(auth_headers))
 
         resp = await client.get("/api/v1/patients?q=", headers=auth_headers)
         assert resp.status_code == 200

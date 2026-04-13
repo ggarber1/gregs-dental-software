@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 import app.models.audit_log  # noqa: F401
 import app.models.intake_form  # noqa: F401
 import app.models.operatory  # noqa: F401
+import app.models.patient  # noqa: F401
+import app.models.patient_insurance  # noqa: F401
 import app.models.practice  # noqa: F401
 import app.models.provider  # noqa: F401
 import app.models.user  # noqa: F401
