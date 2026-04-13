@@ -37,6 +37,11 @@ export interface Patient {
   zip: string | null;
   /** PHI — 4-digit last-four or full 9-digit SSN, AES-256 encrypted at rest */
   ssn: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  occupation: string | null;
+  employer: string | null;
+  referralSource: string | null;
   allergies: string[];
   medicalAlerts: string[];
   medications: string[];
@@ -73,6 +78,11 @@ export interface CreatePatientBody {
   state?: string | null;
   zip?: string | null;
   ssn?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  occupation?: string | null;
+  employer?: string | null;
+  referralSource?: string | null;
   allergies?: string[];
   medicalAlerts?: string[];
   medications?: string[];
@@ -94,6 +104,11 @@ export interface UpdatePatientBody {
   state?: string | null;
   zip?: string | null;
   ssn?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  occupation?: string | null;
+  employer?: string | null;
+  referralSource?: string | null;
   allergies?: string[];
   medicalAlerts?: string[];
   medications?: string[];

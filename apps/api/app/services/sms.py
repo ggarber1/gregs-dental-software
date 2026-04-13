@@ -29,9 +29,7 @@ async def send_sms(to: str, body: str) -> None:
     try:
         from twilio.rest import Client
     except ImportError as exc:
-        raise RuntimeError(
-            "twilio package is not installed. Run: uv add twilio"
-        ) from exc
+        raise RuntimeError("twilio package is not installed. Run: uv add twilio") from exc
 
     client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
     client.messages.create(

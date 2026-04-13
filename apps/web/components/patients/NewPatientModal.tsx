@@ -45,6 +45,12 @@ const schema = z.object({
     .nullable()
     .or(z.literal(""))
     .optional(),
+  emergencyContactName: z.string().max(200).nullable().optional(),
+  emergencyContactPhone: z.string().max(20).nullable().optional(),
+  occupation: z.string().max(200).nullable().optional(),
+  employer: z.string().max(200).nullable().optional(),
+  referralSource: z.string().max(200).nullable().optional(),
+  medicationsRaw: z.string().optional(),
   allergiesRaw: z.string().optional(),
   medicalAlertsRaw: z.string().optional(),
   smsOptOut: z.boolean().optional(),
@@ -67,6 +73,12 @@ const EMPTY: FormValues = {
   state: "",
   zip: "",
   ssn: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  occupation: "",
+  employer: "",
+  referralSource: "",
+  medicationsRaw: "",
   allergiesRaw: "",
   medicalAlertsRaw: "",
   smsOptOut: false,
@@ -130,6 +142,12 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
       state: values.state || null,
       zip: values.zip || null,
       ssn: values.ssn || null,
+      emergencyContactName: values.emergencyContactName || null,
+      emergencyContactPhone: values.emergencyContactPhone || null,
+      occupation: values.occupation || null,
+      employer: values.employer || null,
+      referralSource: values.referralSource || null,
+      medications: splitComma(values.medicationsRaw),
       allergies: splitComma(values.allergiesRaw),
       medicalAlerts: splitComma(values.medicalAlertsRaw),
       smsOptOut: values.smsOptOut ?? false,
@@ -300,6 +318,63 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
                 placeholder="1234 or 123456789"
                 maxLength={9}
                 className="max-w-[12rem]"
+              />
+            </Field>
+
+            {/* Emergency contact */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Emergency contact name" error={errors.emergencyContactName}>
+                <Input
+                  value={values.emergencyContactName ?? ""}
+                  onChange={(e) => set("emergencyContactName", e.target.value)}
+                  placeholder="John Doe"
+                />
+              </Field>
+              <Field label="Emergency contact phone" error={errors.emergencyContactPhone}>
+                <Input
+                  value={values.emergencyContactPhone ?? ""}
+                  onChange={(e) => set("emergencyContactPhone", e.target.value)}
+                  placeholder="555-555-5555"
+                />
+              </Field>
+            </div>
+
+            {/* Occupation / employer */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Occupation" error={errors.occupation}>
+                <Input
+                  value={values.occupation ?? ""}
+                  onChange={(e) => set("occupation", e.target.value)}
+                  placeholder="Software engineer"
+                />
+              </Field>
+              <Field label="Employer / school" error={errors.employer}>
+                <Input
+                  value={values.employer ?? ""}
+                  onChange={(e) => set("employer", e.target.value)}
+                  placeholder="Acme Corp"
+                />
+              </Field>
+            </div>
+
+            {/* Referral source */}
+            <Field label="How did they hear about us?" error={errors.referralSource}>
+              <Input
+                value={values.referralSource ?? ""}
+                onChange={(e) => set("referralSource", e.target.value)}
+                placeholder="Friend, Google, etc."
+              />
+            </Field>
+
+            {/* Medications */}
+            <Field
+              label="Medications (comma-separated)"
+              error={errors.medicationsRaw}
+            >
+              <Input
+                value={values.medicationsRaw ?? ""}
+                onChange={(e) => set("medicationsRaw", e.target.value)}
+                placeholder="Lisinopril, Metformin"
               />
             </Field>
 

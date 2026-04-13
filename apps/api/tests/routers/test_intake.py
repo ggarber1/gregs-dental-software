@@ -57,6 +57,11 @@ def _make_patient(**overrides: Any) -> MagicMock:
         "updated_at": datetime(2026, 1, 1, tzinfo=UTC),
         "last_accessed_by": None,
         "last_accessed_at": None,
+        "emergency_contact_name": None,
+        "emergency_contact_phone": None,
+        "occupation": None,
+        "employer": None,
+        "referral_source": None,
     }
     for k, v in {**defaults, **overrides}.items():
         setattr(row, k, v)

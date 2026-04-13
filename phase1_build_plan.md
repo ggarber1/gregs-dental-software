@@ -413,7 +413,7 @@ Verify:
 - [x] Create a patient — confirm SSN is stored as encrypted `bytea` in RDS (not plaintext) — covered by `tests/integration/test_checkpoint2.py::TestSSNEncryptedAtRest`
 - [x] Audit log rows appear in `audit_logs` for every patient read and write — covered by `tests/integration/test_checkpoint2.py::TestAuditLogCoverage`
 - [x] Send a live intake form SMS via Twilio to a test phone number; complete the form on mobile (**blocked on A2P 10DLC registration** — requires LLC/EIN/website; initiate early, approval takes 1–5 days; form URL is logged in dev so the rest of this checkpoint can proceed without it) — code verified via E2E mock; form URL logged in dev
-- [x] Token is rejected on second submission (single-use enforced) — covered by `test_submit_second_time_returns_410` + E2E
+- [] Token is rejected on second submission (single-use enforced) — covered by `test_submit_second_time_returns_410` + E2E
 - [x] Completed intake data appears on patient chart — covered by `test_apply_updates_patient_record` + E2E full flow
 - [x] **Dad review (Checkpoint 2):** marital status, full SSN, insurance card, medications split, auto-redirect after create, doctor's note — all addressed in post-checkpoint patch (see deferred items below)
 
@@ -421,8 +421,17 @@ Verify:
 
 These were identified during dad's Checkpoint 2 review and intentionally excluded from the main pass. Pick these up before or alongside Module 3.
 
-- [ ] **Intake form field review vs. `garber_new_patient_forms.pdf`** — Install poppler (`brew install poppler`) and compare every field on the paper form against the digital intake form. Known gaps to check: emergency contact, responsible party, prior X-rays, dental anxiety level, occupation/employer, how they heard about the practice. Do this before making any intake form UI changes so nothing is missed.
-- [ ] **Intake form UI updates** — After the PDF review above, add missing fields to the patient-facing intake form: marital status, optional SSN (last 4), emergency contact, and a preset carrier dropdown for insurance. Scope the changes to exactly what the PDF review reveals — no more, no less.
+- [x] **Intake form field review vs. `garber_new_patient_forms.pdf`** — PDF reviewed (2026-04-13). Fields already present: name, DOB, sex, address, phone, email, SSN last 4, insurance carrier/group/member/holder, last dental visit, former dentist, chief complaint, medications, allergies, HIPAA consent. **Fields being added (items 2–3 below):** marital status, emergency contact, occupation/employer, referral source, last X-ray date. **Deferred gaps (see section below):** responsible party/billing guarantor, secondary insurance, expanded medical conditions (44 on paper vs 16 digital), dental symptoms checklist, dental goals/smile rating page. Note: "dental anxiety level" is not on the paper form — skip.
+- [ ] **Intake form UI updates** — Add to patient-facing intake form: marital status (Step 1), emergency contact name+phone (Step 1), occupation+employer (Step 1), referral source (Step 1), date of last X-rays (Step 3). SSN last 4 and carrier dropdown already present. Requires DB migration for new patient columns (emergency_contact_name/phone, occupation, employer, referral_source) and updates to SubmitIntakeForm schema and apply logic.
+- [ ] **Staff create patient form alignment** — Add to NewPatientModal.tsx: medications textarea, emergency contact, occupation/employer. All fields optional; form works with name+DOB only. Insurance added separately post-creation. Handles elderly/non-digital-patient use case.
+
+#### PDF Review Deferred Gaps (pick up in later modules)
+These were identified in the PDF review and intentionally excluded from items 2–3 above:
+- **Responsible party / billing guarantor** — "Person Responsible for Account" section (name, address, employer, SSN). Belongs in billing module (Module 6); this is the guarantor concept, not emergency contact.
+- **Secondary insurance** — "Additional Insurance" section on PDF. Multi-plan support is a larger feature; defer until primary insurance is validated in production.
+- **Expanded medical conditions checklist** — PDF has ~44 conditions; digital form has 16. Expand as a standalone task before production go-live; low risk to defer.
+- **Dental symptoms checklist** — PDF page 2 (Bad breath, Grinding teeth, Sensitivity to hot/cold, etc.). Add as a standalone task; does not block scheduling or billing.
+- **Dental goals / smile preferences** — PDF page 3. Marketing/preference data; low clinical value for Eaglesoft replacement, may skip entirely.
 - [ ] **Family member linking** — Add a `patient_relationships` table (patient_id, related_patient_id, relationship_type) and a UI section on the patient chart to link spouses and children. Confirm priority with dad before building — may be lower priority than scheduling.
 - [ ] **MFA enrollment flow** — Build a TOTP enrollment screen (QR code + verify code) that fires on first login before production go-live. This was flagged as a pre-production gate in Checkpoint 1 notes.
 

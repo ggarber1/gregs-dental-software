@@ -28,6 +28,15 @@ class Patient(Base, PHIMixin):
     sex: Mapped[str | None] = mapped_column(String(10), nullable=True)
     marital_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
+    # Emergency contact
+    emergency_contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    emergency_contact_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Employment / referral
+    occupation: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    employer: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    referral_source: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     # Contact
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)

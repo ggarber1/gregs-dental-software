@@ -26,12 +26,21 @@ export const SubmitIntakeFormSchema = z.object({
   state: z.string().length(2).optional(),
   zip: z.string().max(10).optional(),
   ssnLastFour: z.string().length(4).regex(/^\d{4}$/).optional(),
+  maritalStatus: z
+    .enum(["single", "married", "divorced", "widowed", "separated", "domestic_partner", "other"])
+    .optional(),
+  emergencyContactName: z.string().max(200).optional(),
+  emergencyContactPhone: z.string().max(20).optional(),
+  occupation: z.string().max(200).optional(),
+  employer: z.string().max(200).optional(),
+  referralSource: z.string().max(200).optional(),
   // Medical history
   medicalConditions: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
   allergies: z.array(z.string()).default([]),
   // Dental history
   lastDentalVisit: z.string().optional(),
+  lastXrayDate: z.string().optional(),
   previousDentist: z.string().optional(),
   chiefComplaint: z.string().optional(),
   // Insurance

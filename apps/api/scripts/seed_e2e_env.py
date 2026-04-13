@@ -20,6 +20,7 @@ The cognito-sub can be obtained via:
   aws cognito-idp admin-get-user --user-pool-id <pool_id> --username <email> \\
     --query 'UserAttributes[?Name==`sub`].Value' --output text
 """
+
 from __future__ import annotations
 
 import argparse
@@ -65,9 +66,7 @@ async def seed(
                 print(f"[seed] Practice already exists: {E2E_PRACTICE_UUID}")
 
             # ── User ──────────────────────────────────────────────────────────
-            user = await session.scalar(
-                select(User).where(User.cognito_sub == cognito_sub)
-            )
+            user = await session.scalar(select(User).where(User.cognito_sub == cognito_sub))
             if user is None:
                 user = User(
                     id=E2E_USER_UUID,
