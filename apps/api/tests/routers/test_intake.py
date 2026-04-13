@@ -49,6 +49,7 @@ def _make_patient(**overrides: Any) -> MagicMock:
         "allergies": [],
         "medical_alerts": [],
         "medications": [],
+        "dental_symptoms": [],
         "marital_status": None,
         "doctor_notes": None,
         "sms_opt_out": False,

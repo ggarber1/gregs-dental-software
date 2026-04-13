@@ -38,6 +38,7 @@ export const SubmitIntakeFormSchema = z.object({
   medicalConditions: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
   allergies: z.array(z.string()).default([]),
+  dentalSymptoms: z.array(z.string()).default([]),
   // Dental history
   lastDentalVisit: z.string().optional(),
   lastXrayDate: z.string().optional(),

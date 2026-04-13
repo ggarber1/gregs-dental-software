@@ -42,6 +42,7 @@ _PATIENT_ROW_DEFAULTS: dict[str, Any] = {
     "allergies": ["penicillin"],
     "medical_alerts": [],
     "medications": [],
+    "dental_symptoms": [],
     "marital_status": None,
     "doctor_notes": None,
     "sms_opt_out": False,

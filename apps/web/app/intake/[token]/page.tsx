@@ -33,23 +33,68 @@ const INSURANCE_CARRIERS = [
   "Other",
 ];
 
+const DENTAL_SYMPTOMS = [
+  "Bad breath",
+  "Grinding teeth",
+  "Sensitivity to hot",
+  "Bleeding gums",
+  "Loose teeth or broken fillings",
+  "Sensitivity to sweets",
+  "Clicking or popping jaw",
+  "Periodontal treatment",
+  "Sensitivity when biting",
+  "Food collection between teeth",
+  "Sensitivity to cold",
+  "Sores or growths in your mouth",
+];
+
 const MEDICAL_CONDITIONS = [
+  "Anemia",
+  "Arthritis / Rheumatism",
+  "Artificial Heart Valves",
+  "Artificial Joints",
+  "Asthma",
+  "Back Problems",
+  "Blood Disease",
+  "Cancer",
+  "Chemical Dependency",
+  "Chemotherapy",
+  "Circulatory Problems",
+  "Cortisone Treatments",
+  "Cough, Persistent",
+  "Cough up Blood",
   "Diabetes",
-  "Heart disease / heart condition",
-  "High blood pressure",
-  "Pacemaker",
-  "Blood thinners (anticoagulants)",
-  "Bisphosphonates (bone medication)",
-  "Asthma / respiratory condition",
-  "Pregnancy",
-  "Kidney disease",
-  "Liver disease",
+  "Epilepsy",
+  "Fainting",
+  "Glaucoma",
+  "Headaches",
+  "Heart Murmur",
+  "Heart Problems",
+  "Hemophilia",
+  "Hepatitis",
+  "High Blood Pressure",
   "HIV/AIDS",
-  "Cancer / undergoing chemotherapy",
-  "Thyroid condition",
-  "Anxiety or depression",
-  "Osteoporosis",
+  "Jaw Pain",
+  "Kidney Disease",
   "Latex allergy",
+  "Liver Disease",
+  "Mitral Valve Prolapse",
+  "Pacemaker",
+  "Pregnancy",
+  "Radiation Treatment",
+  "Respiratory Disease",
+  "Rheumatic Fever",
+  "Scarlet Fever",
+  "Shortness of Breath",
+  "Skin Rash",
+  "Stroke",
+  "Swelling of Feet or Ankles",
+  "Thyroid Problems",
+  "Tobacco Habit",
+  "Tonsillitis",
+  "Tuberculosis",
+  "Ulcer",
+  "Venereal Disease",
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -88,6 +133,7 @@ interface FormData {
   lastXrayDate: string;
   previousDentist: string;
   chiefComplaint: string;
+  dentalSymptoms: string[];
   insuranceCarrier: string;
   insuranceCarrierCustom: string;
   insuranceMemberId: string;
@@ -127,6 +173,7 @@ const emptyForm = (): FormData => ({
   lastXrayDate: "",
   previousDentist: "",
   chiefComplaint: "",
+  dentalSymptoms: [],
   insuranceCarrier: "",
   insuranceCarrierCustom: "",
   insuranceMemberId: "",
@@ -399,6 +446,15 @@ function Step2Medical({ form, onChange }: StepProps) {
 }
 
 function Step3DentalInsurance({ form, onChange }: StepProps) {
+  function toggleSymptom(symptom: string) {
+    const current = form.dentalSymptoms;
+    onChange({
+      dentalSymptoms: current.includes(symptom)
+        ? current.filter((s) => s !== symptom)
+        : [...current, symptom],
+    });
+  }
+
   return (
     <div className="grid gap-6">
       <div className="grid gap-4">
@@ -435,6 +491,25 @@ function Step3DentalInsurance({ form, onChange }: StepProps) {
             className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
           />
         </Field>
+      </div>
+      <div className="grid gap-4">
+        <p className="mb-1 text-sm font-semibold">Dental symptoms</p>
+        <p className="text-sm text-muted-foreground">
+          Are you experiencing any of the following? (check all that apply)
+        </p>
+        <div className="grid gap-2">
+          {DENTAL_SYMPTOMS.map((symptom) => (
+            <label key={symptom} className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={form.dentalSymptoms.includes(symptom)}
+                onChange={() => toggleSymptom(symptom)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <span className="text-sm">{symptom}</span>
+            </label>
+          ))}
+        </div>
       </div>
       <div className="grid gap-4">
         <p className="text-sm font-semibold">Dental insurance (if applicable)</p>
@@ -690,6 +765,7 @@ export default function IntakeFormPage() {
       lastXrayDate: form.lastXrayDate || undefined,
       previousDentist: form.previousDentist || undefined,
       chiefComplaint: form.chiefComplaint || undefined,
+      dentalSymptoms: form.dentalSymptoms,
       insuranceCarrier: (form.insuranceCarrier === "Other" ? form.insuranceCarrierCustom : form.insuranceCarrier) || undefined,
       insuranceMemberId: form.insuranceMemberId || undefined,
       insuranceGroupNumber: form.insuranceGroupNumber || undefined,

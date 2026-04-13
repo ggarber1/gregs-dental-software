@@ -484,3 +484,18 @@ class TestIntakeApplyFieldMapping:
         assert "albuterol" in updated["medications"]
         assert "albuterol" not in (updated.get("medicalAlerts") or [])
         assert "asthma" not in (updated.get("medications") or [])
+
+    async def test_dental_symptoms_go_to_dental_symptoms(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client,
+            auth_headers,
+            patient,
+            db_session,
+            dentalSymptoms=["Bleeding gums", "Sensitivity to cold"],
+        )
+        assert "Bleeding gums" in updated["dentalSymptoms"]
+        assert "Sensitivity to cold" in updated["dentalSymptoms"]
+        assert "Bleeding gums" not in (updated.get("medicalAlerts") or [])
+        assert "Bleeding gums" not in (updated.get("medications") or [])

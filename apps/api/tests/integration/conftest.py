@@ -260,6 +260,7 @@ def intake_submit_payload(**overrides: object) -> dict:
         "medicalConditions": ["diabetes", "hypertension"],
         "medications": ["metformin", "lisinopril"],
         "allergies": ["penicillin"],
+        "dentalSymptoms": [],
         "lastDentalVisit": "2024-01-10",
         "lastXrayDate": "2024-06-15",
         "chiefComplaint": "Tooth pain upper left",
