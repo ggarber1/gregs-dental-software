@@ -84,6 +84,11 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         state=row.state,
         zip=row.zip,
         ssn=ssn,
+        emergencyContactName=row.emergency_contact_name,
+        emergencyContactPhone=row.emergency_contact_phone,
+        occupation=row.occupation,
+        employer=row.employer,
+        referralSource=row.referral_source,
         allergies=row.allergies or [],
         medicalAlerts=row.medical_alerts or [],
         medications=row.medications or [],
@@ -127,6 +132,11 @@ async def create_patient(body: CreatePatient, request: Request) -> Patient:
         date_of_birth=body.date_of_birth,
         sex=body.sex,
         marital_status=body.marital_status,
+        emergency_contact_name=body.emergency_contact_name,
+        emergency_contact_phone=body.emergency_contact_phone,
+        occupation=body.occupation,
+        employer=body.employer,
+        referral_source=body.referral_source,
         phone=body.phone,
         email=str(body.email) if body.email else None,
         address_line1=body.address_line1,
@@ -180,9 +190,10 @@ async def list_patients(
         )
 
     async with get_session_factory()() as session:
-        total: int = await session.scalar(
-            select(func.count()).select_from(PatientModel).where(*base_filter)
-        ) or 0
+        total: int = (
+            await session.scalar(select(func.count()).select_from(PatientModel).where(*base_filter))
+            or 0
+        )
 
         rows = (
             await session.scalars(
@@ -278,6 +289,11 @@ async def update_patient(
             "date_of_birth": "date_of_birth",
             "sex": "sex",
             "marital_status": "marital_status",
+            "emergency_contact_name": "emergency_contact_name",
+            "emergency_contact_phone": "emergency_contact_phone",
+            "occupation": "occupation",
+            "employer": "employer",
+            "referral_source": "referral_source",
             "phone": "phone",
             "address_line1": "address_line1",
             "address_line2": "address_line2",

@@ -93,9 +93,7 @@ async def _resolve_practice_membership(
     Returns (user_id, role) if the membership is active, None otherwise.
     """
     async with get_session_factory()() as session:
-        user_row = await session.scalar(
-            select(User.id).where(User.cognito_sub == cognito_sub)
-        )
+        user_row = await session.scalar(select(User.id).where(User.cognito_sub == cognito_sub))
         if user_row is None:
             return None
 
@@ -134,7 +132,7 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
             )
 
-        token = auth_header[len("Bearer "):]
+        token = auth_header[len("Bearer ") :]
         settings = get_settings()
 
         try:

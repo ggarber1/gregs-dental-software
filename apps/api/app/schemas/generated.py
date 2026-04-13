@@ -148,6 +148,11 @@ class Patient(BaseModel):
     state: str | None = Field(None, max_length=2, min_length=2)
     zip: str | None = Field(None, max_length=10)
     ssn: str | None = Field(None, pattern='^\\d{4}$|^\\d{9}$')
+    emergency_contact_name: str | None = Field(None, alias='emergencyContactName', max_length=200)
+    emergency_contact_phone: str | None = Field(None, alias='emergencyContactPhone', max_length=20)
+    occupation: str | None = Field(None, max_length=200)
+    employer: str | None = Field(None, max_length=200)
+    referral_source: str | None = Field(None, alias='referralSource', max_length=200)
     allergies: list[str] | None = []
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
@@ -176,6 +181,11 @@ class CreatePatient(BaseModel):
     state: str | None = Field(None, max_length=2, min_length=2)
     zip: str | None = Field(None, max_length=10)
     ssn: str | None = Field(None, pattern='^\\d{4}$|^\\d{9}$')
+    emergency_contact_name: str | None = Field(None, alias='emergencyContactName', max_length=200)
+    emergency_contact_phone: str | None = Field(None, alias='emergencyContactPhone', max_length=20)
+    occupation: str | None = Field(None, max_length=200)
+    employer: str | None = Field(None, max_length=200)
+    referral_source: str | None = Field(None, alias='referralSource', max_length=200)
     allergies: list[str] | None = []
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
@@ -201,6 +211,11 @@ class UpdatePatient(BaseModel):
     state: str | None = Field(None, max_length=2, min_length=2)
     zip: str | None = Field(None, max_length=10)
     ssn: str | None = Field(None, pattern='^\\d{4}$|^\\d{9}$')
+    emergency_contact_name: str | None = Field(None, alias='emergencyContactName', max_length=200)
+    emergency_contact_phone: str | None = Field(None, alias='emergencyContactPhone', max_length=20)
+    occupation: str | None = Field(None, max_length=200)
+    employer: str | None = Field(None, max_length=200)
+    referral_source: str | None = Field(None, alias='referralSource', max_length=200)
     allergies: list[str] | None = []
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
@@ -274,6 +289,7 @@ class SubmitIntakeForm(BaseModel):
     last_name: str = Field(..., alias='lastName', max_length=100, min_length=1)
     date_of_birth: date = Field(..., alias='dateOfBirth')
     sex: Sex | None = None
+    marital_status: MaritalStatus | None = Field(None, alias='maritalStatus')
     phone: str = Field(..., max_length=20)
     email: EmailStr | None = Field(None, max_length=255)
     address_line1: str | None = Field(None, alias='addressLine1', max_length=255)
@@ -282,6 +298,12 @@ class SubmitIntakeForm(BaseModel):
     state: str | None = Field(None, max_length=2, min_length=2)
     zip: str | None = Field(None, max_length=10)
     ssn_last_four: str | None = Field(None, alias='ssnLastFour', max_length=4, min_length=4, pattern='^\\d{4}$')
+    emergency_contact_name: str | None = Field(None, alias='emergencyContactName', max_length=200)
+    emergency_contact_phone: str | None = Field(None, alias='emergencyContactPhone', max_length=20)
+    occupation: str | None = Field(None, max_length=200)
+    employer: str | None = Field(None, max_length=200)
+    referral_source: str | None = Field(None, alias='referralSource', max_length=200)
+    last_xray_date: str | None = Field(None, alias='lastXrayDate')
     medical_conditions: list[str] | None = Field([], alias='medicalConditions')
     medications: list[str] | None = []
     allergies: list[str] | None = []
@@ -342,6 +364,7 @@ class Responses(BaseModel):
     last_name: str = Field(..., alias='lastName', max_length=100, min_length=1)
     date_of_birth: date = Field(..., alias='dateOfBirth')
     sex: Sex | None = None
+    marital_status: MaritalStatus | None = Field(None, alias='maritalStatus')
     phone: str = Field(..., max_length=20)
     email: EmailStr | None = Field(None, max_length=255)
     address_line1: str | None = Field(None, alias='addressLine1', max_length=255)
@@ -350,6 +373,12 @@ class Responses(BaseModel):
     state: str | None = Field(None, max_length=2, min_length=2)
     zip: str | None = Field(None, max_length=10)
     ssn_last_four: str | None = Field(None, alias='ssnLastFour', max_length=4, min_length=4, pattern='^\\d{4}$')
+    emergency_contact_name: str | None = Field(None, alias='emergencyContactName', max_length=200)
+    emergency_contact_phone: str | None = Field(None, alias='emergencyContactPhone', max_length=20)
+    occupation: str | None = Field(None, max_length=200)
+    employer: str | None = Field(None, max_length=200)
+    referral_source: str | None = Field(None, alias='referralSource', max_length=200)
+    last_xray_date: str | None = Field(None, alias='lastXrayDate')
     medical_conditions: list[str] | None = Field([], alias='medicalConditions')
     medications: list[str] | None = []
     allergies: list[str] | None = []

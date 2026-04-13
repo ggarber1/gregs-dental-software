@@ -69,9 +69,7 @@ async def get_intake_form_public(token: str) -> IntakeFormTokenInfo:
     now = datetime.now(UTC)
 
     async with get_session_factory()() as session:
-        form = await session.scalar(
-            select(IntakeForm).where(IntakeForm.token == token)
-        )
+        form = await session.scalar(select(IntakeForm).where(IntakeForm.token == token))
         if form is None:
             raise HTTPException(
                 status_code=404,
@@ -105,9 +103,7 @@ async def get_intake_form_public(token: str) -> IntakeFormTokenInfo:
             )
 
         # Fetch practice name and patient first name for the greeting
-        practice = await session.scalar(
-            select(Practice).where(Practice.id == form.practice_id)
-        )
+        practice = await session.scalar(select(Practice).where(Practice.id == form.practice_id))
         patient = await session.scalar(
             select(PatientModel).where(PatientModel.id == form.patient_id)
         )
@@ -142,9 +138,7 @@ async def submit_intake_form(token: str, body: SubmitIntakeForm, request: Reques
     now = datetime.now(UTC)
 
     async with get_session_factory()() as session:
-        form = await session.scalar(
-            select(IntakeForm).where(IntakeForm.token == token)
-        )
+        form = await session.scalar(select(IntakeForm).where(IntakeForm.token == token))
         if form is None:
             raise HTTPException(
                 status_code=404,
@@ -258,9 +252,7 @@ async def send_intake_form(body: SendIntakeForm, request: Request) -> SendIntake
                 ).model_dump(by_alias=True),
             )
 
-        practice = await session.scalar(
-            select(Practice).where(Practice.id == practice_id)
-        )
+        practice = await session.scalar(select(Practice).where(Practice.id == practice_id))
 
         token = secrets.token_hex(32)
         expires_at = datetime.now(UTC) + timedelta(hours=_INTAKE_TTL_HOURS)
@@ -323,9 +315,7 @@ async def list_intake_forms(
     async with get_session_factory()() as session:
         rows = (
             await session.scalars(
-                select(IntakeForm)
-                .where(*filters)
-                .order_by(IntakeForm.created_at.desc())
+                select(IntakeForm).where(*filters).order_by(IntakeForm.created_at.desc())
             )
         ).all()
 
@@ -438,6 +428,18 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
             patient.date_of_birth = date.fromisoformat(data["dateOfBirth"])
         if data.get("sex"):
             patient.sex = data["sex"]
+        if data.get("maritalStatus"):
+            patient.marital_status = data["maritalStatus"]
+        if data.get("emergencyContactName") is not None:
+            patient.emergency_contact_name = data["emergencyContactName"] or None
+        if data.get("emergencyContactPhone") is not None:
+            patient.emergency_contact_phone = data["emergencyContactPhone"] or None
+        if data.get("occupation") is not None:
+            patient.occupation = data["occupation"] or None
+        if data.get("employer") is not None:
+            patient.employer = data["employer"] or None
+        if data.get("referralSource") is not None:
+            patient.referral_source = data["referralSource"] or None
         if data.get("phone"):
             patient.phone = data["phone"]
         if data.get("email"):

@@ -288,6 +288,103 @@ class TestAuditLogCoverage:
 
 
 # ── 3. Intake apply field mapping ──────────────────────────────────────────────
+# ── 4. New demographic fields via intake apply ─────────────────────────────────
+
+
+class TestIntakeApplyNewFields:
+    """
+    Verify that the five new demographic fields added in 0006 migration are
+    correctly mapped from the intake form to the patient record when applied.
+    marital_status, emergency contact, occupation, employer, referral_source.
+    last_xray_date stays in the encrypted blob only — not applied to patient.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _mock_sms(self):
+        with _mock_sms_ctx():
+            yield
+
+    async def _submit_and_apply(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        patient,
+        db_session,
+        **form_overrides: object,
+    ) -> dict:
+        send = await client.post(
+            "/api/v1/intake/send",
+            json={"patientId": str(patient.id)},
+            headers=mut(auth_headers),
+        )
+        assert send.status_code == 201
+        form_id = send.json()["intakeFormId"]
+
+        form = await db_session.scalar(
+            select(IntakeForm).where(IntakeForm.id == uuid.UUID(form_id))
+        )
+        token = form.token
+
+        payload = intake_submit_payload(**form_overrides)
+        submit = await client.post(f"/api/intake/form/{token}/submit", json=payload)
+        assert submit.status_code == 204
+
+        apply = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
+        assert apply.status_code == 200
+        return apply.json()
+
+    async def test_marital_status_applied(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client, auth_headers, patient, db_session, maritalStatus="married"
+        )
+        assert updated["maritalStatus"] == "married"
+
+    async def test_emergency_contact_applied(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client,
+            auth_headers,
+            patient,
+            db_session,
+            emergencyContactName="John Doe",
+            emergencyContactPhone="555-999-8888",
+        )
+        assert updated["emergencyContactName"] == "John Doe"
+        assert updated["emergencyContactPhone"] == "555-999-8888"
+
+    async def test_occupation_and_employer_applied(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client,
+            auth_headers,
+            patient,
+            db_session,
+            occupation="Teacher",
+            employer="Boston Public Schools",
+        )
+        assert updated["occupation"] == "Teacher"
+        assert updated["employer"] == "Boston Public Schools"
+
+    async def test_referral_source_applied(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        updated = await self._submit_and_apply(
+            client, auth_headers, patient, db_session, referralSource="Friend"
+        )
+        assert updated["referralSource"] == "Friend"
+
+    async def test_last_xray_date_not_on_patient(
+        self, client: AsyncClient, auth_headers, patient, db_session
+    ):
+        """lastXrayDate is blob-only — must not appear on the returned patient object."""
+        updated = await self._submit_and_apply(
+            client, auth_headers, patient, db_session, lastXrayDate="About 2 years ago"
+        )
+        assert "lastXrayDate" not in updated
 
 
 class TestIntakeApplyFieldMapping:

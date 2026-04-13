@@ -69,6 +69,4 @@ class AuditLog(Base):
         index=True,
     )
 
-    __table_args__ = (
-        Index("ix_audit_logs_practice_timestamp", "practice_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_audit_logs_practice_timestamp", "practice_id", "timestamp"),)

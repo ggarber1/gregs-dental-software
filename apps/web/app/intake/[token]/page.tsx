@@ -65,6 +65,7 @@ interface FormData {
   lastName: string;
   dateOfBirth: string;
   sex: string;
+  maritalStatus: string;
   phone: string;
   email: string;
   addressLine1: string;
@@ -73,12 +74,18 @@ interface FormData {
   state: string;
   zip: string;
   ssnLastFour: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  occupation: string;
+  employer: string;
+  referralSource: string;
   // Step 2: Medical history
   medicalConditions: string[];
   medications: string; // newline-separated, split before submit
   allergies: string; // newline-separated, split before submit
   // Step 3: Dental history + insurance
   lastDentalVisit: string;
+  lastXrayDate: string;
   previousDentist: string;
   chiefComplaint: string;
   insuranceCarrier: string;
@@ -99,6 +106,7 @@ const emptyForm = (): FormData => ({
   lastName: "",
   dateOfBirth: "",
   sex: "",
+  maritalStatus: "",
   phone: "",
   email: "",
   addressLine1: "",
@@ -107,10 +115,16 @@ const emptyForm = (): FormData => ({
   state: "",
   zip: "",
   ssnLastFour: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  occupation: "",
+  employer: "",
+  referralSource: "",
   medicalConditions: [],
   medications: "",
   allergies: "",
   lastDentalVisit: "",
+  lastXrayDate: "",
   previousDentist: "",
   chiefComplaint: "",
   insuranceCarrier: "",
@@ -272,6 +286,62 @@ function Step1Personal({ form, onChange }: StepProps) {
           autoComplete="off"
         />
       </Field>
+      <Field label="Marital status">
+        <Select value={form.maritalStatus} onValueChange={(v) => onChange({ maritalStatus: v })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select…" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="single">Single</SelectItem>
+            <SelectItem value="married">Married</SelectItem>
+            <SelectItem value="divorced">Divorced</SelectItem>
+            <SelectItem value="widowed">Widowed</SelectItem>
+            <SelectItem value="separated">Separated</SelectItem>
+            <SelectItem value="domestic_partner">Domestic partner</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Emergency contact name">
+          <Input
+            value={form.emergencyContactName}
+            onChange={(e) => onChange({ emergencyContactName: e.target.value })}
+            placeholder="John Doe"
+          />
+        </Field>
+        <Field label="Emergency contact phone">
+          <Input
+            value={form.emergencyContactPhone}
+            onChange={(e) => onChange({ emergencyContactPhone: e.target.value })}
+            placeholder="555-555-5555"
+            type="tel"
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Occupation">
+          <Input
+            value={form.occupation}
+            onChange={(e) => onChange({ occupation: e.target.value })}
+            placeholder="Software engineer"
+          />
+        </Field>
+        <Field label="Employer / school">
+          <Input
+            value={form.employer}
+            onChange={(e) => onChange({ employer: e.target.value })}
+            placeholder="Acme Corp"
+          />
+        </Field>
+      </div>
+      <Field label="How did you hear about us?">
+        <Input
+          value={form.referralSource}
+          onChange={(e) => onChange({ referralSource: e.target.value })}
+          placeholder="Friend, Google, etc."
+        />
+      </Field>
     </div>
   );
 }
@@ -333,13 +403,22 @@ function Step3DentalInsurance({ form, onChange }: StepProps) {
     <div className="grid gap-6">
       <div className="grid gap-4">
         <p className="text-sm font-semibold">Dental history</p>
-        <Field label="When was your last dental visit?">
-          <Input
-            value={form.lastDentalVisit}
-            onChange={(e) => onChange({ lastDentalVisit: e.target.value })}
-            placeholder="About 1 year ago, or never"
-          />
-        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="When was your last dental visit?">
+            <Input
+              value={form.lastDentalVisit}
+              onChange={(e) => onChange({ lastDentalVisit: e.target.value })}
+              placeholder="About 1 year ago, or never"
+            />
+          </Field>
+          <Field label="Date of last dental X-rays">
+            <Input
+              value={form.lastXrayDate}
+              onChange={(e) => onChange({ lastXrayDate: e.target.value })}
+              placeholder="About 2 years ago, or never"
+            />
+          </Field>
+        </div>
         <Field label="Previous dentist's name">
           <Input
             value={form.previousDentist}
@@ -584,6 +663,7 @@ export default function IntakeFormPage() {
       lastName: form.lastName,
       dateOfBirth: form.dateOfBirth,
       sex: form.sex || undefined,
+      maritalStatus: form.maritalStatus || undefined,
       phone: form.phone,
       email: form.email || undefined,
       addressLine1: form.addressLine1 || undefined,
@@ -592,6 +672,11 @@ export default function IntakeFormPage() {
       state: form.state || undefined,
       zip: form.zip || undefined,
       ssnLastFour: form.ssnLastFour || undefined,
+      emergencyContactName: form.emergencyContactName || undefined,
+      emergencyContactPhone: form.emergencyContactPhone || undefined,
+      occupation: form.occupation || undefined,
+      employer: form.employer || undefined,
+      referralSource: form.referralSource || undefined,
       medicalConditions: form.medicalConditions,
       medications: form.medications
         .split("\n")
@@ -602,6 +687,7 @@ export default function IntakeFormPage() {
         .map((s) => s.trim())
         .filter(Boolean),
       lastDentalVisit: form.lastDentalVisit || undefined,
+      lastXrayDate: form.lastXrayDate || undefined,
       previousDentist: form.previousDentist || undefined,
       chiefComplaint: form.chiefComplaint || undefined,
       insuranceCarrier: (form.insuranceCarrier === "Other" ? form.insuranceCarrierCustom : form.insuranceCarrier) || undefined,

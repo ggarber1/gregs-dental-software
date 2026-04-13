@@ -29,6 +29,11 @@ export const PatientSchema = z.object({
   // PHI — SSN stored AES-256 encrypted at application layer, never plaintext.
   // Accepts 4-digit (last four) or full 9-digit SSN.
   ssn: z.string().regex(/^\d{4}$|^\d{9}$/).optional(),
+  emergencyContactName: z.string().max(200).optional(),
+  emergencyContactPhone: z.string().max(20).optional(),
+  occupation: z.string().max(200).optional(),
+  employer: z.string().max(200).optional(),
+  referralSource: z.string().max(200).optional(),
   allergies: z.array(z.string()).default([]),
   medicalAlerts: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
