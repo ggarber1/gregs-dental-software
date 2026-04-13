@@ -555,7 +555,7 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
             <EditField label="Doctor's note">
               <Textarea
                 value={fields.doctorNotes}
-                onChange={(e) => setFields((p) => ({ ...p, doctorNotes: e.target.value }))}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFields((p) => ({ ...p, doctorNotes: e.target.value }))}
                 placeholder="Important notes for clinical staff…"
                 rows={3}
               />
