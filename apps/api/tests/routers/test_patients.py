@@ -41,6 +41,9 @@ _PATIENT_ROW_DEFAULTS: dict[str, Any] = {
     "ssn_encrypted": None,
     "allergies": ["penicillin"],
     "medical_alerts": [],
+    "medications": [],
+    "marital_status": None,
+    "doctor_notes": None,
     "sms_opt_out": False,
     "deleted_at": None,
     "created_at": datetime(2026, 1, 1, tzinfo=UTC),
@@ -305,7 +308,7 @@ async def test_get_patient_returns_200_with_ssn():
 
     assert response.status_code == 200
     body = response.json()
-    assert body["ssnLastFour"] == "4321"
+    assert body["ssn"] == "4321"
     assert body["firstName"] == "Jane"
 
 
