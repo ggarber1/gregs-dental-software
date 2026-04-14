@@ -469,9 +469,9 @@ function Step3DentalInsurance({ form, onChange }: StepProps) {
           </Field>
           <Field label="Date of last dental X-rays">
             <Input
+              type="date"
               value={form.lastXrayDate}
               onChange={(e) => onChange({ lastXrayDate: e.target.value })}
-              placeholder="About 2 years ago, or never"
             />
           </Field>
         </div>
