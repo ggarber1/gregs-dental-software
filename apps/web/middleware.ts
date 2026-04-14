@@ -6,6 +6,11 @@ import { validateAccessToken } from "@/lib/auth/jwks";
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { nextUrl } = req;
   const isAuthRoute = nextUrl.pathname.startsWith("/login");
+  const isPublicRoute = nextUrl.pathname.startsWith("/intake");
+
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
 
   const token = getAccessTokenFromRequest(req);
   if (!token) {
