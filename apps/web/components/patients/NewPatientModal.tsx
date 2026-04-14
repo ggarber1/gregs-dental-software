@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreatePatient, type CreatePatientBody } from "@/lib/api/patients";
+import { createInsurance } from "@/lib/api/insurance";
 
 const schema = z.object({
   firstName: z.string().min(1, "Required").max(100),
@@ -54,6 +55,18 @@ const schema = z.object({
   allergiesRaw: z.string().optional(),
   medicalAlertsRaw: z.string().optional(),
   smsOptOut: z.boolean().optional(),
+  // Insurance (optional — only submitted if carrier is provided)
+  insuranceCarrier: z.string().max(255).or(z.literal("")).optional(),
+  insuranceMemberId: z.string().max(100).or(z.literal("")).optional(),
+  insuranceGroupNumber: z.string().max(100).or(z.literal("")).optional(),
+  insuranceRelationship: z.enum(["self", "spouse", "child", "other"]).nullable().optional(),
+  insuredFirstName: z.string().max(100).or(z.literal("")).optional(),
+  insuredLastName: z.string().max(100).or(z.literal("")).optional(),
+  insuredDateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .or(z.literal(""))
+    .optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -82,6 +95,13 @@ const EMPTY: FormValues = {
   allergiesRaw: "",
   medicalAlertsRaw: "",
   smsOptOut: false,
+  insuranceCarrier: "",
+  insuranceMemberId: "",
+  insuranceGroupNumber: "",
+  insuranceRelationship: null,
+  insuredFirstName: "",
+  insuredLastName: "",
+  insuredDateOfBirth: "",
 };
 
 interface Props {
@@ -102,7 +122,8 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  const { mutate: createPatient, isPending, error: mutationError } = useCreatePatient();
+  const { mutateAsync: createPatient, error: mutationError } = useCreatePatient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -124,7 +145,7 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
     return false;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
 
@@ -153,14 +174,33 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
       smsOptOut: values.smsOptOut ?? false,
     };
 
-    createPatient(body, {
-      onSuccess: (patient) => {
-        setValues(EMPTY);
-        setErrors({});
-        onOpenChange(false);
-        router.push(`/patients/${patient.id}`);
-      },
-    });
+    setIsSubmitting(true);
+    try {
+      const patient = await createPatient(body);
+
+      if (values.insuranceCarrier) {
+        try {
+          await createInsurance(patient.id, {
+            carrier: values.insuranceCarrier,
+            memberId: values.insuranceMemberId || null,
+            groupNumber: values.insuranceGroupNumber || null,
+            relationshipToInsured: values.insuranceRelationship ?? "self",
+            insuredFirstName: values.insuredFirstName || null,
+            insuredLastName: values.insuredLastName || null,
+            insuredDateOfBirth: values.insuredDateOfBirth || null,
+          });
+        } catch {
+          // Patient was created — navigate anyway; staff can add insurance from the profile.
+        }
+      }
+
+      setValues(EMPTY);
+      setErrors({});
+      onOpenChange(false);
+      router.push(`/patients/${patient.id}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function handleOpenChange(next: boolean) {
@@ -179,7 +219,7 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate>
-          <div className="grid gap-4 py-2">
+          <div className="grid gap-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
             {/* Name */}
             <div className="grid grid-cols-2 gap-4">
               <Field label="First name *" error={errors.firstName}>
@@ -400,6 +440,84 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
               />
             </Field>
 
+            {/* Insurance */}
+            <div className="border-t pt-3">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Insurance (optional)
+              </p>
+              <div className="grid gap-4">
+                <Field label="Carrier" error={errors.insuranceCarrier}>
+                  <Input
+                    value={values.insuranceCarrier ?? ""}
+                    onChange={(e) => set("insuranceCarrier", e.target.value)}
+                    placeholder="Delta Dental, Cigna…"
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Member ID" error={errors.insuranceMemberId}>
+                    <Input
+                      value={values.insuranceMemberId ?? ""}
+                      onChange={(e) => set("insuranceMemberId", e.target.value)}
+                      placeholder="123456789"
+                    />
+                  </Field>
+                  <Field label="Group #" error={errors.insuranceGroupNumber}>
+                    <Input
+                      value={values.insuranceGroupNumber ?? ""}
+                      onChange={(e) => set("insuranceGroupNumber", e.target.value)}
+                      placeholder="GRP001"
+                    />
+                  </Field>
+                </div>
+                <Field label="Relationship to insured" error={errors.insuranceRelationship}>
+                  <Select
+                    value={values.insuranceRelationship ?? "self"}
+                    onValueChange={(v) =>
+                      set("insuranceRelationship", v as FormValues["insuranceRelationship"])
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Self" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="self">Self</SelectItem>
+                      <SelectItem value="spouse">Spouse</SelectItem>
+                      <SelectItem value="child">Child</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                {values.insuranceRelationship && values.insuranceRelationship !== "self" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Insured first name" error={errors.insuredFirstName}>
+                        <Input
+                          value={values.insuredFirstName ?? ""}
+                          onChange={(e) => set("insuredFirstName", e.target.value)}
+                          placeholder="John"
+                        />
+                      </Field>
+                      <Field label="Insured last name" error={errors.insuredLastName}>
+                        <Input
+                          value={values.insuredLastName ?? ""}
+                          onChange={(e) => set("insuredLastName", e.target.value)}
+                          placeholder="Smith"
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Insured date of birth" error={errors.insuredDateOfBirth}>
+                      <Input
+                        type="date"
+                        value={values.insuredDateOfBirth ?? ""}
+                        onChange={(e) => set("insuredDateOfBirth", e.target.value)}
+                        className="max-w-[12rem]"
+                      />
+                    </Field>
+                  </>
+                )}
+              </div>
+            </div>
+
             {/* SMS opt-out */}
             <div className="flex items-center gap-2">
               <input
@@ -426,12 +544,12 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
               type="button"
               variant="outline"
               onClick={() => handleOpenChange(false)}
-              disabled={isPending}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Create patient"}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Create patient"}
             </Button>
           </DialogFooter>
         </form>

@@ -274,7 +274,7 @@ async def test_list_patients_returns_200_with_meta():
     assert body["meta"]["page"] == 1
     assert len(body["data"]) == 1
     # SSN must not appear in list responses
-    assert body["data"][0].get("ssnLastFour") is None
+    assert body["data"][0].get("ssn") is None
 
 
 @pytest.mark.asyncio

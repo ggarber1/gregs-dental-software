@@ -25,7 +25,7 @@ export const SubmitIntakeFormSchema = z.object({
   city: z.string().max(100).optional(),
   state: z.string().length(2).optional(),
   zip: z.string().max(10).optional(),
-  ssnLastFour: z.string().length(4).regex(/^\d{4}$/).optional(),
+  ssn: z.string().regex(/^\d{4}$|^\d{9}$/, "Enter last 4 or full 9 digits").optional(),
   maritalStatus: z
     .enum(["single", "married", "divorced", "widowed", "separated", "domestic_partner", "other"])
     .optional(),

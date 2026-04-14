@@ -435,6 +435,14 @@ These were identified in the PDF review and intentionally excluded from items 2�
 - [ ] **Family member linking** — Add a `patient_relationships` table (patient_id, related_patient_id, relationship_type) and a UI section on the patient chart to link spouses and children. Confirm priority with dad before building — may be lower priority than scheduling.
 - [ ] **MFA enrollment flow** — Build a TOTP enrollment screen (QR code + verify code) that fires on first login before production go-live. This was flagged as a pre-production gate in Checkpoint 1 notes.
 
+Further Additions:
+- Create patient form missing insurance, marital status, and a whole bunch of stuff. medical history, alergies.
+  - lets just add insurance and make sure that you can send multiple forms
+- opening intake form on phone sends me to login page
+- intake form only asks for 4 digits of ssn
+- applying intake form failed. File "/app/app/routers/intake.py", line 434, in apply_intake_form
+2026-04-14T02:59:58.202000+00:00 api/api/645431b409ad4cbe95b033ddec8fe20c     patient.last_xray_date = date.fromisoformat(data["lastXrayDate"])
+
 ## Module 3: Scheduling
 
 ### 3.1 Scheduling API
