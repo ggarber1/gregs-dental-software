@@ -118,7 +118,7 @@ interface FormData {
   city: string;
   state: string;
   zip: string;
-  ssnLastFour: string;
+  ssn: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
   occupation: string;
@@ -160,7 +160,7 @@ const emptyForm = (): FormData => ({
   city: "",
   state: "",
   zip: "",
-  ssnLastFour: "",
+  ssn: "",
   emergencyContactName: "",
   emergencyContactPhone: "",
   occupation: "",
@@ -322,14 +322,14 @@ function Step1Personal({ form, onChange }: StepProps) {
           />
         </Field>
       </div>
-      <Field label="SSN last 4 digits (optional)">
+      <Field label="SSN (last 4 or full 9 digits, optional)">
         <Input
-          value={form.ssnLastFour}
-          onChange={(e) => onChange({ ssnLastFour: e.target.value.replace(/\D/g, "").slice(0, 4) })}
-          placeholder="1234"
+          value={form.ssn}
+          onChange={(e) => onChange({ ssn: e.target.value.replace(/\D/g, "").slice(0, 9) })}
+          placeholder="1234 or 123456789"
           inputMode="numeric"
-          maxLength={4}
-          className="max-w-[8rem]"
+          maxLength={9}
+          className="max-w-[12rem]"
           autoComplete="off"
         />
       </Field>
@@ -746,7 +746,7 @@ export default function IntakeFormPage() {
       city: form.city || undefined,
       state: form.state || undefined,
       zip: form.zip || undefined,
-      ssnLastFour: form.ssnLastFour || undefined,
+      ssn: form.ssn || undefined,
       emergencyContactName: form.emergencyContactName || undefined,
       emergencyContactPhone: form.emergencyContactPhone || undefined,
       occupation: form.occupation || undefined,

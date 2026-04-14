@@ -458,8 +458,8 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
             patient.zip = data["zip"] or None
 
         # SSN — encrypt before storage (never store plaintext)
-        if data.get("ssnLastFour"):
-            patient.ssn_encrypted = encrypt(data["ssnLastFour"])
+        if data.get("ssn"):
+            patient.ssn_encrypted = encrypt(data["ssn"])
 
         # Clinical flags — split medications and conditions into separate fields
         if data.get("allergies"):
