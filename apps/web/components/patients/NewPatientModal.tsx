@@ -218,7 +218,7 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
           <DialogTitle>New Patient</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
           <div className="grid gap-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
             {/* Name */}
             <div className="grid grid-cols-2 gap-4">
