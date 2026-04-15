@@ -68,6 +68,10 @@ async function request<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login";
+      return undefined as T;
+    }
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const errorBody: unknown = await response
       .json()
