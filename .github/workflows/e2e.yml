@@ -1,6 +1,20 @@
 name: E2E Tests
 
 on:
+  workflow_dispatch:
+    inputs:
+      web_url:
+        description: "Staging web URL"
+        required: true
+        type: string
+      api_url:
+        description: "Staging API URL"
+        required: true
+        type: string
+      cognito_user_pool_id:
+        description: "Cognito user pool ID (for idempotent test-user creation)"
+        required: true
+        type: string
   workflow_call:
     inputs:
       web_url:
