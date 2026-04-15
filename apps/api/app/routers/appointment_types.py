@@ -26,7 +26,7 @@ _NOT_FOUND = {
 }
 
 
-def _not_found_detail() -> dict:
+def _not_found_detail() -> dict[str, dict[str, str]]:
     return {"error": _NOT_FOUND}
 
 
@@ -73,7 +73,7 @@ def _row_to_schema(row: AppointmentTypeModel) -> AppointmentType:
         name=row.name,
         durationMinutes=row.duration_minutes,
         color=row.color,
-        defaultCdtCodes=row.default_cdt_codes or [],
+        defaultCdtCodes=row.default_cdt_codes or [],  # type: ignore[arg-type]
         isActive=row.is_active,
         displayOrder=row.display_order,
         createdAt=row.created_at,

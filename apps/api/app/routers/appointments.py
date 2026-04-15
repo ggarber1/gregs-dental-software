@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/v1/appointments", tags=["scheduling"])
 _WRITE_ROLES: frozenset[str] = frozenset({"admin", "provider", "front_desk"})
 
 
-def _err(code: str, message: str) -> dict:
+def _err(code: str, message: str) -> dict[str, dict[str, str]]:
     return {"error": {"code": code, "message": message}}
 
 # ── Status state machine ─────────────────────────────────────────────────────
@@ -384,7 +384,7 @@ async def create_appointment(
         await session.commit()
 
         # Re-fetch with relationships for the response
-        row = await session.scalar(
+        fetched = await session.scalar(
             select(AppointmentModel)
             .where(AppointmentModel.id == row.id)
             .options(
@@ -394,9 +394,9 @@ async def create_appointment(
                 selectinload(AppointmentModel.appointment_type),
             )
         )
-        assert row is not None
+        assert fetched is not None
 
-    return _row_to_schema(row)
+    return _row_to_schema(fetched)
 
 
 @router.patch("/{appointment_id}", response_model=Appointment)
@@ -537,7 +537,7 @@ async def update_appointment(
         await session.commit()
 
         # Re-fetch with relationships
-        row = await session.scalar(
+        fetched = await session.scalar(
             select(AppointmentModel)
             .where(AppointmentModel.id == appointment_id)
             .options(
@@ -547,9 +547,9 @@ async def update_appointment(
                 selectinload(AppointmentModel.appointment_type),
             )
         )
-        assert row is not None
+        assert fetched is not None
 
-    return _row_to_schema(row)
+    return _row_to_schema(fetched)
 
 
 @router.delete("/{appointment_id}", status_code=204)
