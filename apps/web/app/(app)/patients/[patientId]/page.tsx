@@ -94,6 +94,19 @@ function DemographicsCard({ patient, patientId }: DemographicsCardProps) {
 
   const { mutate, isPending } = useUpdatePatient(patientId);
 
+  useEffect(() => {
+    if (!editing) {
+      setFields({
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        dateOfBirth: patient.dateOfBirth,
+        sex: patient.sex,
+        maritalStatus: patient.maritalStatus,
+        ssn: patient.ssn ?? "",
+      });
+    }
+  }, [patient, editing]);
+
   function handleCancel() {
     setFields({
       firstName: patient.firstName,
@@ -271,6 +284,21 @@ function ContactCard({ patient, patientId }: ContactCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   const { mutate, isPending } = useUpdatePatient(patientId);
+
+  useEffect(() => {
+    if (!editing) {
+      setFields({
+        phone: patient.phone ?? "",
+        email: patient.email ?? "",
+        addressLine1: patient.addressLine1 ?? "",
+        addressLine2: patient.addressLine2 ?? "",
+        city: patient.city ?? "",
+        state: patient.state ?? "",
+        zip: patient.zip ?? "",
+        smsOptOut: patient.smsOptOut,
+      });
+    }
+  }, [patient, editing]);
 
   function handleCancel() {
     setFields({
@@ -469,6 +497,17 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
 
   const { mutate, isPending } = useUpdatePatient(patientId);
 
+  useEffect(() => {
+    if (!editing) {
+      setFields({
+        allergiesRaw: (patient.allergies ?? []).join(", "),
+        medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
+        medicationsRaw: (patient.medications ?? []).join(", "),
+        doctorNotes: patient.doctorNotes ?? "",
+      });
+    }
+  }, [patient, editing]);
+
   function handleCancel() {
     setFields({
       allergiesRaw: (patient.allergies ?? []).join(", "),
@@ -597,6 +636,17 @@ function DentalHistoryCard({ patient, patientId }: { patient: Patient; patientId
   const [error, setError] = useState<string | null>(null);
 
   const { mutate, isPending } = useUpdatePatient(patientId);
+
+  useEffect(() => {
+    if (!editing) {
+      setFields({
+        lastXrayDate: patient.lastXrayDate ?? "",
+        lastDentalVisit: patient.lastDentalVisit ?? "",
+        previousDentist: patient.previousDentist ?? "",
+        dentalSymptomsRaw: (patient.dentalSymptoms ?? []).join(", "),
+      });
+    }
+  }, [patient, editing]);
 
   function handleCancel() {
     setFields({
