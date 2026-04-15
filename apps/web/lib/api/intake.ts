@@ -8,6 +8,7 @@ import {
 
 import { apiClient, generateId } from "@/lib/api-client";
 import type { Patient } from "@/lib/api/patients";
+import { insuranceKeys } from "@/lib/api/insurance";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ export function useApplyIntakeForm(
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patients", "detail", patientId] });
       void queryClient.invalidateQueries({ queryKey: intakeKeys.forPatient(patientId) });
+      void queryClient.invalidateQueries({ queryKey: insuranceKeys.all(patientId) });
     },
   });
 }

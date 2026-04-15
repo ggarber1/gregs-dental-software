@@ -25,6 +25,7 @@ import {
   getPatient,
   createPatient,
   updatePatient,
+  deletePatient,
   isNotFoundError,
   type Patient,
   type PatientListResponse,
@@ -33,6 +34,7 @@ import {
 const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
 const mockPatch = vi.mocked(apiClient.patch);
+const mockDelete = vi.mocked(apiClient.delete);
 
 const PATIENT: Patient = {
   id: "patient-uuid-1",
@@ -173,6 +175,28 @@ describe("updatePatient", () => {
     await updatePatient("patient-uuid-1", { phone: "555-0000" });
 
     const [, , options] = mockPatch.mock.calls[0]!;
+    expect((options as { idempotencyKey: string }).idempotencyKey).toBe("test-uuid-idempotency");
+  });
+});
+
+describe("deletePatient", () => {
+  it("calls DELETE /api/v1/patients/:id", async () => {
+    mockDelete.mockResolvedValue(undefined);
+
+    await deletePatient("patient-uuid-1");
+
+    expect(mockDelete).toHaveBeenCalledWith(
+      "/api/v1/patients/patient-uuid-1",
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
+  it("sends an idempotency key", async () => {
+    mockDelete.mockResolvedValue(undefined);
+
+    await deletePatient("patient-uuid-1");
+
+    const [, options] = mockDelete.mock.calls[0]!;
     expect((options as { idempotencyKey: string }).idempotencyKey).toBe("test-uuid-idempotency");
   });
 });
