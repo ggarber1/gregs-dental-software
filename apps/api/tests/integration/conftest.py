@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import asyncpg
@@ -38,10 +38,14 @@ _TEST_DB_URL = "postgresql+asyncpg://dental:dental@localhost:5432/dental_test"
 
 # Truncate in dependency-safe order; CASCADE handles any remaining FK deps.
 _TRUNCATE_TABLES = (
+    "appointments",
+    "appointment_types",
     "intake_forms",
     "audit_logs",
     "patient_insurances",
     "patients",
+    "providers",
+    "operatories",
     "practice_users",
     "users",
     "practices",
@@ -235,6 +239,64 @@ def mut(base_headers: dict, **extra: str) -> dict:
     Ensures each mutation hits the backend rather than getting a cached replay.
     """
     return {**base_headers, "Idempotency-Key": str(uuid.uuid4()), **extra}
+
+
+@pytest_asyncio.fixture
+async def provider(db_session: AsyncSession, practice):
+    """Insert a Provider row and return it."""
+    from app.models.provider import Provider
+
+    p = Provider(
+        id=uuid.uuid4(),
+        practice_id=practice.id,
+        full_name="Dr. Smith",
+        npi="1234567890",
+        provider_type="dentist",
+        color="#4F86C6",
+        is_active=True,
+    )
+    db_session.add(p)
+    await db_session.commit()
+    await db_session.refresh(p)
+    return p
+
+
+@pytest_asyncio.fixture
+async def operatory(db_session: AsyncSession, practice):
+    """Insert an Operatory row and return it."""
+    from app.models.operatory import Operatory
+
+    o = Operatory(
+        id=uuid.uuid4(),
+        practice_id=practice.id,
+        name="Operatory 1",
+        color="#7BC67E",
+        is_active=True,
+    )
+    db_session.add(o)
+    await db_session.commit()
+    await db_session.refresh(o)
+    return o
+
+
+@pytest_asyncio.fixture
+async def appointment_type(db_session: AsyncSession, practice):
+    """Insert an AppointmentType row and return it."""
+    from app.models.appointment_type import AppointmentType
+
+    at = AppointmentType(
+        id=uuid.uuid4(),
+        practice_id=practice.id,
+        name="Cleaning",
+        duration_minutes=45,
+        color="#5B8DEF",
+        default_cdt_codes=["D1110"],
+        is_active=True,
+    )
+    db_session.add(at)
+    await db_session.commit()
+    await db_session.refresh(at)
+    return at
 
 
 def intake_submit_payload(**overrides: object) -> dict:

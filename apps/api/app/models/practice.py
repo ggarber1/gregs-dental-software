@@ -9,6 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.appointment import Appointment
+    from app.models.appointment_type import AppointmentType
     from app.models.operatory import Operatory
     from app.models.provider import Provider
     from app.models.user import PracticeUser
@@ -71,4 +73,14 @@ class Practice(Base, TimestampMixin):
         "Operatory",
         back_populates="practice",
         lazy="selectin",
+    )
+    appointment_types: Mapped[list[AppointmentType]] = relationship(
+        "AppointmentType",
+        back_populates="practice",
+        lazy="selectin",
+    )
+    appointments: Mapped[list[Appointment]] = relationship(
+        "Appointment",
+        back_populates="practice",
+        lazy="noload",
     )

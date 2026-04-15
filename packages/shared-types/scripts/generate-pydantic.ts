@@ -52,6 +52,21 @@ import {
   PaginationMetaSchema,
   ApiErrorSchema,
 } from "../src/schemas/common.js";
+import {
+  AppointmentTypeSchema,
+  CreateAppointmentTypeSchema,
+  UpdateAppointmentTypeSchema,
+  AppointmentSchema,
+  CreateAppointmentSchema,
+  UpdateAppointmentSchema,
+  CancelAppointmentSchema,
+  ProviderResponseSchema,
+  CreateProviderSchema as CreateProviderBodySchema,
+  UpdateProviderSchema as UpdateProviderBodySchema,
+  OperatoryResponseSchema,
+  CreateOperatorySchema as CreateOperatoryBodySchema,
+  UpdateOperatorySchema as UpdateOperatoryBodySchema,
+} from "../src/schemas/scheduling.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -77,6 +92,20 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   Insurance: InsuranceSchema,
   CreateInsurance: CreateInsuranceSchema,
   UpdateInsurance: UpdateInsuranceSchema,
+  // Scheduling
+  AppointmentType: AppointmentTypeSchema,
+  CreateAppointmentType: CreateAppointmentTypeSchema,
+  UpdateAppointmentType: UpdateAppointmentTypeSchema,
+  Appointment: AppointmentSchema,
+  CreateAppointment: CreateAppointmentSchema,
+  UpdateAppointment: UpdateAppointmentSchema,
+  CancelAppointment: CancelAppointmentSchema,
+  ProviderResponse: ProviderResponseSchema,
+  CreateProviderBody: CreateProviderBodySchema,
+  UpdateProviderBody: UpdateProviderBodySchema,
+  OperatoryResponse: OperatoryResponseSchema,
+  CreateOperatoryBody: CreateOperatoryBodySchema,
+  UpdateOperatoryBody: UpdateOperatoryBodySchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

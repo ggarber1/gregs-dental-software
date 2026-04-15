@@ -1,4 +1,6 @@
 # Import all models here so Alembic's env.py picks them up via Base.metadata.
+from app.models.appointment import Appointment as Appointment
+from app.models.appointment_type import AppointmentType as AppointmentType
 from app.models.audit_log import AuditLog as AuditLog
 from app.models.intake_form import IntakeForm as IntakeForm
 from app.models.operatory import Operatory as Operatory
