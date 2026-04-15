@@ -87,8 +87,9 @@ export const CancelAppointmentSchema = z.object({
 });
 
 // ── Providers (response schema — model already exists) ───────────────────────
+// Named *Body to avoid collision with CreateProviderSchema in practice.ts
 
-export const CreateProviderSchema = z.object({
+export const CreateProviderBodySchema = z.object({
   fullName: z.string().min(1).max(255),
   npi: z.string().length(10).regex(/^\d{10}$/),
   providerType: z.enum(["dentist", "hygienist", "specialist", "other"]),
@@ -99,9 +100,9 @@ export const CreateProviderSchema = z.object({
   displayOrder: z.number().int().default(0),
 });
 
-export const UpdateProviderSchema = CreateProviderSchema.partial();
+export const UpdateProviderBodySchema = CreateProviderBodySchema.partial();
 
-export const ProviderResponseSchema = CreateProviderSchema.extend({
+export const ProviderResponseSchema = CreateProviderBodySchema.extend({
   id: UuidSchema,
   practiceId: UuidSchema,
   createdAt: z.string().datetime(),
@@ -109,17 +110,18 @@ export const ProviderResponseSchema = CreateProviderSchema.extend({
 });
 
 // ── Operatories (response schema — model already exists) ─────────────────────
+// Named *Body to avoid collision with CreateOperatorySchema in practice.ts
 
-export const CreateOperatorySchema = z.object({
+export const CreateOperatoryBodySchema = z.object({
   name: z.string().min(1).max(100),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#7BC67E"),
   isActive: z.boolean().default(true),
   displayOrder: z.number().int().default(0),
 });
 
-export const UpdateOperatorySchema = CreateOperatorySchema.partial();
+export const UpdateOperatoryBodySchema = CreateOperatoryBodySchema.partial();
 
-export const OperatoryResponseSchema = CreateOperatorySchema.extend({
+export const OperatoryResponseSchema = CreateOperatoryBodySchema.extend({
   id: UuidSchema,
   practiceId: UuidSchema,
   createdAt: z.string().datetime(),
@@ -137,8 +139,8 @@ export type CreateAppointment = z.infer<typeof CreateAppointmentSchema>;
 export type UpdateAppointment = z.infer<typeof UpdateAppointmentSchema>;
 export type CancelAppointment = z.infer<typeof CancelAppointmentSchema>;
 export type ProviderResponse = z.infer<typeof ProviderResponseSchema>;
-export type CreateProvider = z.infer<typeof CreateProviderSchema>;
-export type UpdateProvider = z.infer<typeof UpdateProviderSchema>;
+export type CreateProviderBody = z.infer<typeof CreateProviderBodySchema>;
+export type UpdateProviderBody = z.infer<typeof UpdateProviderBodySchema>;
 export type OperatoryResponse = z.infer<typeof OperatoryResponseSchema>;
-export type CreateOperatory = z.infer<typeof CreateOperatorySchema>;
-export type UpdateOperatory = z.infer<typeof UpdateOperatorySchema>;
+export type CreateOperatoryBody = z.infer<typeof CreateOperatoryBodySchema>;
+export type UpdateOperatoryBody = z.infer<typeof UpdateOperatoryBodySchema>;

@@ -61,11 +61,11 @@ import {
   UpdateAppointmentSchema,
   CancelAppointmentSchema,
   ProviderResponseSchema,
-  CreateProviderSchema as CreateProviderBodySchema,
-  UpdateProviderSchema as UpdateProviderBodySchema,
+  CreateProviderBodySchema,
+  UpdateProviderBodySchema,
   OperatoryResponseSchema,
-  CreateOperatorySchema as CreateOperatoryBodySchema,
-  UpdateOperatorySchema as UpdateOperatoryBodySchema,
+  CreateOperatoryBodySchema,
+  UpdateOperatoryBodySchema,
 } from "../src/schemas/scheduling.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
