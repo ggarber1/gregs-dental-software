@@ -157,6 +157,10 @@ export async function updatePatient(id: string, body: UpdatePatientBody): Promis
   });
 }
 
+export async function deletePatient(id: string): Promise<void> {
+  await apiClient.delete(`/api/v1/patients/${id}`, { idempotencyKey: generateId() });
+}
+
 // ── Query keys ────────────────────────────────────────────────────────────────
 
 export const patientKeys = {
@@ -201,6 +205,17 @@ export function useUpdatePatient(
     mutationFn: (body: UpdatePatientBody) => updatePatient(id, body),
     onSuccess: (updated) => {
       queryClient.setQueryData(patientKeys.detail(id), updated);
+      void queryClient.invalidateQueries({ queryKey: patientKeys.all });
+    },
+  });
+}
+
+export function useDeletePatient(): UseMutationResult<void, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deletePatient,
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: patientKeys.detail(id) });
       void queryClient.invalidateQueries({ queryKey: patientKeys.all });
     },
   });

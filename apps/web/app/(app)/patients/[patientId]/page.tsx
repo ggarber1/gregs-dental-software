@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, X, Check, Send } from "lucide-react";
+import { ArrowLeft, Pencil, X, Check, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { InsuranceCard } from "@/components/patients/InsuranceCard";
@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   usePatient,
   useUpdatePatient,
+  useDeletePatient,
   isNotFoundError,
   type Patient,
   type UpdatePatientBody,
@@ -787,6 +788,56 @@ function IntakeFormsCard({ patient, patientId }: { patient: Patient; patientId: 
   );
 }
 
+// ── Delete confirmation dialog ────────────────────────────────────────────────
+
+function DeletePatientDialog({
+  patient,
+  open,
+  onClose,
+  onDeleted,
+}: {
+  patient: Patient;
+  open: boolean;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const { mutate: deletePatient, isPending, error } = useDeletePatient();
+
+  function handleConfirm() {
+    deletePatient(patient.id, {
+      onSuccess: onDeleted,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete patient?</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Are you sure you want to delete{" "}
+          <span className="font-medium text-foreground">
+            {patient.firstName} {patient.lastName}
+          </span>
+          ? This cannot be undone.
+        </p>
+        {error && (
+          <p className="text-sm text-destructive">Failed to delete patient. Please try again.</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
+            No, keep patient
+          </Button>
+          <Button variant="destructive" onClick={handleConfirm} disabled={isPending}>
+            {isPending ? "Deleting…" : "Yes, delete"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PatientDetailPage() {
@@ -795,6 +846,7 @@ export default function PatientDetailPage() {
   const patientId = params.patientId;
 
   const { data: patient, isLoading, isError, error } = usePatient(patientId);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Redirect on 404
   useEffect(() => {
@@ -826,16 +878,36 @@ export default function PatientDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Patients
         </Link>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {patient.firstName} {patient.lastName}
-          </h1>
-          <Badge variant="secondary">{formatDob(patient.dateOfBirth)}</Badge>
-          {patient.sex && (
-            <Badge variant="outline">{sexLabel(patient.sex)}</Badge>
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {patient.firstName} {patient.lastName}
+            </h1>
+            <Badge variant="secondary">{formatDob(patient.dateOfBirth)}</Badge>
+            {patient.sex && (
+              <Badge variant="outline">{sexLabel(patient.sex)}</Badge>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete patient
+          </Button>
         </div>
       </div>
+
+      {showDeleteDialog && (
+        <DeletePatientDialog
+          patient={patient}
+          open={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onDeleted={() => router.replace("/patients")}
+        />
+      )}
 
       {/* Medical alerts bar */}
       <MedicalAlertsBar

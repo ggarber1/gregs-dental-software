@@ -80,7 +80,9 @@ export async function updateInsurance(
 }
 
 export async function deleteInsurance(patientId: string, insuranceId: string): Promise<void> {
-  await apiClient.delete(`/api/v1/patients/${patientId}/insurance/${insuranceId}`);
+  await apiClient.delete(`/api/v1/patients/${patientId}/insurance/${insuranceId}`, {
+    idempotencyKey: generateId(),
+  });
 }
 
 // ── Query keys ────────────────────────────────────────────────────────────────
