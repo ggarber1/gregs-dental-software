@@ -443,6 +443,14 @@ Further Additions:
 - applying intake form failed. File "/app/app/routers/intake.py", line 434, in apply_intake_form
 2026-04-14T02:59:58.202000+00:00 api/api/645431b409ad4cbe95b033ddec8fe20c     patient.last_xray_date = date.fromisoformat(data["lastXrayDate"])
 
+fix e2e tests in deploy
+create patient UI has weird scroll
+intake form ui DOB is weird
+intake form ui doesnt scroll up on next page
+no dental history in patient UI
+dental history incorrect in patient intake form review
+insurance name in create patient form is not a dropdown of well known
+
 ## Module 3: Scheduling
 
 ### 3.1 Scheduling API

@@ -24,6 +24,23 @@ import {
 import { useCreatePatient, type CreatePatientBody } from "@/lib/api/patients";
 import { createInsurance } from "@/lib/api/insurance";
 
+const INSURANCE_CARRIERS = [
+  "Delta Dental",
+  "MetLife",
+  "Cigna",
+  "Aetna",
+  "Guardian",
+  "United Concordia",
+  "Humana",
+  "BlueCross BlueShield",
+  "Ameritas",
+  "Principal Financial",
+  "Sun Life",
+  "MassHealth / DentaQuest",
+  "Anthem",
+  "Other",
+];
+
 const schema = z.object({
   firstName: z.string().min(1, "Required").max(100),
   lastName: z.string().min(1, "Required").max(100),
@@ -57,6 +74,7 @@ const schema = z.object({
   smsOptOut: z.boolean().optional(),
   // Insurance (optional — only submitted if carrier is provided)
   insuranceCarrier: z.string().max(255).or(z.literal("")).optional(),
+  insuranceCarrierCustom: z.string().max(255).or(z.literal("")).optional(),
   insuranceMemberId: z.string().max(100).or(z.literal("")).optional(),
   insuranceGroupNumber: z.string().max(100).or(z.literal("")).optional(),
   insuranceRelationship: z.enum(["self", "spouse", "child", "other"]).nullable().optional(),
@@ -96,6 +114,7 @@ const EMPTY: FormValues = {
   medicalAlertsRaw: "",
   smsOptOut: false,
   insuranceCarrier: "",
+  insuranceCarrierCustom: "",
   insuranceMemberId: "",
   insuranceGroupNumber: "",
   insuranceRelationship: null,
@@ -178,10 +197,15 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
     try {
       const patient = await createPatient(body);
 
-      if (values.insuranceCarrier) {
+      const resolvedCarrier =
+        values.insuranceCarrier === "Other"
+          ? (values.insuranceCarrierCustom ?? "")
+          : (values.insuranceCarrier ?? "");
+
+      if (resolvedCarrier) {
         try {
           await createInsurance(patient.id, {
-            carrier: values.insuranceCarrier,
+            carrier: resolvedCarrier,
             memberId: values.insuranceMemberId || null,
             groupNumber: values.insuranceGroupNumber || null,
             relationshipToInsured: values.insuranceRelationship ?? "self",
@@ -213,13 +237,13 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>New Patient</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
-          <div className="grid gap-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
+        <form onSubmit={(e) => { void handleSubmit(e); }} noValidate className="flex flex-col flex-1 min-h-0">
+          <div className="grid gap-4 py-2 flex-1 min-h-0 overflow-y-auto pr-1">
             {/* Name */}
             <div className="grid grid-cols-2 gap-4">
               <Field label="First name *" error={errors.firstName}>
@@ -447,11 +471,32 @@ export function NewPatientModal({ open, onOpenChange }: Props) {
               </p>
               <div className="grid gap-4">
                 <Field label="Carrier" error={errors.insuranceCarrier}>
-                  <Input
+                  <Select
                     value={values.insuranceCarrier ?? ""}
-                    onChange={(e) => set("insuranceCarrier", e.target.value)}
-                    placeholder="Delta Dental, Cigna…"
-                  />
+                    onValueChange={(v) => {
+                      set("insuranceCarrier", v);
+                      set("insuranceCarrierCustom", "");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select carrier…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INSURANCE_CARRIERS.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {values.insuranceCarrier === "Other" && (
+                    <Input
+                      className="mt-2"
+                      value={values.insuranceCarrierCustom ?? ""}
+                      onChange={(e) => set("insuranceCarrierCustom", e.target.value)}
+                      placeholder="Enter carrier name"
+                    />
+                  )}
                 </Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Member ID" error={errors.insuranceMemberId}>

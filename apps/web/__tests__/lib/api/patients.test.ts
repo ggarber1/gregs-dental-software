@@ -7,6 +7,7 @@ vi.mock("@/lib/api-client", () => ({
     patch: vi.fn(),
     delete: vi.fn(),
   },
+  generateId: () => "test-uuid-idempotency",
   ApiError: class ApiError extends Error {
     constructor(
       public readonly status: number,
@@ -54,9 +55,13 @@ const PATIENT: Patient = {
   occupation: null,
   employer: null,
   referralSource: null,
+  lastXrayDate: null,
   allergies: ["Penicillin"],
   medicalAlerts: [],
   medications: [],
+  dentalSymptoms: [],
+  lastDentalVisit: null,
+  previousDentist: null,
   doctorNotes: null,
   smsOptOut: false,
   deletedAt: null,

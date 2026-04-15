@@ -420,6 +420,35 @@ class TestApplyIntakeForm:
         assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "INTAKE_NOT_COMPLETED"
 
+    async def test_apply_maps_dental_history_fields(
+        self, client: AsyncClient, auth_headers, patient, db_session, mock_sms
+    ):
+        send = await client.post(
+            "/api/v1/intake/send",
+            json={"patientId": str(patient.id)},
+            headers=mut(auth_headers),
+        )
+        form_id = send.json()["intakeFormId"]
+        token = await _fetch_token(db_session, form_id)
+
+        payload = intake_submit_payload(
+            lastDentalVisit="About 1 year ago",
+            previousDentist="Dr. Smith",
+            lastXrayDate="2024-03-01",
+            dentalSymptoms=["Sensitivity to cold", "Bleeding gums"],
+        )
+        await client.post(f"/api/intake/form/{token}/submit", json=payload)
+
+        resp = await client.post(f"/api/v1/intake/{form_id}/apply", headers=mut(auth_headers))
+        assert resp.status_code == 200
+        updated = resp.json()
+
+        assert updated["lastDentalVisit"] == "About 1 year ago"
+        assert updated["previousDentist"] == "Dr. Smith"
+        assert updated["lastXrayDate"] == "2024-03-01"
+        assert "Sensitivity to cold" in updated["dentalSymptoms"]
+        assert "Bleeding gums" in updated["dentalSymptoms"]
+
     async def test_apply_idempotent(
         self, client: AsyncClient, auth_headers, patient, db_session, mock_sms
     ):

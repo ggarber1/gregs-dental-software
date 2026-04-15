@@ -42,9 +42,13 @@ export interface Patient {
   occupation: string | null;
   employer: string | null;
   referralSource: string | null;
+  lastXrayDate: string | null; // ISO date YYYY-MM-DD
   allergies: string[];
   medicalAlerts: string[];
   medications: string[];
+  dentalSymptoms: string[];
+  lastDentalVisit: string | null;
+  previousDentist: string | null;
   doctorNotes: string | null;
   smsOptOut: boolean;
   deletedAt: string | null;
@@ -109,9 +113,13 @@ export interface UpdatePatientBody {
   occupation?: string | null;
   employer?: string | null;
   referralSource?: string | null;
+  lastXrayDate?: string | null;
   allergies?: string[];
   medicalAlerts?: string[];
   medications?: string[];
+  dentalSymptoms?: string[];
+  lastDentalVisit?: string | null;
+  previousDentist?: string | null;
   doctorNotes?: string | null;
   smsOptOut?: boolean;
 }

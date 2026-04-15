@@ -158,6 +158,8 @@ class Patient(BaseModel):
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
     dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
+    last_dental_visit: str | None = Field(None, alias='lastDentalVisit', max_length=500)
+    previous_dentist: str | None = Field(None, alias='previousDentist', max_length=200)
     doctor_notes: str | None = Field(None, alias='doctorNotes', max_length=5000)
     sms_opt_out: bool | None = Field(False, alias='smsOptOut')
     deleted_at: AwareDatetime | None = Field(None, alias='deletedAt')
@@ -193,6 +195,8 @@ class CreatePatient(BaseModel):
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
     dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
+    last_dental_visit: str | None = Field(None, alias='lastDentalVisit', max_length=500)
+    previous_dentist: str | None = Field(None, alias='previousDentist', max_length=200)
     doctor_notes: str | None = Field(None, alias='doctorNotes', max_length=5000)
     sms_opt_out: bool | None = Field(False, alias='smsOptOut')
 
@@ -225,6 +229,8 @@ class UpdatePatient(BaseModel):
     medical_alerts: list[str] | None = Field([], alias='medicalAlerts')
     medications: list[str] | None = []
     dental_symptoms: list[str] | None = Field([], alias='dentalSymptoms')
+    last_dental_visit: str | None = Field(None, alias='lastDentalVisit', max_length=500)
+    previous_dentist: str | None = Field(None, alias='previousDentist', max_length=200)
     doctor_notes: str | None = Field(None, alias='doctorNotes', max_length=5000)
     sms_opt_out: bool | None = Field(False, alias='smsOptOut')
 

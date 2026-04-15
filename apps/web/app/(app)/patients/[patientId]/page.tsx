@@ -577,6 +577,125 @@ function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: str
   );
 }
 
+// ── Dental history card ───────────────────────────────────────────────────────
+
+function DentalHistoryCard({ patient, patientId }: { patient: Patient; patientId: string }) {
+  const [editing, setEditing] = useState(false);
+  const [fields, setFields] = useState({
+    lastXrayDate: patient.lastXrayDate ?? "",
+    lastDentalVisit: patient.lastDentalVisit ?? "",
+    previousDentist: patient.previousDentist ?? "",
+    dentalSymptomsRaw: (patient.dentalSymptoms ?? []).join(", "),
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const { mutate, isPending } = useUpdatePatient(patientId);
+
+  function handleCancel() {
+    setFields({
+      lastXrayDate: patient.lastXrayDate ?? "",
+      lastDentalVisit: patient.lastDentalVisit ?? "",
+      previousDentist: patient.previousDentist ?? "",
+      dentalSymptomsRaw: (patient.dentalSymptoms ?? []).join(", "),
+    });
+    setError(null);
+    setEditing(false);
+  }
+
+  function handleSave() {
+    const dentalSymptoms = fields.dentalSymptomsRaw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    mutate(
+      {
+        lastXrayDate: fields.lastXrayDate || null,
+        lastDentalVisit: fields.lastDentalVisit || null,
+        previousDentist: fields.previousDentist || null,
+        dentalSymptoms,
+      },
+      {
+        onSuccess: () => {
+          setError(null);
+          setEditing(false);
+        },
+        onError: () => setError("Failed to save. Please try again."),
+      },
+    );
+  }
+
+  const xrayDisplay = patient.lastXrayDate ? formatDob(patient.lastXrayDate) : "—";
+  const symptomsDisplay = (patient.dentalSymptoms ?? []).join(", ") || "—";
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-base font-semibold">Dental History</CardTitle>
+        {!editing ? (
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+        ) : (
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending}>
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={isPending}>
+              <Check className="h-4 w-4" />
+              {isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        {editing ? (
+          <div className="grid gap-4">
+            <EditField label="Last dental visit">
+              <Input
+                value={fields.lastDentalVisit}
+                onChange={(e) => setFields((p) => ({ ...p, lastDentalVisit: e.target.value }))}
+                placeholder="About 1 year ago, or never"
+              />
+            </EditField>
+            <EditField label="Previous dentist">
+              <Input
+                value={fields.previousDentist}
+                onChange={(e) => setFields((p) => ({ ...p, previousDentist: e.target.value }))}
+                placeholder="Dr. Smith"
+              />
+            </EditField>
+            <EditField label="Last X-ray date">
+              <Input
+                type="date"
+                value={fields.lastXrayDate}
+                onChange={(e) => setFields((p) => ({ ...p, lastXrayDate: e.target.value }))}
+                className="max-w-[12rem]"
+              />
+            </EditField>
+            <EditField label="Dental symptoms (comma-separated)">
+              <Input
+                value={fields.dentalSymptomsRaw}
+                onChange={(e) => setFields((p) => ({ ...p, dentalSymptomsRaw: e.target.value }))}
+                placeholder="Sensitivity to cold, Bleeding gums"
+              />
+            </EditField>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+        ) : (
+          <dl className="grid gap-y-3 text-sm">
+            <DataRow label="Last dental visit" value={patient.lastDentalVisit ?? "—"} />
+            <DataRow label="Previous dentist" value={patient.previousDentist ?? "—"} />
+            <DataRow label="Last X-ray" value={xrayDisplay} />
+            <DataRow label="Dental symptoms" value={symptomsDisplay} />
+          </dl>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Intake forms card ─────────────────────────────────────────────────────────
 
 function statusBadgeVariant(status: IntakeFormSummary["status"]) {
@@ -730,6 +849,7 @@ export default function PatientDetailPage() {
         <DemographicsCard patient={patient} patientId={patientId} />
         <ContactCard patient={patient} patientId={patientId} />
         <ClinicalCard patient={patient} patientId={patientId} />
+        <DentalHistoryCard patient={patient} patientId={patientId} />
         <InsuranceCard patientId={patientId} />
       </div>
 
