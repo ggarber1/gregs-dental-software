@@ -94,6 +94,8 @@ def _row_to_schema(row: PatientModel, *, include_ssn: bool = False) -> Patient:
         medicalAlerts=row.medical_alerts or [],
         medications=row.medications or [],
         dentalSymptoms=row.dental_symptoms or [],
+        lastDentalVisit=row.last_dental_visit,
+        previousDentist=row.previous_dentist,
         doctorNotes=row.doctor_notes,
         smsOptOut=row.sms_opt_out,
         deletedAt=row.deleted_at,
@@ -307,6 +309,9 @@ async def update_patient(
             "medical_alerts": "medical_alerts",
             "medications": "medications",
             "dental_symptoms": "dental_symptoms",
+            "last_xray_date": "last_xray_date",
+            "last_dental_visit": "last_dental_visit",
+            "previous_dentist": "previous_dentist",
             "doctor_notes": "doctor_notes",
             "sms_opt_out": "sms_opt_out",
         }

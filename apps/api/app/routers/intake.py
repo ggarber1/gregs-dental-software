@@ -474,6 +474,11 @@ async def apply_intake_form(intake_form_id: uuid.UUID, request: Request) -> Pati
         if data.get("dentalSymptoms"):
             patient.dental_symptoms = [s for s in data["dentalSymptoms"] if s]
 
+        if data.get("lastDentalVisit") is not None:
+            patient.last_dental_visit = data["lastDentalVisit"] or None
+        if data.get("previousDentist") is not None:
+            patient.previous_dentist = data["previousDentist"] or None
+
         # SMS opt-in → invert to sms_opt_out
         if "smsOptIn" in data:
             patient.sms_opt_out = not data["smsOptIn"]

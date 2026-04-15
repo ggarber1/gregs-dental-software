@@ -83,6 +83,7 @@ function IntakeResponses({ responses }: { responses: Record<string, unknown> }) 
         <Row label="Last X-rays" value={responses.lastXrayDate} />
         <Row label="Previous dentist" value={responses.previousDentist} />
         <Row label="Chief complaint" value={responses.chiefComplaint} />
+        <Row label="Dental symptoms" value={responses.dentalSymptoms} />
       </Section>
       <Section title="Insurance">
         <Row label="Carrier" value={responses.insuranceCarrier} />

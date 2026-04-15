@@ -721,6 +721,7 @@ export default function IntakeFormPage() {
       return;
     }
     setStep((s) => s + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleSubmit() {
@@ -910,7 +911,7 @@ export default function IntakeFormPage() {
         {step > 0 ? (
           <Button
             variant="outline"
-            onClick={() => setStep((s) => s - 1)}
+            onClick={() => { setStep((s) => s - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             disabled={isSubmitting}
             className="min-h-[44px]"
           >

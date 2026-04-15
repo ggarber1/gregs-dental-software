@@ -150,6 +150,31 @@ class TestUpdatePatient:
         )
         assert resp.status_code == 404
 
+    async def test_patch_updates_dental_history_fields(self, client: AsyncClient, auth_headers):
+        create = await client.post(
+            "/api/v1/patients", json=_BASE_CREATE_BODY, headers=mut(auth_headers)
+        )
+        patient_id = create.json()["id"]
+
+        resp = await client.patch(
+            f"/api/v1/patients/{patient_id}",
+            json={
+                "lastDentalVisit": "About 2 years ago",
+                "previousDentist": "Dr. Johnson",
+                "lastXrayDate": "2023-11-15",
+                "dentalSymptoms": ["Sensitivity to cold", "Bleeding gums"],
+            },
+            headers=mut(auth_headers),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["lastDentalVisit"] == "About 2 years ago"
+        assert body["previousDentist"] == "Dr. Johnson"
+        assert body["lastXrayDate"] == "2023-11-15"
+        assert body["dentalSymptoms"] == ["Sensitivity to cold", "Bleeding gums"]
+        # Unrelated fields must be unchanged
+        assert body["firstName"] == "Alice"
+
 
 class TestDeletePatient:
     async def test_delete_soft_deletes(self, client: AsyncClient, auth_headers):
