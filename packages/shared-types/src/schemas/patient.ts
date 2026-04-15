@@ -38,6 +38,9 @@ export const PatientSchema = z.object({
   allergies: z.array(z.string()).default([]),
   medicalAlerts: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
+  dentalSymptoms: z.array(z.string()).default([]),
+  lastDentalVisit: z.string().max(500).optional(),
+  previousDentist: z.string().max(200).optional(),
   doctorNotes: z.string().max(5000).optional(),
   smsOptOut: z.boolean().default(false),
   // Soft delete

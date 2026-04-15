@@ -444,23 +444,25 @@ Further Additions:
 2026-04-14T02:59:58.202000+00:00 api/api/645431b409ad4cbe95b033ddec8fe20c     patient.last_xray_date = date.fromisoformat(data["lastXrayDate"])
 
 fix e2e tests in deploy
-create patient UI has weird scroll
-intake form ui DOB is weird
-intake form ui doesnt scroll up on next page
-no dental history in patient UI
-dental history incorrect in patient intake form review
-insurance name in create patient form is not a dropdown of well known
+create patient UI has weird scroll - done
+intake form ui DOB is weird - done
+intake form ui doesnt scroll up on next page - done
+no dental history in patient UI - done
+dental history incorrect in patient intake form review - done
+insurance name in create patient form is not a dropdown of well known - done
+
+Need to verify patient cards inputs don't disappear when editing after applying intake form
 
 ## Module 3: Scheduling
 
 ### 3.1 Scheduling API
-- [ ] `GET /api/v1/appointments` — by date range, provider, operatory
-- [ ] `POST /api/v1/appointments` — create with double-booking conflict detection
-- [ ] `PATCH /api/v1/appointments/{id}` — update (reschedule, status change)
-- [ ] `DELETE /api/v1/appointments/{id}` — soft cancel with `cancellation_reason`
-- [ ] Appointment status state machine: `scheduled → confirmed → checked_in → in_chair → completed | cancelled | no_show`
-- [ ] Appointment types CRUD (name, duration, default CDT codes, color)
-- [ ] Provider and operatory management CRUD
+- [x] `GET /api/v1/appointments` — by date range, provider, operatory
+- [x] `POST /api/v1/appointments` — create with double-booking conflict detection
+- [x] `PATCH /api/v1/appointments/{id}` — update (reschedule, status change)
+- [x] `DELETE /api/v1/appointments/{id}` — soft cancel with `cancellation_reason`
+- [x] Appointment status state machine: `scheduled → confirmed → checked_in → in_chair → completed | cancelled | no_show`
+- [x] Appointment types CRUD (name, duration, default CDT codes, color)
+- [x] Provider and operatory management CRUD
 
 ### 3.2 Scheduling Frontend
 - [ ] Day/week calendar view — FullCalendar integration (don't build from scratch)
@@ -489,6 +491,8 @@ Verify:
 - [ ] **Dad + staff review:** book a full mock day's schedule; verify the calendar and day sheet match how they actually work
 
 ---
+
+START BUSINESS
 
 ## Module 4: Automated Reminders
 
