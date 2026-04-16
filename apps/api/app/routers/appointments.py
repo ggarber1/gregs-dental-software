@@ -38,12 +38,12 @@ def _err(code: str, message: str) -> dict[str, dict[str, str]]:
 
 _ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "scheduled": frozenset({"confirmed", "cancelled", "no_show"}),
-    "confirmed": frozenset({"checked_in", "cancelled", "no_show"}),
-    "checked_in": frozenset({"in_chair", "cancelled", "no_show"}),
-    "in_chair": frozenset({"completed", "cancelled", "no_show"}),
+    "confirmed": frozenset({"scheduled", "checked_in", "cancelled", "no_show"}),
+    "checked_in": frozenset({"scheduled", "in_chair", "cancelled", "no_show"}),
+    "in_chair": frozenset({"scheduled", "completed", "cancelled", "no_show"}),
     "completed": frozenset(),
     "cancelled": frozenset(),
-    "no_show": frozenset(),
+    "no_show": frozenset({"scheduled"}),
 }
 
 # Statuses that are "dead" — excluded from conflict detection.
