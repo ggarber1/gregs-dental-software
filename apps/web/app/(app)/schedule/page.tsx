@@ -18,29 +18,16 @@ import {
   useOperatories,
   type Appointment,
 } from "@/lib/api/scheduling";
+import { usePracticeTimezone } from "@/lib/api/practice";
+import { formatDateHeaderInTz, toDateStringInTz, dateToTimeInTz } from "@/lib/timezone";
 
 type ViewMode = "calendar" | "daysheet";
-
-function formatDateHeader(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function toDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 function SchedulePageContent() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const calendarRef = useRef<FullCalendar>(null);
+  const timezone = usePracticeTimezone();
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -122,17 +109,15 @@ function SchedulePageContent() {
   // Calendar interactions
   const handleDateSelect = useCallback((selectInfo: DateSelectArg) => {
     const start = selectInfo.start;
-    const h = String(start.getHours()).padStart(2, "0");
-    const m = String(start.getMinutes()).padStart(2, "0");
 
     const defaults: typeof createDefaults = {
-      date: toDateString(start),
-      startTime: `${h}:${m}`,
+      date: toDateStringInTz(start, timezone),
+      startTime: dateToTimeInTz(start, timezone),
     };
     if (selectInfo.resource?.id) defaults.operatoryId = selectInfo.resource.id;
     setCreateDefaults(defaults);
     setShowCreateModal(true);
-  }, []);
+  }, [timezone]);
 
   const handleEventClick = useCallback((clickInfo: EventClickArg) => {
     const appt = clickInfo.event.extendedProps.appointment as Appointment;
@@ -181,7 +166,7 @@ function SchedulePageContent() {
           <Button variant="ghost" size="sm" onClick={goNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold">{formatDateHeader(currentDate)}</h2>
+          <h2 className="text-lg font-semibold">{formatDateHeaderInTz(currentDate, timezone)}</h2>
         </div>
 
         <div className="flex items-center gap-1 rounded-md border p-0.5">
@@ -212,6 +197,7 @@ function SchedulePageContent() {
             plugins={[resourceTimeGridPlugin, interactionPlugin]}
             initialView="resourceTimeGridDay"
             initialDate={currentDate}
+            timeZone={timezone}
             resources={resources}
             events={events}
             headerToolbar={false}

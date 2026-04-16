@@ -14,6 +14,22 @@ import pytest
 
 from tests.integration.conftest import mut
 
+# ── Practice Endpoint ────────────────────────────────────────────────────────
+
+
+@pytest.mark.integration
+async def test_get_practice_returns_timezone(client, auth_headers):
+    """GET /api/v1/practice returns the practice's timezone."""
+    resp = await client.get("/api/v1/practice", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["timezone"] == "America/New_York"
+    assert body["name"] == "Sunrise Dental"
+    assert "id" in body
+    assert "createdAt" in body
+    assert "updatedAt" in body
+
+
 # ── Appointment Types CRUD ────────────────────────────────────────────────────
 
 
