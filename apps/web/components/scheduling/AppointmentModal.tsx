@@ -32,6 +32,8 @@ import {
   type CreateAppointmentBody,
   type UpdateAppointmentBody,
 } from "@/lib/api/scheduling";
+import { usePracticeTimezone } from "@/lib/api/practice";
+import { isoToTimeInTz, isoToDateInTz, localInputToUTC, todayInTz } from "@/lib/timezone";
 import { AppointmentStatusActions } from "@/components/scheduling/AppointmentStatusActions";
 import { ApiError } from "@/lib/api-client";
 
@@ -80,15 +82,6 @@ function addMinutesToTime(time: string, minutes: number): string {
   return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
 }
 
-function isoToDate(iso: string): string {
-  return iso.slice(0, 10);
-}
-
-function isoToTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
 export function AppointmentModal({
   open,
   onOpenChange,
@@ -98,6 +91,7 @@ export function AppointmentModal({
   appointment,
 }: Props) {
   const isEditing = Boolean(appointment);
+  const timezone = usePracticeTimezone();
 
   // Fetch live data so status updates reflect immediately
   const { data: liveAppointment } = useAppointment(appointment?.id ?? "");
@@ -142,22 +136,21 @@ export function AppointmentModal({
         appointmentTypeId: appointment.appointmentTypeId ?? "",
         providerId: appointment.providerId ?? "",
         operatoryId: appointment.operatoryId ?? "",
-        date: isoToDate(appointment.startTime),
-        startTime: isoToTime(appointment.startTime),
-        endTime: isoToTime(appointment.endTime),
+        date: isoToDateInTz(appointment.startTime, timezone),
+        startTime: isoToTimeInTz(appointment.startTime, timezone),
+        endTime: isoToTimeInTz(appointment.endTime, timezone),
         notes: appointment.notes ?? "",
       });
     } else {
-      const today = new Date().toISOString().slice(0, 10);
       setValues({
         ...EMPTY,
-        date: defaultDate ?? today,
+        date: defaultDate ?? todayInTz(timezone),
         startTime: defaultStartTime ?? "09:00",
         endTime: defaultStartTime ? addMinutesToTime(defaultStartTime, 30) : "09:30",
         operatoryId: defaultOperatoryId ?? "",
       });
     }
-  }, [open, appointment, defaultDate, defaultStartTime, defaultOperatoryId]);
+  }, [open, appointment, defaultDate, defaultStartTime, defaultOperatoryId, timezone]);
 
   // Close patient dropdown on outside click
   useEffect(() => {
@@ -234,8 +227,8 @@ export function AppointmentModal({
     setIsSubmitting(true);
     setApiErrorMessage(null);
 
-    const startTimeISO = new Date(`${values.date}T${values.startTime}:00`).toISOString();
-    const endTimeISO = new Date(`${values.date}T${values.endTime}:00`).toISOString();
+    const startTimeISO = localInputToUTC(values.date, values.startTime, timezone);
+    const endTimeISO = localInputToUTC(values.date, values.endTime, timezone);
 
     try {
       if (isEditing && appointment) {

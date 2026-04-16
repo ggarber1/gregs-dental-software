@@ -472,9 +472,9 @@ Need to verify patient cards inputs don't disappear when editing after applying 
 - [x] Day sheet view — ordered list of today's appointments for the front desk
 
 ### 3.3 Scheduling Logic
-- [ ] Conflict detection — no double-booking same operatory or provider in overlapping time
-- [ ] Practice timezone stored in `practices.timezone`, all display derived from this — never ad hoc
-- [ ] All timestamps stored as UTC in database
+- [x] Conflict detection — no double-booking same operatory or provider in overlapping time
+- [x] Practice timezone stored in `practices.timezone`, all display derived from this — never ad hoc
+- [x] All timestamps stored as UTC in database
 
 ---
 

@@ -25,15 +25,8 @@ import {
   useProviders,
   type Appointment,
 } from "@/lib/api/scheduling";
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
+import { usePracticeTimezone } from "@/lib/api/practice";
+import { formatTimeInTz, dayBoundsInTz } from "@/lib/timezone";
 
 interface DaySheetProps {
   date: Date;
@@ -45,19 +38,17 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
   const [providerFilter, setProviderFilter] = useState<string>("all");
   const { data: appointments, isLoading } = useAppointments();
   const { data: providers } = useProviders();
+  const timezone = usePracticeTimezone();
 
   const activeProviders = providers?.filter((p) => p.isActive) ?? [];
 
-  // Filter to selected day and optional provider
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  // Filter to selected day in the practice timezone
+  const { start: dayStart, end: dayEnd } = dayBoundsInTz(date, timezone);
 
   const dayAppointments = (appointments ?? [])
     .filter((a) => {
       const start = new Date(a.startTime);
-      return start >= dayStart && start <= dayEnd;
+      return start >= dayStart && start < dayEnd;
     })
     .filter((a) => {
       if (providerFilter === "all") return true;
@@ -124,7 +115,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
                   onClick={() => onEditAppointment(appt)}
                 >
                   <TableCell className="font-medium whitespace-nowrap">
-                    {formatTime(appt.startTime)} - {formatTime(appt.endTime)}
+                    {formatTimeInTz(appt.startTime, timezone)} - {formatTimeInTz(appt.endTime, timezone)}
                   </TableCell>
                   <TableCell className="font-medium">{appt.patientName ?? "—"}</TableCell>
                   <TableCell>
