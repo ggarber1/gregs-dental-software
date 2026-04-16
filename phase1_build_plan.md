@@ -466,10 +466,10 @@ Need to verify patient cards inputs don't disappear when editing after applying 
 
 ### 3.2 Scheduling Frontend
 - [ ] Day/week calendar view — FullCalendar integration (don't build from scratch)
-- [ ] Appointment slot display by operatory (room view — this is how the front desk actually works)
-- [ ] Create/edit appointment modal (patient search, type, provider, operatory, time)
-- [ ] Appointment status update (check-in, mark complete, mark no-show)
-- [ ] Day sheet view — ordered list of today's appointments for the front desk
+- [x] Appointment slot display by operatory (room view — this is how the front desk actually works)
+- [x] Create/edit appointment modal (patient search, type, provider, operatory, time)
+- [x] Appointment status update (check-in, mark complete, mark no-show)
+- [x] Day sheet view — ordered list of today's appointments for the front desk
 
 ### 3.3 Scheduling Logic
 - [ ] Conflict detection — no double-booking same operatory or provider in overlapping time
@@ -477,6 +477,11 @@ Need to verify patient cards inputs don't disappear when editing after applying 
 - [ ] All timestamps stored as UTC in database
 
 ---
+
+### Notes / Questions
+- Is week view necessary?
+- What is the flow for the insurance / thing dentist did ID? like what if a bunch of tings were done asides from just a cleaning. need to put those ID's somewhere?
+  - Where to store those ID's? new table? we already have the thing to add a appointment type like cleaning but maybe there is something more fine grained that insurances need
 
 ## 🚦 Staging Checkpoint 3 — End of Module 3 (after 3.1–3.3)
 
