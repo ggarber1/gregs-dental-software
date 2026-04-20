@@ -263,6 +263,31 @@ async def test_delete_provider_returns_204():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("provider_type", ["dentist", "hygienist", "specialist", "other"])
+async def test_create_provider_without_npi_rejected_for_each_type(provider_type: str):
+    """
+    NPI is required for every provider_type per Module 3.4.1 convention —
+    hygienists carry the supervising dentist's NPI rather than being exempt.
+    This pins the contract so a future "make NPI optional" change fails loudly.
+    """
+    app = _get_app()
+
+    with _auth_patches() as auth_headers:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.post(
+                "/api/v1/providers",
+                json={
+                    "fullName": "Test Provider",
+                    "providerType": provider_type,
+                    # npi deliberately omitted
+                },
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.asyncio
 async def test_create_provider_no_practice_scope_returns_403():
     app = _get_app()
 
