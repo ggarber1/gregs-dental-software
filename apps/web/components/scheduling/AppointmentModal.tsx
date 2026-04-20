@@ -43,9 +43,13 @@ interface Props {
   /** Pre-fill values from calendar click */
   defaultDate?: string | undefined; // YYYY-MM-DD
   defaultStartTime?: string | undefined; // HH:mm
+  defaultEndTime?: string | undefined; // HH:mm — when set (e.g. from a drag-to-range), overrides the start+30min fallback
   defaultOperatoryId?: string | undefined;
   /** If set, we're editing an existing appointment */
   appointment?: Appointment | null | undefined;
+  /** Edit-mode only: invoked when the user clicks "Cancel appointment". The
+   * parent is expected to close this modal and open the confirmation dialog. */
+  onCancelAppointment?: ((appointment: Appointment) => void) | undefined;
 }
 
 interface FormValues {
@@ -72,7 +76,7 @@ const EMPTY: FormValues = {
   notes: "",
 };
 
-function addMinutesToTime(time: string, minutes: number): string {
+export function addMinutesToTime(time: string, minutes: number): string {
   const parts = time.split(":").map(Number);
   const h = parts[0] ?? 0;
   const m = parts[1] ?? 0;
@@ -82,13 +86,31 @@ function addMinutesToTime(time: string, minutes: number): string {
   return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
 }
 
+/**
+ * Resolve the initial endTime for the create form.
+ *
+ * Precedence: explicit `defaultEndTime` (e.g. from a drag-to-range) wins;
+ * otherwise fall back to start + 30 min; otherwise 09:30 to match the
+ * 09:00 startTime fallback.
+ */
+export function resolveDefaultEndTime(
+  defaultEndTime: string | undefined,
+  defaultStartTime: string | undefined,
+): string {
+  if (defaultEndTime) return defaultEndTime;
+  if (defaultStartTime) return addMinutesToTime(defaultStartTime, 30);
+  return "09:30";
+}
+
 export function AppointmentModal({
   open,
   onOpenChange,
   defaultDate,
   defaultStartTime,
+  defaultEndTime,
   defaultOperatoryId,
   appointment,
+  onCancelAppointment,
 }: Props) {
   const isEditing = Boolean(appointment);
   const timezone = usePracticeTimezone();
@@ -146,11 +168,11 @@ export function AppointmentModal({
         ...EMPTY,
         date: defaultDate ?? todayInTz(timezone),
         startTime: defaultStartTime ?? "09:00",
-        endTime: defaultStartTime ? addMinutesToTime(defaultStartTime, 30) : "09:30",
+        endTime: resolveDefaultEndTime(defaultEndTime, defaultStartTime),
         operatoryId: defaultOperatoryId ?? "",
       });
     }
-  }, [open, appointment, defaultDate, defaultStartTime, defaultOperatoryId, timezone]);
+  }, [open, appointment, defaultDate, defaultStartTime, defaultEndTime, defaultOperatoryId, timezone]);
 
   // Close patient dropdown on outside click
   useEffect(() => {
@@ -466,13 +488,30 @@ export function AppointmentModal({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button onClick={() => void handleSubmit()} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : isEditing ? "Update" : "Book Appointment"}
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          {isEditing &&
+          onCancelAppointment &&
+          currentAppointment &&
+          currentAppointment.status !== "cancelled" &&
+          currentAppointment.status !== "completed" ? (
+            <Button
+              variant="destructive"
+              onClick={() => onCancelAppointment(currentAppointment)}
+              disabled={isSubmitting}
+            >
+              Cancel appointment
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              {isEditing ? "Close" : "Cancel"}
+            </Button>
+            <Button onClick={() => void handleSubmit()} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : isEditing ? "Update" : "Book Appointment"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
