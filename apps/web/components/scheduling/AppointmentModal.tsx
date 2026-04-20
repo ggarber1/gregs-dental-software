@@ -332,7 +332,7 @@ export function AppointmentModal({
                 value={values.patientSearch}
                 onChange={(e) => handlePatientSearchChange(e.target.value)}
                 onFocus={() => values.patientSearch && setShowPatientDropdown(true)}
-                placeholder="Search by name..."
+                placeholder="Search by name, phone, DOB (MM/DD/YYYY), or email…"
                 autoComplete="off"
               />
               {errors.patientSearch && (
@@ -353,6 +353,9 @@ export function AppointmentModal({
                       <span className="text-muted-foreground">
                         DOB: {p.dateOfBirth}
                       </span>
+                      {p.phone && (
+                        <span className="text-muted-foreground">{p.phone}</span>
+                      )}
                     </button>
                   ))}
                 </div>

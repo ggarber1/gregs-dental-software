@@ -245,3 +245,98 @@ class TestListPatients:
         )
         ids = [p["id"] for p in patients]
         assert str(rival_patient.id) not in ids
+
+
+class TestSearchPatients:
+    """End-to-end coverage for the multi-field search extensions in Module 3.4.5."""
+
+    @staticmethod
+    def _ids(resp_json: dict) -> list[str]:
+        return [p["id"] for p in resp_json["data"]]
+
+    @pytest.fixture
+    async def seeded_patient(self, client: AsyncClient, auth_headers) -> dict:
+        body = {
+            **_BASE_CREATE_BODY,
+            "firstName": "Robin",
+            "lastName": "Searchy",
+            "dateOfBirth": "1982-03-07",
+            "phone": "(617) 555-1234",
+            "email": "robin@example.com",
+        }
+        resp = await client.post("/api/v1/patients", json=body, headers=mut(auth_headers))
+        assert resp.status_code == 201
+        return resp.json()
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "6175551234",
+            "617-555-1234",
+            "(617) 555-1234",
+            "5551234",
+            "1234",
+        ],
+    )
+    async def test_phone_variants_all_match(
+        self, client: AsyncClient, auth_headers, seeded_patient, query
+    ):
+        resp = await client.get(
+            "/api/v1/patients", params={"q": query}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert seeded_patient["id"] in self._ids(resp.json())
+
+    @pytest.mark.parametrize("query", ["03/07/1982", "3/7/1982"])
+    async def test_dob_us_format_matches(
+        self, client: AsyncClient, auth_headers, seeded_patient, query
+    ):
+        resp = await client.get(
+            "/api/v1/patients", params={"q": query}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert seeded_patient["id"] in self._ids(resp.json())
+
+    @pytest.mark.parametrize("query", ["robin@example.com", "robin@"])
+    async def test_email_full_and_partial_match(
+        self, client: AsyncClient, auth_headers, seeded_patient, query
+    ):
+        resp = await client.get(
+            "/api/v1/patients", params={"q": query}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert seeded_patient["id"] in self._ids(resp.json())
+
+    async def test_two_digit_substring_matches_phone(
+        self, client: AsyncClient, auth_headers, seeded_patient
+    ):
+        """Short digit strings still match — the dropdown narrows as the user
+        keeps typing. Blocking short queries surprised the user and was worse
+        than the noise it prevented."""
+        # Seeded phone (617) 555-1234 → digits 6175551234; "12" is a substring.
+        resp = await client.get(
+            "/api/v1/patients", params={"q": "12"}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert seeded_patient["id"] in self._ids(resp.json())
+
+    async def test_non_digit_query_does_not_phone_match(
+        self, client: AsyncClient, auth_headers, seeded_patient
+    ):
+        """A pure-letter query strips to no digits, so the phone predicate is
+        skipped entirely and we rely on name/email match only."""
+        resp = await client.get(
+            "/api/v1/patients", params={"q": "zzz-no-such-patient"}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert seeded_patient["id"] not in self._ids(resp.json())
+
+    async def test_invalid_calendar_date_does_not_raise(
+        self, client: AsyncClient, auth_headers, seeded_patient
+    ):
+        """q="99/99/9999" parses via regex but fails date() construction — must not 500."""
+        resp = await client.get(
+            "/api/v1/patients", params={"q": "99/99/9999"}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert seeded_patient["id"] not in self._ids(resp.json())

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
+import re
 import uuid
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import ColumnElement, func, or_, select, update
 
 from app.core.db import get_session_factory
 from app.core.encryption import decrypt, encrypt
@@ -23,6 +25,32 @@ from app.schemas.generated import (
 router = APIRouter(prefix="/api/v1/patients", tags=["patients"])
 
 _WRITE_ROLES: frozenset[str] = frozenset({"admin", "provider", "front_desk"})
+
+_DOB_US_RE = re.compile(r"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$")
+
+
+@dataclass(frozen=True)
+class _ParsedSearch:
+    raw: str
+    phone_digits: str | None
+    dob: date | None
+
+
+def _parse_search(q: str) -> _ParsedSearch:
+    raw = q.strip()
+    digits = re.sub(r"\D", "", raw)
+    phone_digits = digits if digits else None
+
+    parsed_dob: date | None = None
+    match = _DOB_US_RE.fullmatch(raw)
+    if match is not None:
+        month, day, year = (int(g) for g in match.groups())
+        try:
+            parsed_dob = date(year, month, day)
+        except ValueError:
+            parsed_dob = None
+
+    return _ParsedSearch(raw=raw, phone_digits=phone_digits, dob=parsed_dob)
 
 
 # ── Guards ────────────────────────────────────────────────────────────────────
@@ -185,14 +213,23 @@ async def list_patients(
     ]
 
     if q:
-        term = f"%{q}%"
-        base_filter.append(
-            or_(
-                PatientModel.first_name.ilike(term),
-                PatientModel.last_name.ilike(term),
-                func.concat(PatientModel.first_name, " ", PatientModel.last_name).ilike(term),
+        parsed = _parse_search(q)
+        term = f"%{parsed.raw}%"
+        clauses: list[ColumnElement[bool]] = [
+            PatientModel.first_name.ilike(term),
+            PatientModel.last_name.ilike(term),
+            func.concat(PatientModel.first_name, " ", PatientModel.last_name).ilike(term),
+            PatientModel.email.ilike(term),
+        ]
+        if parsed.phone_digits:
+            clauses.append(
+                func.regexp_replace(PatientModel.phone, r"\D", "", "g").like(
+                    f"%{parsed.phone_digits}%"
+                )
             )
-        )
+        if parsed.dob is not None:
+            clauses.append(PatientModel.date_of_birth == parsed.dob)
+        base_filter.append(or_(*clauses))
 
     async with get_session_factory()() as session:
         total: int = (
