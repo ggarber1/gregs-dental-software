@@ -506,13 +506,13 @@ Today's toolbar only has Today / ◀ / ▶. Navigating a quarter ahead takes 90 
 
 #### 3.4.3 Fix "appointment appears at 1pm when I booked 9am" bug
 
-**Root cause hypothesis:** the frontend converts 9am EDT → `13:00:00 UTC` via `localInputToUTC` and POSTs it to the API. When the API serializes it back in the response, the ISO string may lose its `Z` / `+00:00` suffix (e.g., FastAPI emits `"2026-04-20T13:00:00"` in some configs). FullCalendar with `timeZone="America/New_York"` then interprets the naive string as already-local → renders at 13:00 NY time = 1pm. The symptom matches exactly: offset equals the UTC offset (4 hours ahead of the wall-clock the user typed).
+**Actual root cause (not the original hypothesis):** FullCalendar's `timeZone` prop requires a timezone plugin (Luxon or moment-timezone) to resolve named IANA zones like `America/New_York`. Without one, FC silently falls back to UTC — so a correctly-serialized `"...Z"` event string renders at its UTC wall-clock time instead of the practice's local time (8am EDT input → 12:00 UTC stored → rendered in the 12pm row). Verified via integration test that the API *is* serializing datetimes canonically (`AwareDatetime` + Pydantic v2 default → always `Z`-suffixed), so the backend "fix" in the original hypothesis would have been solving a non-existent problem.
 
-- [ ] Confirm the cause: in DevTools Network tab, inspect the `GET /appointments` response — check whether `startTime` ends in `Z` or includes `+00:00`. If it's naive, this is the bug
-- [ ] Fix in API response schema: ensure all datetime responses serialize with tz offset. In Pydantic v2, use `field_serializer` or ensure the stored datetime is tz-aware (`datetime.now(UTC)`) — never naive. Audit `appointment.start_time` / `end_time` storage and serialization paths
-- [ ] Fix in frontend as defense: in `apps/web/app/(app)/schedule/page.tsx`, pass `start`/`end` to FullCalendar as `new Date(a.startTime)` rather than the raw string — JS `Date` is an instant, and FullCalendar's `timeZone` prop will project it correctly
-- [ ] Regression test (backend): assert `GET /appointments` returns `startTime` with a `Z` suffix or numeric offset
-- [ ] Regression test (frontend, Playwright): create an appointment for 9am in NY tz, navigate back to the calendar, assert the event renders with top offset matching the 9am slot (not 1pm)
+- [x] Confirmed wire format via real FastAPI integration test: `startTime` comes back as `"2026-06-15T09:00:00Z"` (correct). Hypothesis disproved — backend was never the issue.
+- [x] Fix: installed `@fullcalendar/luxon3` + `luxon`; imported `luxon3Plugin` and added it to the `plugins` array in `apps/web/app/(app)/schedule/page.tsx`. Three lines total.
+- [x] Audited all other FullCalendar usages — only `schedule/page.tsx` uses it; DaySheet does not.
+- [x] Regression test (Playwright, `apps/web/e2e/schedule-timezone.spec.ts`): creates an appointment at 2:15pm NY tz via API, navigates to `/schedule`, asserts `.fc-event-time` contains `"2:15"` and the event's top pixel is within ~80px of the 2pm row's slot-label. If the plugin is ever removed, the test will see `"6:15"` / `"7:15"` (UTC) and fail with a message pointing at the plugin.
+- [x] Backend defensive changes (9-schema `field_serializer` sweep, `parseApiInstant` helper) deferred — would be hardening with no active bug to justify the blast radius; file as a follow-up if a real divergence shows up.
 
 #### 3.4.4 Fix single-click on empty time slot to create
 

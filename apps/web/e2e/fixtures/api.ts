@@ -131,3 +131,75 @@ export async function apiListIntakeForms(patientId: string): Promise<IntakeFormS
   if (!resp.ok) throw new Error(`GET /api/v1/intake failed ${resp.status}`);
   return resp.json() as Promise<IntakeFormSummary[]>;
 }
+
+// ── Scheduling ────────────────────────────────────────────────────────────────
+
+export interface ProviderResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  [key: string]: unknown;
+}
+
+export interface OperatoryResult {
+  id: string;
+  name: string;
+  isActive: boolean;
+  [key: string]: unknown;
+}
+
+export async function apiListProviders(): Promise<ProviderResult[]> {
+  const resp = await fetch(apiUrl("/api/v1/providers"), { headers: getApiHeaders() });
+  if (!resp.ok) throw new Error(`GET /api/v1/providers failed ${resp.status}`);
+  return resp.json() as Promise<ProviderResult[]>;
+}
+
+export async function apiListOperatories(): Promise<OperatoryResult[]> {
+  const resp = await fetch(apiUrl("/api/v1/operatories"), { headers: getApiHeaders() });
+  if (!resp.ok) throw new Error(`GET /api/v1/operatories failed ${resp.status}`);
+  return resp.json() as Promise<OperatoryResult[]>;
+}
+
+export interface CreateAppointmentBody {
+  patientId: string;
+  providerId: string;
+  operatoryId: string;
+  startTime: string;
+  endTime: string;
+  appointmentTypeId?: string;
+  notes?: string;
+}
+
+export interface AppointmentResult {
+  id: string;
+  startTime: string;
+  endTime: string;
+  [key: string]: unknown;
+}
+
+export async function apiCreateAppointment(
+  body: CreateAppointmentBody
+): Promise<AppointmentResult> {
+  const resp = await fetch(apiUrl("/api/v1/appointments"), {
+    method: "POST",
+    headers: getApiHeaders(crypto.randomUUID()),
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`POST /api/v1/appointments failed ${resp.status}: ${text}`);
+  }
+  return resp.json() as Promise<AppointmentResult>;
+}
+
+export async function apiDeleteAppointment(appointmentId: string): Promise<void> {
+  const resp = await fetch(apiUrl(`/api/v1/appointments/${appointmentId}`), {
+    method: "DELETE",
+    headers: getApiHeaders(crypto.randomUUID()),
+  });
+  if (!resp.ok && resp.status !== 404) {
+    const text = await resp.text();
+    throw new Error(`DELETE /api/v1/appointments/${appointmentId} failed ${resp.status}: ${text}`);
+  }
+}
