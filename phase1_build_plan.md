@@ -531,10 +531,12 @@ Reported: clicking a time slot to create an appointment doesn't work reliably; a
 
 `AppointmentModal` patient search currently matches only first/last name. Front desk receives phone calls and types the number.
 
-- [ ] Backend `GET /api/v1/patients?q=...` already exists — extend the search to also match: `phone_mobile`, `phone_home` (digit-only normalized — strip `-`, `(`, `)`, spaces on both sides), `date_of_birth` (YYYY-MM-DD or MM/DD/YYYY), and `email`
-- [ ] Index: add an expression index on `regexp_replace(phone_mobile, '\D', '', 'g')` (and same for `phone_home`); alternative = pre-normalized `phone_digits` generated column
-- [ ] Update `AppointmentModal` dropdown row to show phone alongside name + DOB so staff can visually confirm the match
-- [ ] Tests: integration test that `q=617-555-1234`, `q=6175551234`, `q=(617) 555-1234` all return the same patient; DOB and email search return expected results
+**Scope adjustment:** patient model only has a single `phone` column (never split into `phone_mobile`/`phone_home`) — extended search operates on that one field. DOB scope: `MM/DD/YYYY` + `M/D/YYYY` (a single regex covers both); `YYYY-MM-DD` was dropped because staff never type it.
+
+- [x] Backend `GET /api/v1/patients?q=...` extended: digit-normalized phone (`regexp_replace(phone, '\D', '', 'g')`, min 3 digits to avoid every-patient false positives), `date_of_birth` (MM/DD/YYYY), and `email` (ILIKE)
+- [x] Expression index: `ix_patients_phone_digits` on `regexp_replace(phone, '\D', '', 'g')` WHERE deleted_at IS NULL (partial — matches list-query's live-rows filter). Plus `ix_patients_practice_dob` composite for DOB equality. Alembic `0011_patient_search_indexes.py`. First expression index in the repo; used `op.execute` since SQLAlchemy's `create_index` needs a bound dialect for the regex expression
+- [x] `AppointmentModal` dropdown row now shows phone alongside name + DOB; input placeholder updated to hint at the new matchable fields. Patients list page already rendered a Phone column, so its UI is unchanged and benefits automatically
+- [x] Integration tests (`TestSearchPatients`, 11 parametrized cases): phone in 3 formats, last-7 and last-4 digit variants, DOB in MM/DD/YYYY and M/D/YYYY, email full + partial, negatives for `q="12"` (below min-digits threshold) and `q="99/99/9999"` (regex match but invalid calendar date — must not 500). Playwright spec `schedule-patient-search.spec.ts` covers the UI end-to-end: stored phone `(555) 123-9876`, searched as `555-123-9876`, dropdown row renders the stored format for staff confirmation
 
 #### 3.4.6 Confirmation status visible on the calendar
 
