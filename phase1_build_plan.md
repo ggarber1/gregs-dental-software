@@ -518,10 +518,14 @@ Today's toolbar only has Today / ◀ / ▶. Navigating a quarter ahead takes 90 
 
 Reported: clicking a time slot to create an appointment doesn't work reliably; a single click should open the new-appointment modal pre-filled with the clicked time + operatory.
 
-- [ ] Wire FullCalendar's `dateClick` handler (the `interactionPlugin` is already loaded) to open the create modal with `date` / `startTime` / `operatoryId` pulled from `DateClickArg`
-- [ ] Keep the existing `select` drag-to-range handler for custom durations — dragging must still open the modal with the dragged end time as `endTime`
-- [ ] Verify `selectMinDistance` / `unselectAuto` don't suppress `dateClick` on a quick press; test mouse and trackpad
-- [ ] Playwright test: clicking a specific 9am slot for Operatory 1 opens the modal with `date=today`, `startTime=09:00`, `operatoryId` set
+- [x] Wire FullCalendar's `dateClick` handler (the `interactionPlugin` is already loaded) to open the create modal with `date` / `startTime` / `operatoryId` pulled from `DateClickArg`
+- [x] Keep the existing `select` drag-to-range handler for custom durations — threaded `defaultEndTime` through `AppointmentModal` so the dragged end time is actually preserved (the modal previously always defaulted to `start+30min`)
+- [x] `selectMinDistance={5}` prevents a zero-distance click from double-firing `select` alongside `dateClick`. `unselectAuto={false}` (with explicit `calendar.unselect()` on modal close) keeps the drag-select mirror visible while the user interacts with Radix Select/Popover dropdowns, which portal outside the dialog's DOM tree. Mouse path tested via Playwright — trackpad left for manual spot-check (Playwright doesn't simulate a distinct trackpad input).
+- [x] Playwright test in `apps/web/e2e/schedule-click-to-create.spec.ts`: clicks a 5pm slot (the original plan said 9am, but the seed fills 9am–5pm with events, so click-at-9am lands on an existing event and fires `eventClick` instead of `dateClick`). Asserts `date=today`, `startTime=17:00`, `endTime=17:30`, operatory preselected, exactly one dialog open. Second spec covers drag-to-range (5pm→6pm, preserved end time).
+- [x] Bonus fixes along the way:
+  - Guarded `renderEventContent` against FullCalendar's select-mirror event (has no `appointment` extendedProp) — was throwing `Cannot read properties of undefined (reading 'patientName')` mid-drag.
+  - Hoisted FC `plugins` and `businessHours` to module scope so parent re-renders don't rebuild the calendar and clear the selection mid-modal.
+- [x] Scope addition (user request during implementation): added a destructive "Cancel appointment" button in the edit modal footer that closes the edit dialog and opens the existing `CancelAppointmentModal`. Hidden for already-cancelled or completed appointments. Playwright coverage in `apps/web/e2e/schedule-cancel-appointment.spec.ts`.
 
 #### 3.4.5 Patient search by phone number (and more)
 
