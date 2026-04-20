@@ -10,6 +10,8 @@ import type { DateSelectArg, EventClickArg, EventInput } from "@fullcalendar/cor
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AppointmentModal } from "@/components/scheduling/AppointmentModal";
 import { CancelAppointmentModal } from "@/components/scheduling/CancelAppointmentModal";
 import { DaySheet } from "@/components/scheduling/DaySheet";
@@ -19,13 +21,20 @@ import {
   type Appointment,
 } from "@/lib/api/scheduling";
 import { usePracticeTimezone } from "@/lib/api/practice";
-import { formatDateHeaderInTz, toDateStringInTz, dateToTimeInTz } from "@/lib/timezone";
+import {
+  addMonthsLocal,
+  dateToTimeInTz,
+  formatDateHeaderInTz,
+  localInputToUTC,
+  toDateStringInTz,
+} from "@/lib/timezone";
 
 type ViewMode = "calendar" | "daysheet";
 
 function SchedulePageContent() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const calendarRef = useRef<FullCalendar>(null);
   const timezone = usePracticeTimezone();
 
@@ -85,25 +94,52 @@ function SchedulePageContent() {
     [appointments],
   );
 
-  // Date navigation
+  // Jump the calendar to a specific wall-clock date ("YYYY-MM-DD") in the
+  // practice timezone. Single primitive — every nav button and the date picker
+  // funnels through here so there's one place that handles the date→Date
+  // conversion and the gotoDate call.
+  const jumpToDate = useCallback(
+    (dateStr: string) => {
+      const iso = localInputToUTC(dateStr, "12:00", timezone);
+      setCurrentDate(new Date(iso));
+      calendarRef.current?.getApi().gotoDate(dateStr);
+    },
+    [timezone],
+  );
+
   function goToday() {
-    const today = new Date();
-    setCurrentDate(today);
-    calendarRef.current?.getApi().gotoDate(today);
+    jumpToDate(toDateStringInTz(new Date(), timezone));
   }
 
-  function goPrev() {
-    const prev = new Date(currentDate);
-    prev.setDate(prev.getDate() - 1);
-    setCurrentDate(prev);
-    calendarRef.current?.getApi().gotoDate(prev);
+  function shiftDays(delta: number) {
+    // Wall-clock day math in practice TZ — UTC Date ops here are purely
+    // calendrical (no zone conversion), so they don't drift on DST.
+    const [y, m, d] = toDateStringInTz(currentDate, timezone).split("-").map(Number);
+    const utc = new Date(Date.UTC(y!, m! - 1, d! + delta));
+    const newStr = `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
+    jumpToDate(newStr);
   }
 
-  function goNext() {
-    const next = new Date(currentDate);
-    next.setDate(next.getDate() + 1);
-    setCurrentDate(next);
-    calendarRef.current?.getApi().gotoDate(next);
+  function shiftMonths(delta: number) {
+    jumpToDate(addMonthsLocal(toDateStringInTz(currentDate, timezone), delta));
+  }
+
+  // react-day-picker operates in the browser's local calendar, so we pass
+  // Dates whose *local* Y/M/D match the practice-TZ wall-clock Y/M/D.
+  const pickerSelected = useMemo(() => {
+    const [y, m, d] = toDateStringInTz(currentDate, timezone).split("-").map(Number) as [
+      number,
+      number,
+      number,
+    ];
+    return new Date(y, m - 1, d);
+  }, [currentDate, timezone]);
+
+  function handleDaySelect(date: Date | undefined) {
+    if (!date) return;
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    jumpToDate(dateStr);
+    setDatePickerOpen(false);
   }
 
   // Calendar interactions
@@ -160,13 +196,42 @@ function SchedulePageContent() {
           <Button variant="outline" size="sm" onClick={goToday}>
             Today
           </Button>
-          <Button variant="ghost" size="sm" onClick={goPrev}>
+          <Button variant="ghost" size="sm" onClick={() => shiftDays(-1)} aria-label="Previous day">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={goNext}>
+          <Button variant="ghost" size="sm" onClick={() => shiftDays(1)} aria-label="Next day">
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold">{formatDateHeaderInTz(currentDate, timezone)}</h2>
+          <Button variant="outline" size="sm" onClick={() => shiftMonths(-3)}>
+            −3mo
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => shiftMonths(3)}>
+            +3mo
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => shiftMonths(6)}>
+            +6mo
+          </Button>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="rounded px-2 py-1 text-lg font-semibold hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-label="Pick a date"
+              >
+                {formatDateHeaderInTz(currentDate, timezone)}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={pickerSelected}
+                onSelect={handleDaySelect}
+                defaultMonth={pickerSelected}
+                startMonth={new Date(2000, 0)}
+                endMonth={new Date(2050, 11)}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="flex items-center gap-1 rounded-md border p-0.5">
