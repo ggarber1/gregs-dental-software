@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,11 @@ import {
   type Provider,
   type CreateProviderBody,
 } from "@/lib/api/scheduling";
+import {
+  CUSTOM_NPI_SENTINEL,
+  activeDentists,
+  matchDentistByNpi,
+} from "@/components/settings/supervisingDentist";
 
 const PROVIDER_TYPES = [
   { value: "dentist", label: "Dentist" },
@@ -75,6 +80,14 @@ export function ProvidersSettings() {
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Supervising-dentist dropdown selection (hygienist rows only). Stored as a
+  // provider id, CUSTOM_NPI_SENTINEL, or "" for unselected.
+  const [supervisorSelection, setSupervisorSelection] = useState<string>("");
+
+  const dentistOptions = useMemo(
+    () => activeDentists(providers, editing?.id),
+    [providers, editing?.id],
+  );
 
   useEffect(() => {
     if (!showModal) return;
@@ -88,16 +101,52 @@ export function ProvidersSettings() {
         color: editing.color,
         isActive: editing.isActive,
       });
+      if (editing.providerType === "hygienist") {
+        const match = matchDentistByNpi(editing.npi, dentistOptions);
+        setSupervisorSelection(
+          match.kind === "dentist"
+            ? match.providerId
+            : match.kind === "custom"
+              ? CUSTOM_NPI_SENTINEL
+              : "",
+        );
+      } else {
+        setSupervisorSelection("");
+      }
     } else {
       setValues(EMPTY);
+      setSupervisorSelection("");
     }
     setErrors({});
-  }, [showModal, editing]);
+  }, [showModal, editing, dentistOptions]);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
   }
+
+  function handleProviderTypeChange(next: FormValues["providerType"]) {
+    set("providerType", next);
+    if (next !== "hygienist") {
+      setSupervisorSelection("");
+    }
+  }
+
+  function handleSupervisorChange(next: string) {
+    setSupervisorSelection(next);
+    if (next === CUSTOM_NPI_SENTINEL) {
+      set("npi", "");
+      return;
+    }
+    const dentist = dentistOptions.find((d) => d.id === next);
+    if (dentist) set("npi", dentist.npi);
+  }
+
+  const isHygienist = values.providerType === "hygienist";
+  const npiLocked =
+    isHygienist &&
+    supervisorSelection !== "" &&
+    supervisorSelection !== CUSTOM_NPI_SENTINEL;
 
   function validate(): boolean {
     const errs: Partial<Record<keyof FormValues, string>> = {};
@@ -237,21 +286,12 @@ export function ProvidersSettings() {
               {errors.fullName && <p className="mt-1 text-xs text-destructive">{errors.fullName}</p>}
             </div>
             <div>
-              <Label htmlFor="provider-npi">NPI (10 digits)</Label>
-              <Input
-                id="provider-npi"
-                value={values.npi}
-                onChange={(e) => set("npi", e.target.value)}
-                maxLength={10}
-                placeholder="1234567890"
-              />
-              {errors.npi && <p className="mt-1 text-xs text-destructive">{errors.npi}</p>}
-            </div>
-            <div>
               <Label htmlFor="provider-type">Type</Label>
               <Select
                 value={values.providerType}
-                onValueChange={(v) => set("providerType", v as FormValues["providerType"])}
+                onValueChange={(v) =>
+                  handleProviderTypeChange(v as FormValues["providerType"])
+                }
               >
                 <SelectTrigger id="provider-type">
                   <SelectValue />
@@ -264,6 +304,60 @@ export function ProvidersSettings() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            {isHygienist && (
+              <div>
+                <Label htmlFor="provider-supervisor">Supervising dentist</Label>
+                <Select
+                  value={supervisorSelection}
+                  onValueChange={handleSupervisorChange}
+                >
+                  <SelectTrigger id="provider-supervisor">
+                    <SelectValue
+                      placeholder={
+                        dentistOptions.length === 0
+                          ? "No dentists yet — use Custom NPI"
+                          : "Select supervising dentist…"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dentistOptions.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.fullName} · {d.npi}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_NPI_SENTINEL}>
+                      Custom NPI (exception)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Hygienists bill under the supervising dentist&apos;s NPI.
+                </p>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="provider-npi">NPI (10 digits)</Label>
+              <div className="relative">
+                <Input
+                  id="provider-npi"
+                  value={values.npi}
+                  onChange={(e) => set("npi", e.target.value)}
+                  maxLength={10}
+                  placeholder="1234567890"
+                  readOnly={npiLocked}
+                  aria-readonly={npiLocked}
+                  className={npiLocked ? "bg-muted pr-8" : undefined}
+                />
+                {npiLocked && (
+                  <Lock
+                    className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              {errors.npi && <p className="mt-1 text-xs text-destructive">{errors.npi}</p>}
             </div>
             <div>
               <Label htmlFor="provider-license">License Number (optional)</Label>

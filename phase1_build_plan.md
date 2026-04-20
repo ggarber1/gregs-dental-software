@@ -480,8 +480,152 @@ Need to verify patient cards inputs don't disappear when editing after applying 
 
 ### Notes / Questions
 - Is week view necessary?
-- What is the flow for the insurance / thing dentist did ID? like what if a bunch of tings were done asides from just a cleaning. need to put those ID's somewhere?
-  - Where to store those ID's? new table? we already have the thing to add a appointment type like cleaning but maybe there is something more fine grained that insurances need
+- Deeper procedure/billing flow is tracked under Module 6; the lightweight procedure entry scoped below (Module 3.5) is the bridge.
+
+### 3.4 Scheduling Polish & Usability
+
+Follow-ups from dad's schedule review. All items below are Module 3 scope — keep to the existing `appointments` / `providers` / `operatories` tables; no new domain concepts.
+
+#### 3.4.1 NPI handling — required for everyone
+
+**Decision:** Every provider row has an NPI. Per dad, the hygienist bills under the supervising dentist's NPI (there is no separate hygienist NPI in his practice). Keep `providers.npi NOT NULL` — no schema change.
+
+- [x] Document the convention in `providers` model docstring: hygienist rows use the supervising dentist's 10-digit NPI; `provider_type` is still `'hygienist'` so scheduling/display can differentiate, but billing rolls up to the same NPI on 837D generation
+- [x] Provider create/edit UI — on `provider_type = 'hygienist'`, show a dropdown of existing dentists in the practice; selecting one auto-fills the NPI field (still editable if the practice has an exception). Keep NPI field visible and required
+- [x] No backfill needed — existing rows already have an NPI value
+- [x] Tests: integration test rejects provider create without NPI for any `provider_type`; unit test verifies hygienist dropdown auto-fill behavior
+
+#### 3.4.2 Schedule date navigation — quick jumps + date picker
+
+Today's toolbar only has Today / ◀ / ▶. Navigating a quarter ahead takes 90 clicks.
+
+- [ ] Add to `apps/web/app/(app)/schedule/page.tsx` toolbar (to the right of ◀ / ▶): `−3mo`, `+3mo`, `+6mo` buttons; compute from `currentDate` using local-date math (no UTC drift), then call `calendarRef.current?.getApi().gotoDate(...)`
+- [ ] Replace the date header `<h2>` with a clickable label that opens a popover containing a date picker (reuse `Input type="date"` wrapped in a `Popover` — avoids adding a new date-picker dependency)
+- [ ] Selecting a date updates `currentDate` and calls `gotoDate`
+- [ ] Tests: component test that clicking `+3mo` advances the displayed header by ~3 months; date picker sets the active date
+
+#### 3.4.3 Fix "appointment appears at 1pm when I booked 9am" bug
+
+**Root cause hypothesis:** the frontend converts 9am EDT → `13:00:00 UTC` via `localInputToUTC` and POSTs it to the API. When the API serializes it back in the response, the ISO string may lose its `Z` / `+00:00` suffix (e.g., FastAPI emits `"2026-04-20T13:00:00"` in some configs). FullCalendar with `timeZone="America/New_York"` then interprets the naive string as already-local → renders at 13:00 NY time = 1pm. The symptom matches exactly: offset equals the UTC offset (4 hours ahead of the wall-clock the user typed).
+
+- [ ] Confirm the cause: in DevTools Network tab, inspect the `GET /appointments` response — check whether `startTime` ends in `Z` or includes `+00:00`. If it's naive, this is the bug
+- [ ] Fix in API response schema: ensure all datetime responses serialize with tz offset. In Pydantic v2, use `field_serializer` or ensure the stored datetime is tz-aware (`datetime.now(UTC)`) — never naive. Audit `appointment.start_time` / `end_time` storage and serialization paths
+- [ ] Fix in frontend as defense: in `apps/web/app/(app)/schedule/page.tsx`, pass `start`/`end` to FullCalendar as `new Date(a.startTime)` rather than the raw string — JS `Date` is an instant, and FullCalendar's `timeZone` prop will project it correctly
+- [ ] Regression test (backend): assert `GET /appointments` returns `startTime` with a `Z` suffix or numeric offset
+- [ ] Regression test (frontend, Playwright): create an appointment for 9am in NY tz, navigate back to the calendar, assert the event renders with top offset matching the 9am slot (not 1pm)
+
+#### 3.4.4 Fix single-click on empty time slot to create
+
+Reported: clicking a time slot to create an appointment doesn't work reliably; a single click should open the new-appointment modal pre-filled with the clicked time + operatory.
+
+- [ ] Wire FullCalendar's `dateClick` handler (the `interactionPlugin` is already loaded) to open the create modal with `date` / `startTime` / `operatoryId` pulled from `DateClickArg`
+- [ ] Keep the existing `select` drag-to-range handler for custom durations — dragging must still open the modal with the dragged end time as `endTime`
+- [ ] Verify `selectMinDistance` / `unselectAuto` don't suppress `dateClick` on a quick press; test mouse and trackpad
+- [ ] Playwright test: clicking a specific 9am slot for Operatory 1 opens the modal with `date=today`, `startTime=09:00`, `operatoryId` set
+
+#### 3.4.5 Patient search by phone number (and more)
+
+`AppointmentModal` patient search currently matches only first/last name. Front desk receives phone calls and types the number.
+
+- [ ] Backend `GET /api/v1/patients?q=...` already exists — extend the search to also match: `phone_mobile`, `phone_home` (digit-only normalized — strip `-`, `(`, `)`, spaces on both sides), `date_of_birth` (YYYY-MM-DD or MM/DD/YYYY), and `email`
+- [ ] Index: add an expression index on `regexp_replace(phone_mobile, '\D', '', 'g')` (and same for `phone_home`); alternative = pre-normalized `phone_digits` generated column
+- [ ] Update `AppointmentModal` dropdown row to show phone alongside name + DOB so staff can visually confirm the match
+- [ ] Tests: integration test that `q=617-555-1234`, `q=6175551234`, `q=(617) 555-1234` all return the same patient; DOB and email search return expected results
+
+#### 3.4.6 Confirmation status visible on the calendar
+
+Staff shouldn't have to click into each appointment to see confirmation state. Show a leading emoji on each event tile.
+
+- [ ] Define three signal states derived from existing fields (no SMS infra required — Module 4 lands later):
+  - `no_signal` — `status = 'scheduled'`, no confirmation recorded
+  - `reminder_sent` — a reminder was sent but no response recorded yet (requires Module 4; before then, this state is unreachable and the logic still compiles)
+  - `confirmed` — `status = 'confirmed'`, or `manual_confirmation_source IS NOT NULL`
+- [ ] Alembic migration: add `appointments.manual_confirmation_source TEXT CHECK (... IN ('phone_call','in_person','email'))`, `manual_confirmation_at TIMESTAMPTZ`, `manual_confirmation_by UUID FK→users` — lets staff mark "called and confirmed" without waiting for Module 4's SMS layer
+- [ ] Extend `GET /appointments` response with derived `confirmation_signal: 'no_signal' | 'reminder_sent' | 'confirmed'` — computed server-side so the frontend doesn't replicate the rule
+- [ ] In `renderEventContent`, prefix the patient name with: `⚪` (no signal), `📞` (manual phone confirm) / `📨` (reminder sent, no response), `✅` (confirmed)
+- [ ] Day sheet: add the same leading glyph column
+- [ ] Quick action in the appointment modal: "Mark confirmed (phone call)" button that writes `manual_confirmation_*` fields and flips `status` to `confirmed`
+- [ ] Tests: unit test for signal derivation covering each state; snapshot test that the calendar tile renders the correct glyph
+
+#### 3.4.7 Calendar view includes appointment notes
+
+Appointment notes (`appointments.notes`) are invisible on the calendar today.
+
+- [ ] In `renderEventContent`, append a third line (`line-clamp-1`, `opacity-60`, italic) showing `appt.notes` when present
+- [ ] Full text on hover via native `title` attribute
+- [ ] Only render the notes line when the tile is tall enough to fit it (appointment duration ≥ 30 min) — below that, the existing two lines already crowd the tile
+- [ ] No schema or API change — `notes` is already on the payload
+
+### 3.5 Per-Appointment Procedures (Lite)
+
+Dad needs to enter the procedure(s) done at a visit — procedure number (CDT), name, fee, and the insurance's expected coverage for that procedure on that patient. This is a **scoped-down slice** of Module 6 (full co-pay engine) — capture the data; don't build the calculation service yet.
+
+#### Scope decision
+
+- Capture procedure rows per appointment with an explicit fee and an optional per-patient coverage percentage
+- Don't auto-calculate patient responsibility from eligibility in 3.5 — that's Module 6.1
+- Don't require the full CDT catalog to be seeded — allow free-text procedure name with optional CDT code; seed the ~20 most common codes (D0120 exam, D1110 prophy, D1206 fluoride, D2391 composite, D4341/D4342 SRP, etc.) so common entry is fast
+- Per-patient coverage is gathered on the procedure row: the same CDT code pays differently under different plans, and live eligibility re-verification is Module 5 territory
+
+#### Tables
+
+```
+cdt_codes                                    -- seed list, reference data
+  id                UUID PK
+  code              TEXT NOT NULL UNIQUE     -- 'D1110'
+  description       TEXT NOT NULL            -- 'Prophylaxis - adult'
+  category          TEXT NOT NULL            -- 'preventive' | 'basic' | 'major' | 'ortho' | 'diagnostic' | 'other'
+  default_fee_cents INTEGER                  -- practice-level override comes later (Module 6)
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE
+
+appointment_procedures                       -- per-visit rows
+  id                        UUID PK
+  practice_id               UUID NOT NULL FK → practices
+  appointment_id            UUID NOT NULL FK → appointments ON DELETE CASCADE
+  cdt_code_id               UUID FK → cdt_codes           -- nullable: free-text entry allowed
+  procedure_code            TEXT                          -- denormalized 'D1110'; required if cdt_code_id null
+  procedure_name            TEXT NOT NULL
+  tooth_number              TEXT                          -- nullable; single tooth or range
+  surface                   TEXT                          -- nullable; e.g. 'MOD'
+  fee_cents                 INTEGER NOT NULL              -- billed fee in cents
+  insurance_coverage_pct    INTEGER                       -- 0–100; nullable = unknown
+  insurance_coverage_source TEXT CHECK (insurance_coverage_source IN ('manual','eligibility','prior_eob'))
+  patient_portion_cents     INTEGER                       -- manual override; else computed on read
+  notes                     TEXT
+  created_at, updated_at, deleted_at
+```
+
+- Indexes: `(appointment_id)`, `(practice_id, created_at)`, `(cdt_code_id)`
+- No FK to `patient_insurance` yet — coverage% is captured standalone; wiring to an eligibility-verified plan lands in Module 5/6
+
+#### API
+
+- [ ] `GET /api/v1/appointments/{id}/procedures` — list
+- [ ] `POST /api/v1/appointments/{id}/procedures` — add (idempotency-key required)
+- [ ] `PATCH /api/v1/appointments/{id}/procedures/{procId}` — edit
+- [ ] `DELETE /api/v1/appointments/{id}/procedures/{procId}` — soft delete
+- [ ] `GET /api/v1/cdt-codes?q=...` — typeahead search for the seed list
+- [ ] Audit log on every mutation (PHI-adjacent; tie to the patient)
+
+#### Frontend
+
+- [ ] New "Procedures" section in the appointment modal: table of procedure rows with add/edit/delete
+- [ ] Row editor: CDT typeahead (falls back to free text), procedure name, tooth/surface, fee, coverage %, source dropdown, computed patient portion (read-only unless manually overridden)
+- [ ] Totals strip at the bottom: `Fee total · Insurance est. · Patient est.`
+- [ ] Patient chart: new "Procedure history" tab listing all procedures across appointments (read-only; sort by `appointment.start_time` desc)
+
+#### Rules / constraints
+
+- Coverage % is 0–100 integer; reject anything else at the API boundary
+- Patient portion computed server-side and included in response — never derived on the client
+- Deleting an appointment soft-deletes its procedures via the service layer setting `deleted_at` on both
+- When Module 6 lands, the calculation service consumes these rows verbatim; no data migration needed
+
+#### Tests
+
+- [ ] Unit tests: add/edit/delete/list; computed patient portion; coverage bounds validation
+- [ ] Integration test: create appointment → add 3 procedures → totals match; delete a procedure → totals recompute
+- [ ] Authorization test: user scoped to Practice A cannot add a procedure to an appointment owned by Practice B
 
 ## 🚦 Staging Checkpoint 3 — End of Module 3 (after 3.1–3.3)
 

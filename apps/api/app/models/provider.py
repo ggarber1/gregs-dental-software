@@ -15,6 +15,19 @@ if TYPE_CHECKING:
 
 
 class Provider(Base, TimestampMixin):
+    """
+    Clinical staff who appear on the schedule and/or on dental claims.
+
+    NPI convention (Module 3.4.1):
+    `npi` is NOT NULL for every `provider_type`. For `provider_type = 'hygienist'`,
+    the row carries the **supervising dentist's** 10-digit NPI by convention — there
+    is no separate hygienist NPI on 837D claims for the typical solo/small practice.
+    `provider_type` still differentiates scheduling and display; billing (Module 7
+    837D generation) reads `provider.npi` directly, with no lookup through a
+    supervisor relationship. Exceptions (a hygienist with their own NPI) are allowed
+    — the column is not constrained to match any other row.
+    """
+
     __tablename__ = "providers"
 
     practice_id: Mapped[uuid.UUID] = mapped_column(
