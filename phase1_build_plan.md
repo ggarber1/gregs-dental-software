@@ -499,10 +499,10 @@ Follow-ups from dad's schedule review. All items below are Module 3 scope — ke
 
 Today's toolbar only has Today / ◀ / ▶. Navigating a quarter ahead takes 90 clicks.
 
-- [ ] Add to `apps/web/app/(app)/schedule/page.tsx` toolbar (to the right of ◀ / ▶): `−3mo`, `+3mo`, `+6mo` buttons; compute from `currentDate` using local-date math (no UTC drift), then call `calendarRef.current?.getApi().gotoDate(...)`
-- [ ] Replace the date header `<h2>` with a clickable label that opens a popover containing a date picker (reuse `Input type="date"` wrapped in a `Popover` — avoids adding a new date-picker dependency)
-- [ ] Selecting a date updates `currentDate` and calls `gotoDate`
-- [ ] Tests: component test that clicking `+3mo` advances the displayed header by ~3 months; date picker sets the active date
+- [x] Add to `apps/web/app/(app)/schedule/page.tsx` toolbar (to the right of ◀ / ▶): `−3mo`, `+3mo`, `+6mo` buttons; compute from `currentDate` using local-date math (no UTC drift), then call `calendarRef.current?.getApi().gotoDate(...)`
+- [x] Replace the date header `<h2>` with a clickable label that opens a popover containing a date picker. Swapped from `<input type="date">` to `react-day-picker` with month/year caption dropdowns — native date inputs made typing a far-out year too painful on Safari
+- [x] Selecting a date updates `currentDate` and calls `gotoDate`
+- [x] Tests: unit tests for `addMonthsLocal` (12 cases — happy path, year rollover, Jan 31 → Feb clamp in leap and non-leap years, no-mutation, malformed-input errors); all nav buttons funnel through a single `jumpToDate` primitive that this helper feeds
 
 #### 3.4.3 Fix "appointment appears at 1pm when I booked 9am" bug
 

@@ -10,6 +10,7 @@ import {
   dayBoundsInTz,
   toDateStringInTz,
   dateToTimeInTz,
+  addMonthsLocal,
 } from "@/lib/timezone";
 
 // ── formatTimeInTz ───────────────────────────────────────────────────────────
@@ -204,5 +205,61 @@ describe("dateToTimeInTz", () => {
   it("extracts HH:mm from a Date in practice timezone", () => {
     const d = new Date("2026-04-16T13:30:00Z"); // 9:30 AM EDT
     expect(dateToTimeInTz(d, "America/New_York")).toBe("09:30");
+  });
+});
+
+// ── addMonthsLocal ───────────────────────────────────────────────────────────
+
+describe("addMonthsLocal", () => {
+  it("advances by 3 months mid-month", () => {
+    expect(addMonthsLocal("2026-03-15", 3)).toBe("2026-06-15");
+  });
+
+  it("advances by 6 months across a year boundary", () => {
+    expect(addMonthsLocal("2026-10-20", 6)).toBe("2027-04-20");
+  });
+
+  it("subtracts 3 months across a year boundary", () => {
+    expect(addMonthsLocal("2026-02-10", -3)).toBe("2025-11-10");
+  });
+
+  it("clamps Jan 31 + 1mo to Feb 28 in a non-leap year", () => {
+    expect(addMonthsLocal("2026-01-31", 1)).toBe("2026-02-28");
+  });
+
+  it("clamps Jan 31 + 1mo to Feb 29 in a leap year", () => {
+    expect(addMonthsLocal("2028-01-31", 1)).toBe("2028-02-29");
+  });
+
+  it("clamps Mar 31 - 1mo to Feb 28 (non-leap)", () => {
+    expect(addMonthsLocal("2026-03-31", -1)).toBe("2026-02-28");
+  });
+
+  it("clamps May 31 + 1mo to Jun 30", () => {
+    expect(addMonthsLocal("2026-05-31", 1)).toBe("2026-06-30");
+  });
+
+  it("returns the same date for 0 months", () => {
+    expect(addMonthsLocal("2026-04-20", 0)).toBe("2026-04-20");
+  });
+
+  it("does not mutate the input string", () => {
+    const input = "2026-04-20";
+    addMonthsLocal(input, 3);
+    expect(input).toBe("2026-04-20");
+  });
+
+  it("handles large positive offsets (24 months)", () => {
+    expect(addMonthsLocal("2026-04-20", 24)).toBe("2028-04-20");
+  });
+
+  it("throws on malformed date string", () => {
+    expect(() => addMonthsLocal("2026/04/20", 1)).toThrow();
+    expect(() => addMonthsLocal("not-a-date", 1)).toThrow();
+    expect(() => addMonthsLocal("", 1)).toThrow();
+  });
+
+  it("throws on non-integer month offset", () => {
+    expect(() => addMonthsLocal("2026-04-20", 1.5)).toThrow();
   });
 });

@@ -180,3 +180,48 @@ export function toDateStringInTz(date: Date, timezone: string): string {
 export function dateToTimeInTz(date: Date, timezone: string): string {
   return isoToTimeInTz(date.toISOString(), timezone);
 }
+
+/**
+ * Add (or subtract, via negative value) calendar months to a "YYYY-MM-DD" date
+ * string. Pure wall-clock math — operates on the string parts directly so there
+ * is no UTC or DST drift. When the target month has fewer days than the source
+ * day, the result clamps to the last day of the target month (Jan 31 + 1mo →
+ * Feb 28 in a non-leap year, Feb 29 in a leap year).
+ *
+ * Throws on inputs that don't match "YYYY-MM-DD" (boundary validation).
+ */
+export function addMonthsLocal(dateStr: string, months: number): string {
+  if (!Number.isInteger(months)) {
+    throw new Error(`addMonthsLocal: months must be an integer, got ${months}`);
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) {
+    throw new Error(`addMonthsLocal: expected "YYYY-MM-DD", got ${dateStr}`);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]); // 1-12
+  const day = Number(match[3]); // 1-31
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    throw new Error(`addMonthsLocal: invalid date ${dateStr}`);
+  }
+
+  // Shift into 0-indexed month math for easy modulo handling of year rollover.
+  const totalMonths = year * 12 + (month - 1) + months;
+  const newYear = Math.floor(totalMonths / 12);
+  const newMonth = (totalMonths % 12) + 1; // back to 1-12
+
+  const lastDay = daysInMonth(newYear, newMonth);
+  const newDay = Math.min(day, lastDay);
+
+  return `${String(newYear).padStart(4, "0")}-${String(newMonth).padStart(2, "0")}-${String(newDay).padStart(2, "0")}`;
+}
+
+function daysInMonth(year: number, month: number): number {
+  // month is 1-12
+  if (month === 2) {
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    return leap ? 29 : 28;
+  }
+  if (month === 4 || month === 6 || month === 9 || month === 11) return 30;
+  return 31;
+}
