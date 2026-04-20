@@ -6,6 +6,9 @@ import { CalendarDays, ChevronLeft, ChevronRight, List, Plus } from "lucide-reac
 import FullCalendar from "@fullcalendar/react";
 import resourceTimeGridPlugin from "@fullcalendar/resource-timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+// Required so FullCalendar's `timeZone` prop resolves named IANA zones
+// (e.g. "America/New_York"). Without it, FC silently falls back to UTC.
+import luxon3Plugin from "@fullcalendar/luxon3";
 import type { DateSelectArg, EventClickArg, EventInput } from "@fullcalendar/core";
 
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -259,7 +262,7 @@ function SchedulePageContent() {
         <div className="rounded-md border bg-white p-2">
           <FullCalendar
             ref={calendarRef}
-            plugins={[resourceTimeGridPlugin, interactionPlugin]}
+            plugins={[resourceTimeGridPlugin, interactionPlugin, luxon3Plugin]}
             initialView="resourceTimeGridDay"
             initialDate={currentDate}
             timeZone={timezone}
