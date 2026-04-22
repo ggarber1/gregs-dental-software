@@ -22,6 +22,7 @@ import { DaySheet } from "@/components/scheduling/DaySheet";
 import {
   useAppointments,
   useOperatories,
+  confirmationGlyph,
   type Appointment,
 } from "@/lib/api/scheduling";
 import { usePracticeTimezone } from "@/lib/api/practice";
@@ -213,12 +214,13 @@ function SchedulePageContent() {
         </div>
       );
     }
+    const glyph = confirmationGlyph(appt.status);
     const name = appt.patientName ?? "No patient";
     // Combine type + provider on one line to save vertical space
     const details = [appt.appointmentTypeName, appt.providerName].filter(Boolean).join(" · ");
     return (
       <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-snug">
-        <div className="font-semibold truncate">{name}</div>
+        <div className="font-semibold truncate">{glyph} {name}</div>
         {details && <div className="truncate opacity-75">{details}</div>}
       </div>
     );

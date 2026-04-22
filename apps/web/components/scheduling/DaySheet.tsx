@@ -23,6 +23,7 @@ import {
 import {
   useAppointments,
   useProviders,
+  confirmationGlyph,
   type Appointment,
 } from "@/lib/api/scheduling";
 import { usePracticeTimezone } from "@/lib/api/practice";
@@ -82,6 +83,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
           <TableHeader>
             <TableRow>
               <TableHead className="w-32">Time</TableHead>
+              <TableHead className="w-8 text-center">Conf</TableHead>
               <TableHead>Patient</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Provider</TableHead>
@@ -94,7 +96,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <TableCell key={j}>
                       <div className="h-4 w-full animate-pulse rounded bg-muted" />
                     </TableCell>
@@ -103,7 +105,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
               ))
             ) : dayAppointments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                   No appointments scheduled for this day.
                 </TableCell>
               </TableRow>
@@ -117,6 +119,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
                   <TableCell className="font-medium whitespace-nowrap">
                     {formatTimeInTz(appt.startTime, timezone)} - {formatTimeInTz(appt.endTime, timezone)}
                   </TableCell>
+                  <TableCell className="text-center text-base">{confirmationGlyph(appt.status)}</TableCell>
                   <TableCell className="font-medium">{appt.patientName ?? "—"}</TableCell>
                   <TableCell>
                     {appt.appointmentTypeName ? (

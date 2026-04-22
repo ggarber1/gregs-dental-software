@@ -171,6 +171,20 @@ export interface UpdateAppointmentTypeBody {
   displayOrder?: number;
 }
 
+// Returns the confirmation glyph for a given appointment status.
+// ⚪ = not yet confirmed, ✅ = confirmed or past that stage.
+export function confirmationGlyph(status: AppointmentStatus): string {
+  switch (status) {
+    case "confirmed":
+    case "checked_in":
+    case "in_chair":
+    case "completed":
+      return "✅";
+    default:
+      return "⚪";
+  }
+}
+
 // ── API functions ─────────────────────────────────────────────────────────────
 
 export async function listAppointments(
