@@ -544,16 +544,11 @@ Reported: clicking a time slot to create an appointment doesn't work reliably; a
 
 Staff shouldn't have to click into each appointment to see confirmation state. Show a leading emoji on each event tile.
 
-- [ ] Define three signal states derived from existing fields (no SMS infra required — Module 4 lands later):
-  - `no_signal` — `status = 'scheduled'`, no confirmation recorded
-  - `reminder_sent` — a reminder was sent but no response recorded yet (requires Module 4; before then, this state is unreachable and the logic still compiles)
-  - `confirmed` — `status = 'confirmed'`, or `manual_confirmation_source IS NOT NULL`
-- [ ] Alembic migration: add `appointments.manual_confirmation_source TEXT CHECK (... IN ('phone_call','in_person','email'))`, `manual_confirmation_at TIMESTAMPTZ`, `manual_confirmation_by UUID FK→users` — lets staff mark "called and confirmed" without waiting for Module 4's SMS layer
-- [ ] Extend `GET /appointments` response with derived `confirmation_signal: 'no_signal' | 'reminder_sent' | 'confirmed'` — computed server-side so the frontend doesn't replicate the rule
-- [ ] In `renderEventContent`, prefix the patient name with: `⚪` (no signal), `📞` (manual phone confirm) / `📨` (reminder sent, no response), `✅` (confirmed)
-- [ ] Day sheet: add the same leading glyph column
-- [ ] Quick action in the appointment modal: "Mark confirmed (phone call)" button that writes `manual_confirmation_*` fields and flips `status` to `confirmed`
-- [ ] Tests: unit test for signal derivation covering each state; snapshot test that the calendar tile renders the correct glyph
+- [x] `confirmationGlyph(status)` pure function in `lib/api/scheduling.ts`: ⚪ for `scheduled`/`no_show`/`cancelled`, ✅ for `confirmed`/`checked_in`/`in_chair`/`completed`
+- [x] `renderEventContent` in `schedule/page.tsx` prefixes patient name with glyph
+- [x] Day sheet: narrow "Conf" column with glyph (column count updated throughout)
+- [x] No DB or API changes — `status` field already carries all needed information; `manual_confirmation_source` deferred until Module 4 needs to distinguish SMS from manual
+- [x] Unit tests: 7 cases covering every `AppointmentStatus` value (`apps/web/__tests__/lib/api/scheduling.test.ts`)
 
 #### 3.4.7 Calendar view includes appointment notes
 
