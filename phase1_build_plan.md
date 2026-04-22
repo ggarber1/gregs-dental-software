@@ -13,14 +13,16 @@ Replace the core Eaglesoft workflow for a solo dental practice. Dad runs Eagleso
 These are not software tasks but they gate real milestones. Start them early — several have multi-week lead times.
 
 ### Entity & Identity
-- [ ] Form an LLC (recommend single-member LLC for simplicity; consult a CPA/attorney on state)
+- [x] Form business entity — **Greg Garber Software Projects** (sole proprietorship). Note: no liability shield; consider converting to single-member LLC before onboarding paying customers beyond dad's practice.
 - [ ] Obtain EIN from IRS (free, instant online at irs.gov)
 - [ ] Open a business bank account
-- [ ] Register a business domain (e.g. `molardental.com` or similar)
+- [ ] Register parent business domain (e.g. `gregarbersoftware.com`) — umbrella for all products
+- [ ] Molar runs at `molar.<parent-domain>` — no separate product domain needed until Molar is sold independently to other practices
 
 ### Website (Required for A2P + Credibility)
-- [ ] Publish a minimal website on the business domain — even a single landing page counts
-- [ ] Must include: business name, description of service, contact info
+- [ ] Publish a minimal website at the parent domain — even a single landing page counts
+- [ ] Must include: business name (Greg Garber Software Projects), description of service, contact info
+- [ ] Molar landing page lives at `molar.<parent-domain>`
 - [ ] Required by Twilio A2P 10DLC brand registration and Availity enrollment
 
 ### Twilio A2P 10DLC (Required Before SMS Works in Prod)
