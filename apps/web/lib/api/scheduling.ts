@@ -171,6 +171,11 @@ export interface UpdateAppointmentTypeBody {
   displayOrder?: number;
 }
 
+// Notes are only shown when the tile is tall enough (≥ 30 min) to fit a third line.
+export function shouldShowNotes(notes: string | null | undefined, durationMinutes: number): boolean {
+  return !!notes && durationMinutes >= 30;
+}
+
 // Returns the confirmation glyph for a given appointment status.
 // ⚪ = not yet confirmed, ✅ = confirmed or past that stage.
 export function confirmationGlyph(status: AppointmentStatus): string {
