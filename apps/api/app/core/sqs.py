@@ -14,7 +14,7 @@ _BOTO_CONFIG = Config(connect_timeout=5, read_timeout=25, retries={"max_attempts
 
 
 @cache
-def _get_sqs_client():
+def _get_sqs_client() -> Any:
     settings = get_settings()
     kwargs: dict[str, Any] = {
         "service_name": "sqs",

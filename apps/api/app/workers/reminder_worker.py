@@ -5,9 +5,10 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.db import get_session_factory
@@ -40,7 +41,7 @@ async def _scheduler_loop() -> None:
 async def _enqueue_due_reminders() -> None:
     look_ahead = datetime.now(UTC) + timedelta(minutes=_LOOK_AHEAD_MINUTES)
     queue_name = get_settings().sqs_queue_reminders
-    factory: async_sessionmaker = get_session_factory()
+    factory: async_sessionmaker[AsyncSession] = get_session_factory()
 
     async with factory() as session:
         result = await session.scalars(
@@ -85,7 +86,7 @@ async def _sqs_poll_loop() -> None:
             logger.exception("SQS poll error — continuing")
 
 
-async def _process_message(msg: dict) -> None:
+async def _process_message(msg: dict[str, Any]) -> None:
     queue_name = get_settings().sqs_queue_reminders
     receipt_handle: str = msg["ReceiptHandle"]
 

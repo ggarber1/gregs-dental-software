@@ -27,7 +27,7 @@ def _build_reminder_row(
         id=uuid.uuid4(),
         practice_id=appointment.practice_id,
         appointment_id=appointment.id,
-        patient_id=appointment.patient_id,  # type: ignore[arg-type]
+        patient_id=appointment.patient_id,
         reminder_type=reminder_type,
         hours_before=hours_before,
         send_at=send_at,
