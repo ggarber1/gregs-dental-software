@@ -41,4 +41,18 @@ for queue in \
   echo "  created: ${queue}"
 done
 
+echo "==> Wiring DLQ redrive policies..."
+# dental-reminders-dlq: max 3 receive attempts before messages land in DLQ.
+REMINDERS_DLQ_ARN=$(awslocal sqs get-queue-attributes \
+  --queue-url "http://localhost:4566/000000000000/dental-reminders-dlq" \
+  --attribute-names QueueArn \
+  ${AWS_FLAGS} \
+  --query 'Attributes.QueueArn' --output text)
+
+awslocal sqs set-queue-attributes \
+  --queue-url "http://localhost:4566/000000000000/dental-reminders-queue" \
+  --attributes "{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"${REMINDERS_DLQ_ARN}\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"}" \
+  ${AWS_FLAGS} 2>/dev/null || echo "  redrive policy already set or skipped"
+echo "  dental-reminders-queue -> dental-reminders-dlq (maxReceiveCount=3)"
+
 echo "==> LocalStack resources ready."

@@ -23,6 +23,7 @@ from app.schemas.generated import (
     Error,
     UpdateAppointment,
 )
+from app.services.reminders import cancel_reminders_for_appointment, stage_reminder_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -381,6 +382,7 @@ async def create_appointment(
         )
 
         session.add(row)
+        stage_reminder_jobs(session, row)
         await session.commit()
 
         # Re-fetch with relationships for the response
@@ -424,6 +426,7 @@ async def update_appointment(
             )
 
         provided = body.model_fields_set
+        time_changed = bool(provided & {"start_time", "end_time"})
 
         # Validate status transition if status is being changed
         if "status" in provided and body.status is not None:
@@ -433,6 +436,7 @@ async def update_appointment(
         scheduling_fields_changed = bool(
             provided & {"start_time", "end_time", "provider_id", "operatory_id"}
         )
+
 
         # Validate FK references if they're being changed
         if "provider_id" in provided and body.provider_id is not None:
@@ -534,6 +538,13 @@ async def update_appointment(
                     ).model_dump(by_alias=True),
                 )
 
+        # Update reminders: terminal status cancels them; time change reschedules them.
+        if row.status in ("cancelled", "no_show"):
+            await cancel_reminders_for_appointment(session, appointment_id)
+        elif time_changed:
+            await cancel_reminders_for_appointment(session, appointment_id)
+            stage_reminder_jobs(session, row)
+
         await session.commit()
 
         # Re-fetch with relationships
@@ -592,4 +603,5 @@ async def cancel_appointment(
         if body is not None and body.cancellation_reason is not None:
             row.cancellation_reason = body.cancellation_reason
         row.deleted_at = datetime.now(UTC)
+        await cancel_reminders_for_appointment(session, appointment_id)
         await session.commit()
