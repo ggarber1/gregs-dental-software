@@ -35,6 +35,9 @@ def _build_reminder_row(
     )
 
 
+_REMINDER_TYPES: tuple[str, ...] = ("sms", "email")
+
+
 def stage_reminder_jobs(
     session: AsyncSession, appointment: Appointment
 ) -> list[AppointmentReminder]:
@@ -44,10 +47,11 @@ def stage_reminder_jobs(
 
     created: list[AppointmentReminder] = []
     for hours in _REMINDER_WINDOWS_HOURS:
-        row = _build_reminder_row(appointment, hours, "sms")
-        if row is not None:
-            session.add(row)
-            created.append(row)
+        for reminder_type in _REMINDER_TYPES:
+            row = _build_reminder_row(appointment, hours, reminder_type)
+            if row is not None:
+                session.add(row)
+                created.append(row)
     return created
 
 

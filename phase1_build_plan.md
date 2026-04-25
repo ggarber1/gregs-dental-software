@@ -592,7 +592,7 @@ Appointment notes (`appointments.notes`) are invisible on the calendar today.
 - [x] Only render the notes line when the tile is tall enough to fit it (appointment duration ≥ 30 min) — below that, the existing two lines already crowd the tile
 - [x] No schema or API change — `notes` is already on the payload
 
-### 3.5 Per-Appointment Procedures (Lite)
+### 3.5 Per-Appointment Procedures (Lite) - DELAYED TO LATER
 
 Dad needs to enter the procedure(s) done at a visit — procedure number (CDT), name, fee, and the insurance's expected coverage for that procedure on that patient. This is a **scoped-down slice** of Module 6 (full co-pay engine) — capture the data; don't build the calculation service yet.
 
@@ -684,20 +684,20 @@ GET WEBSITE GOING
 
 ## Module 4: Automated Reminders
 
-### 4.1 Reminder Infrastructure
+### 4.1 Reminder Infrastructure - Done
 
-- [ ] SQS `dental-reminders-queue` with dead-letter queue
-- [ ] ECS Fargate worker task — long-poll SQS, process reminder jobs
-- [ ] Reminder scheduler — on appointment creation, enqueue reminder jobs at (48h before, 24h before)
-- [ ] Appointment reschedule / cancellation cancels pending reminders
+- [x] SQS `dental-reminders-queue` with dead-letter queue
+- [x] ECS Fargate worker task — long-poll SQS, process reminder jobs
+- [x] Reminder scheduler — on appointment creation, enqueue reminder jobs at (48h before, 24h before)
+- [x] Appointment reschedule / cancellation cancels pending reminders
 
-### 4.2 Reminder Delivery
+### 4.2 Reminder Delivery - Done
 
-- [ ] Twilio SMS integration — idempotency key per send, check `appointment_reminders.twilio_message_sid` before sending to prevent duplicates
-- [ ] AWS SES email reminders
-- [ ] Worker flow: read SQS → check DB for existing sent record → if not sent, send → write `sent_at` + message SID → delete SQS message
-- [ ] Twilio inbound webhook — patient replies "YES" / "NO" / "STOP" update `appointment_reminders.response_received`
-- [ ] STOP / opt-out handling — mark patient as opted out, never SMS again
+- [x] Twilio SMS integration — idempotency key per send, check `appointment_reminders.twilio_message_sid` before sending to prevent duplicates
+- [x] AWS SES email reminders
+- [x] Worker flow: read SQS → check DB for existing sent record → if not sent, send → write `sent_at` + message SID → delete SQS message
+- [x] Twilio inbound webhook — patient replies "YES" / "NO" / "STOP" update `appointment_reminders.response_received`
+- [x] STOP / opt-out handling — mark patient as opted out, never SMS again
 - [ ] Confirmation status visible on day sheet (confirmed / unconfirmed / opted-out)
 
 ### 4.3 Reminder Frontend
