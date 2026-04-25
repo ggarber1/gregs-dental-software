@@ -154,14 +154,13 @@ async def test_appointment_list_includes_sent_reminder_summary():
     session.scalars = AsyncMock(return_value=scalars_result)
     session.execute = AsyncMock(return_value=execute_result)
 
-    with _auth_patches() as headers:
-        with patch(
-            "app.routers.appointments.get_session_factory", return_value=lambda: session
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
-                resp = await c.get("/api/v1/appointments", headers=headers)
+    with _auth_patches() as headers, patch(
+        "app.routers.appointments.get_session_factory", return_value=lambda: session
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            resp = await c.get("/api/v1/appointments", headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -189,14 +188,13 @@ async def test_appointment_list_reflects_sms_opt_out():
     session.scalars = AsyncMock(return_value=scalars_result)
     session.execute = AsyncMock(return_value=execute_result)
 
-    with _auth_patches() as headers:
-        with patch(
-            "app.routers.appointments.get_session_factory", return_value=lambda: session
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
-                resp = await c.get("/api/v1/appointments", headers=headers)
+    with _auth_patches() as headers, patch(
+        "app.routers.appointments.get_session_factory", return_value=lambda: session
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            resp = await c.get("/api/v1/appointments", headers=headers)
 
     assert resp.status_code == 200
     summary = resp.json()[0]["reminderSummary"]
@@ -220,17 +218,16 @@ async def test_list_appointment_reminders_returns_history():
     session.scalar = AsyncMock(return_value=_APPOINTMENT_ID)
     session.scalars = AsyncMock(return_value=scalars_result)
 
-    with _auth_patches() as headers:
-        with patch(
-            "app.routers.appointments.get_session_factory", return_value=lambda: session
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
-                resp = await c.get(
-                    f"/api/v1/appointments/{_APPOINTMENT_ID}/reminders",
-                    headers=headers,
-                )
+    with _auth_patches() as headers, patch(
+        "app.routers.appointments.get_session_factory", return_value=lambda: session
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            resp = await c.get(
+                f"/api/v1/appointments/{_APPOINTMENT_ID}/reminders",
+                headers=headers,
+            )
 
     assert resp.status_code == 200
     records = resp.json()
@@ -247,16 +244,15 @@ async def test_list_appointment_reminders_returns_404_for_unknown():
     session = _mock_session()
     session.scalar = AsyncMock(return_value=None)
 
-    with _auth_patches() as headers:
-        with patch(
-            "app.routers.appointments.get_session_factory", return_value=lambda: session
-        ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
-                resp = await c.get(
-                    f"/api/v1/appointments/{uuid.uuid4()}/reminders",
-                    headers=headers,
-                )
+    with _auth_patches() as headers, patch(
+        "app.routers.appointments.get_session_factory", return_value=lambda: session
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            resp = await c.get(
+                f"/api/v1/appointments/{uuid.uuid4()}/reminders",
+                headers=headers,
+            )
 
     assert resp.status_code == 404

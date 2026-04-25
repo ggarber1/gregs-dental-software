@@ -79,10 +79,12 @@ async def test_get_reminder_settings_returns_hours():
     session = _mock_session()
     session.scalar = AsyncMock(return_value=practice_row)
 
-    with _auth_patches() as headers:
-        with patch("app.routers.settings.get_session_factory", return_value=lambda: session):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/api/v1/settings/reminders", headers=headers)
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.settings.get_session_factory", return_value=lambda: session),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/api/v1/settings/reminders", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["reminderHours"] == [48, 24]
@@ -108,14 +110,16 @@ async def test_update_reminder_settings_saves_sorted_hours():
     session = _mock_session()
     session.scalar = AsyncMock(return_value=practice_row)
 
-    with _auth_patches(role="admin") as headers:
-        with patch("app.routers.settings.get_session_factory", return_value=lambda: session):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.put(
-                    "/api/v1/settings/reminders",
-                    json={"reminderHours": [24, 72, 48]},
-                    headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                )
+    with (
+        _auth_patches(role="admin") as headers,
+        patch("app.routers.settings.get_session_factory", return_value=lambda: session),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.put(
+                "/api/v1/settings/reminders",
+                json={"reminderHours": [24, 72, 48]},
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
 
     assert resp.status_code == 200
     # Response must be sorted descending and deduplicated
@@ -131,14 +135,16 @@ async def test_update_reminder_settings_deduplicates():
     session = _mock_session()
     session.scalar = AsyncMock(return_value=practice_row)
 
-    with _auth_patches(role="admin") as headers:
-        with patch("app.routers.settings.get_session_factory", return_value=lambda: session):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.put(
-                    "/api/v1/settings/reminders",
-                    json={"reminderHours": [24, 24, 48]},
-                    headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                )
+    with (
+        _auth_patches(role="admin") as headers,
+        patch("app.routers.settings.get_session_factory", return_value=lambda: session),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.put(
+                "/api/v1/settings/reminders",
+                json={"reminderHours": [24, 24, 48]},
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
 
     assert resp.status_code == 200
     assert resp.json()["reminderHours"] == [48, 24]
