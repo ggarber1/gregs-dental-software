@@ -5,14 +5,11 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
-async def send_sms(to: str, body: str) -> None:
+async def send_sms(to: str, body: str) -> str | None:
     """Send an SMS via Twilio.
 
-    In development (or when Twilio credentials are not configured), logs the
-    message body instead of sending. This lets the full intake flow be exercised
-    locally without a Twilio account.
-
-    Raises on Twilio API errors so the caller can surface them to the user.
+    Returns the Twilio message SID on success, or None in dev (no-send) mode.
+    Raises on Twilio API errors so the caller can mark the reminder failed.
     """
     settings = get_settings()
 
@@ -22,19 +19,20 @@ async def send_sms(to: str, body: str) -> None:
             to,
             body,
         )
-        return
+        return None
 
-    # Import lazily so missing twilio dep doesn't crash the entire app on startup
-    # (e.g. in environments where only eligibility features are needed).
+    # Import lazily so missing twilio dep doesn't crash the entire app on startup.
     try:
         from twilio.rest import Client
     except ImportError as exc:
         raise RuntimeError("twilio package is not installed. Run: uv add twilio") from exc
 
     client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
-    client.messages.create(
+    message = client.messages.create(
         to=to,
         from_=settings.twilio_from_number,
         body=body,
     )
-    logger.info("SMS sent to %s", to)
+    sid: str = message.sid
+    logger.info("SMS sent to %s (SID=%s)", to, sid)
+    return sid

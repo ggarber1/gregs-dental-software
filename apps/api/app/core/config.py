@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     twilio_auth_token: str = Field(default="")
     twilio_from_number: str = Field(default="")
 
+    # ── SES ───────────────────────────────────────────────────────────────────
+    # Leave blank in development — email will be logged, not sent
+    ses_from_address: str = Field(default="")
+    ses_configuration_set: str = Field(default="")
+
     @property
     def is_development(self) -> bool:
         return self.api_env == "development"

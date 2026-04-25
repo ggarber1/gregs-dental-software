@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.28.1",
     "python-jose[cryptography]>=3.3.0",
     "twilio>=9.0.0",
+    "python-multipart>=0.0.26",
 ]
 
 [project.optional-dependencies]

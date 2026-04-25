@@ -82,6 +82,11 @@ class Patient(Base, PHIMixin):
         nullable=False,
         server_default="false",
     )
+    email_opt_out: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+    )
 
     __table_args__ = (
         CheckConstraint(

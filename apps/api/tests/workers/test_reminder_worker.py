@@ -86,23 +86,26 @@ def test_build_reminder_row_returns_none_when_appointment_imminent():
 # ── stage_reminder_jobs ───────────────────────────────────────────────────────
 
 
-def test_stage_reminder_jobs_creates_two_rows_for_far_future_appointment():
+def test_stage_reminder_jobs_creates_four_rows_for_far_future_appointment():
+    # 2 windows (48h, 24h) × 2 types (sms, email) = 4 rows
     appt = _make_appointment(start_time=datetime.now(UTC) + timedelta(days=7))
     session = _make_session()
     rows = stage_reminder_jobs(session, appt)
-    assert len(rows) == 2
+    assert len(rows) == 4
     assert {r.hours_before for r in rows} == {48, 24}
-    assert session.add.call_count == 2
+    assert {r.reminder_type for r in rows} == {"sms", "email"}
+    assert session.add.call_count == 4
 
 
 def test_stage_reminder_jobs_skips_48h_when_appointment_too_soon():
-    # 30h away: only 24h reminder fits
+    # 30h away: only 24h window fits — both sms + email for that window = 2 rows
     appt = _make_appointment(start_time=datetime.now(UTC) + timedelta(hours=30))
     session = _make_session()
     rows = stage_reminder_jobs(session, appt)
-    assert len(rows) == 1
-    assert rows[0].hours_before == 24
-    assert session.add.call_count == 1
+    assert len(rows) == 2
+    assert all(r.hours_before == 24 for r in rows)
+    assert {r.reminder_type for r in rows} == {"sms", "email"}
+    assert session.add.call_count == 2
 
 
 def test_stage_reminder_jobs_skips_all_when_appointment_imminent():
@@ -130,11 +133,11 @@ def test_stage_reminder_jobs_all_rows_are_pending():
     assert all(r.status == "pending" for r in rows)
 
 
-def test_stage_reminder_jobs_all_rows_are_sms_type():
+def test_stage_reminder_jobs_creates_both_sms_and_email_rows():
     appt = _make_appointment(start_time=datetime.now(UTC) + timedelta(days=5))
     session = _make_session()
     rows = stage_reminder_jobs(session, appt)
-    assert all(r.reminder_type == "sms" for r in rows)
+    assert {r.reminder_type for r in rows} == {"sms", "email"}
 
 
 def test_stage_reminder_jobs_send_at_offsets_are_correct():
