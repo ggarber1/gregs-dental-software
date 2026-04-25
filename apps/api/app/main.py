@@ -25,6 +25,7 @@ from app.routers import (
     patients,
     practice,
     providers,
+    settings as settings_router,
     webhooks,
 )
 
@@ -120,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(practice.router)
     app.include_router(providers.router)
     app.include_router(operatories.router)
+    app.include_router(settings_router.router)
     app.include_router(webhooks.router)
 
     return app

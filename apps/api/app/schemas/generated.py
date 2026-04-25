@@ -16,6 +16,37 @@ class DentalPMSSchemas(RootModel[Any]):
     root: Any = Field(..., title='DentalPMSSchemas')
 
 
+class ReminderSummary(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    sms_status: str | None = Field(None, alias='smsStatus')
+    email_status: str | None = Field(None, alias='emailStatus')
+    patient_sms_opted_out: bool = Field(False, alias='patientSmsOptedOut')
+
+
+class AppointmentReminderRecord(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: UUID
+    reminder_type: str = Field(..., alias='reminderType')
+    hours_before: int = Field(..., alias='hoursBefore')
+    send_at: AwareDatetime = Field(..., alias='sendAt')
+    status: str
+    sent_at: AwareDatetime | None = Field(None, alias='sentAt')
+    failed_at: AwareDatetime | None = Field(None, alias='failedAt')
+    failure_reason: str | None = Field(None, alias='failureReason')
+    response_received: str | None = Field(None, alias='responseReceived')
+    responded_at: AwareDatetime | None = Field(None, alias='respondedAt')
+
+
+class ReminderSettings(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    reminder_hours: list[int] = Field(..., alias='reminderHours')
+
+
+class UpdateReminderSettings(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    reminder_hours: list[int] = Field(..., alias='reminderHours')
+
+
 class Features(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -553,6 +584,7 @@ class Appointment(BaseModel):
     operatory_name: str | None = Field(None, alias='operatoryName')
     appointment_type_name: str | None = Field(None, alias='appointmentTypeName')
     appointment_type_color: str | None = Field(None, alias='appointmentTypeColor')
+    reminder_summary: ReminderSummary | None = Field(None, alias='reminderSummary')
     created_at: AwareDatetime = Field(..., alias='createdAt')
     updated_at: AwareDatetime = Field(..., alias='updatedAt')
 

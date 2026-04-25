@@ -36,6 +36,7 @@ import { usePracticeTimezone } from "@/lib/api/practice";
 import { isoToTimeInTz, isoToDateInTz, localInputToUTC, todayInTz } from "@/lib/timezone";
 import { AppointmentStatusActions } from "@/components/scheduling/AppointmentStatusActions";
 import { ApiError } from "@/lib/api-client";
+import { ReminderHistory } from "@/components/scheduling/ReminderHistory";
 
 interface Props {
   open: boolean;
@@ -482,6 +483,14 @@ export function AppointmentModal({
               rows={2}
             />
           </div>
+
+          {/* Reminder history — edit mode only */}
+          {isEditing && currentAppointment && (
+            <ReminderHistory
+              appointmentId={currentAppointment.id}
+              reminderSummary={currentAppointment.reminderSummary}
+            />
+          )}
 
           {/* API error */}
           {apiErrorMessage && (

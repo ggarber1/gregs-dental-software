@@ -19,6 +19,14 @@ export type AppointmentStatus =
   | "cancelled"
   | "no_show";
 
+export type ReminderChannelStatus = "pending" | "enqueued" | "sent" | "failed" | "cancelled";
+
+export interface ReminderSummary {
+  smsStatus: ReminderChannelStatus | null;
+  emailStatus: ReminderChannelStatus | null;
+  patientSmsOptedOut: boolean;
+}
+
 export interface Appointment {
   id: string;
   practiceId: string;
@@ -36,6 +44,7 @@ export interface Appointment {
   operatoryName: string | null;
   appointmentTypeName: string | null;
   appointmentTypeColor: string | null;
+  reminderSummary: ReminderSummary | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -177,8 +186,11 @@ export function shouldShowNotes(notes: string | null | undefined, durationMinute
 }
 
 // Returns the confirmation glyph for a given appointment status.
-// ⚪ = not yet confirmed, ✅ = confirmed or past that stage.
-export function confirmationGlyph(status: AppointmentStatus): string {
+// ✅ = confirmed or past that stage, 🚫 = patient opted out of SMS, ⚪ = not yet confirmed.
+export function confirmationGlyph(
+  status: AppointmentStatus,
+  reminderSummary?: ReminderSummary | null,
+): string {
   switch (status) {
     case "confirmed":
     case "checked_in":
@@ -186,7 +198,7 @@ export function confirmationGlyph(status: AppointmentStatus): string {
     case "completed":
       return "✅";
     default:
-      return "⚪";
+      return reminderSummary?.patientSmsOptedOut ? "🚫" : "⚪";
   }
 }
 

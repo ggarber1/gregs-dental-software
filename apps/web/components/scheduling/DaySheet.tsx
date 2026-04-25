@@ -25,9 +25,35 @@ import {
   useProviders,
   confirmationGlyph,
   type Appointment,
+  type ReminderChannelStatus,
 } from "@/lib/api/scheduling";
 import { usePracticeTimezone } from "@/lib/api/practice";
 import { formatTimeInTz, dayBoundsInTz } from "@/lib/timezone";
+
+// Returns a compact indicator for one reminder channel.
+// Returns null while the reminder is pending/enqueued/cancelled (no noise before it fires).
+function reminderChannelIndicator(
+  channel: "SMS" | "Email",
+  status: ReminderChannelStatus | null | undefined,
+): string | null {
+  if (!status || status === "pending" || status === "enqueued" || status === "cancelled") {
+    return null;
+  }
+  if (status === "sent") return `${channel} ✓`;
+  if (status === "failed") return `${channel} ✗`;
+  return null;
+}
+
+// Returns a combined reminder status string for the day sheet.
+// Returns null when all reminders are still pending/cancelled (nothing to show yet).
+export function reminderStatusText(appt: Appointment): string | null {
+  const s = appt.reminderSummary;
+  if (!s) return null;
+  const sms = reminderChannelIndicator("SMS", s.smsStatus);
+  const email = reminderChannelIndicator("Email", s.emailStatus);
+  if (!sms && !email) return null;
+  return [sms, email].filter(Boolean).join(" · ");
+}
 
 interface DaySheetProps {
   date: Date;
@@ -58,6 +84,8 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
     .filter((a) => a.status !== "cancelled")
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
+  const colCount = 9;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Provider filter */}
@@ -84,6 +112,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
             <TableRow>
               <TableHead className="w-32">Time</TableHead>
               <TableHead className="w-8 text-center">Conf</TableHead>
+              <TableHead className="w-28">Reminders</TableHead>
               <TableHead>Patient</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Provider</TableHead>
@@ -96,7 +125,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: colCount }).map((__, j) => (
                     <TableCell key={j}>
                       <div className="h-4 w-full animate-pulse rounded bg-muted" />
                     </TableCell>
@@ -105,49 +134,68 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
               ))
             ) : dayAppointments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={colCount} className="py-10 text-center text-muted-foreground">
                   No appointments scheduled for this day.
                 </TableCell>
               </TableRow>
             ) : (
-              dayAppointments.map((appt) => (
-                <TableRow
-                  key={appt.id}
-                  className="cursor-pointer"
-                  onClick={() => onEditAppointment(appt)}
-                >
-                  <TableCell className="font-medium whitespace-nowrap">
-                    {formatTimeInTz(appt.startTime, timezone)} - {formatTimeInTz(appt.endTime, timezone)}
-                  </TableCell>
-                  <TableCell className="text-center text-base">{confirmationGlyph(appt.status)}</TableCell>
-                  <TableCell className="font-medium">{appt.patientName ?? "—"}</TableCell>
-                  <TableCell>
-                    {appt.appointmentTypeName ? (
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className="inline-block h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: appt.appointmentTypeColor ?? "#5B8DEF" }}
-                        />
-                        {appt.appointmentTypeName}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>{appt.providerName ?? "—"}</TableCell>
-                  <TableCell>{appt.operatoryName ?? "—"}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={appt.status} />
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <AppointmentStatusActions
-                      appointment={appt}
-                      onCancel={() => onCancelAppointment(appt)}
-                      compact
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
+              dayAppointments.map((appt) => {
+                const reminderText = reminderStatusText(appt);
+                const hasFailed =
+                  appt.reminderSummary?.smsStatus === "failed" ||
+                  appt.reminderSummary?.emailStatus === "failed";
+
+                return (
+                  <TableRow
+                    key={appt.id}
+                    className="cursor-pointer"
+                    onClick={() => onEditAppointment(appt)}
+                  >
+                    <TableCell className="font-medium whitespace-nowrap">
+                      {formatTimeInTz(appt.startTime, timezone)} -{" "}
+                      {formatTimeInTz(appt.endTime, timezone)}
+                    </TableCell>
+                    <TableCell className="text-center text-base">
+                      {confirmationGlyph(appt.status, appt.reminderSummary)}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {reminderText ? (
+                        <span className={hasFailed ? "text-destructive" : "text-muted-foreground"}>
+                          {reminderText}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{appt.patientName ?? "—"}</TableCell>
+                    <TableCell>
+                      {appt.appointmentTypeName ? (
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: appt.appointmentTypeColor ?? "#5B8DEF" }}
+                          />
+                          {appt.appointmentTypeName}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>{appt.providerName ?? "—"}</TableCell>
+                    <TableCell>{appt.operatoryName ?? "—"}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={appt.status} />
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <AppointmentStatusActions
+                        appointment={appt}
+                        onCancel={() => onCancelAppointment(appt)}
+                        compact
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

@@ -698,13 +698,13 @@ GET WEBSITE GOING
 - [x] Worker flow: read SQS → check DB for existing sent record → if not sent, send → write `sent_at` + message SID → delete SQS message
 - [x] Twilio inbound webhook — patient replies "YES" / "NO" / "STOP" update `appointment_reminders.response_received`
 - [x] STOP / opt-out handling — mark patient as opted out, never SMS again
-- [ ] Confirmation status visible on day sheet (confirmed / unconfirmed / opted-out)
+- [x] Confirmation status visible on day sheet (confirmed / unconfirmed / opted-out)
 
 ### 4.3 Reminder Frontend
 
-- [ ] Reminder status column on day sheet
-- [ ] Per-appointment reminder history in appointment detail
-- [ ] Settings page — reminder timing configuration (how many hours before)
+- [x] Reminder status column on day sheet and ui support on schedule
+- [x] Per-appointment reminder history in appointment detail
+- [x] Settings page — reminder timing configuration (how many hours before)
 
 ---
 
