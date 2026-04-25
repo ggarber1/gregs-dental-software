@@ -13,7 +13,6 @@ import pytest
 
 from app.workers.reminder_worker import _deliver, _deliver_email, _deliver_sms
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -68,11 +67,12 @@ async def test_deliver_sms_calls_send_sms_and_stores_sid():
     appointment = _make_appointment()
     practice = _make_practice()
 
-    with patch("app.workers.reminder_worker.send_sms", new=AsyncMock(return_value="SM123")) as mock_sms:
+    mock_send = AsyncMock(return_value="SM123")
+    with patch("app.workers.reminder_worker.send_sms", new=mock_send):
         result = await _deliver_sms(reminder, patient, appointment, practice)
 
     assert result is True
-    mock_sms.assert_awaited_once()
+    mock_send.assert_awaited_once()
     assert reminder.twilio_message_sid == "SM123"
 
 
@@ -81,11 +81,12 @@ async def test_deliver_sms_skips_when_sms_opt_out():
     reminder = _make_reminder("sms")
     patient = _make_patient(sms_opt_out=True)
 
-    with patch("app.workers.reminder_worker.send_sms", new=AsyncMock()) as mock_sms:
+    mock_send = AsyncMock()
+    with patch("app.workers.reminder_worker.send_sms", new=mock_send):
         result = await _deliver_sms(reminder, patient, _make_appointment(), _make_practice())
 
     assert result is False
-    mock_sms.assert_not_awaited()
+    mock_send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -93,11 +94,12 @@ async def test_deliver_sms_skips_when_no_phone():
     reminder = _make_reminder("sms")
     patient = _make_patient(phone=None)
 
-    with patch("app.workers.reminder_worker.send_sms", new=AsyncMock()) as mock_sms:
+    mock_send = AsyncMock()
+    with patch("app.workers.reminder_worker.send_sms", new=mock_send):
         result = await _deliver_sms(reminder, patient, _make_appointment(), _make_practice())
 
     assert result is False
-    mock_sms.assert_not_awaited()
+    mock_send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -105,12 +107,12 @@ async def test_deliver_sms_propagates_twilio_error():
     reminder = _make_reminder("sms")
     patient = _make_patient()
 
-    with patch(
-        "app.workers.reminder_worker.send_sms",
-        new=AsyncMock(side_effect=RuntimeError("Twilio 500")),
+    mock_send = AsyncMock(side_effect=RuntimeError("Twilio 500"))
+    with (
+        patch("app.workers.reminder_worker.send_sms", new=mock_send),
+        pytest.raises(RuntimeError, match="Twilio 500"),
     ):
-        with pytest.raises(RuntimeError, match="Twilio 500"):
-            await _deliver_sms(reminder, patient, _make_appointment(), _make_practice())
+        await _deliver_sms(reminder, patient, _make_appointment(), _make_practice())
 
 
 # ── Email delivery ────────────────────────────────────────────────────────────
@@ -123,11 +125,12 @@ async def test_deliver_email_calls_send_email():
     appointment = _make_appointment()
     practice = _make_practice()
 
-    with patch("app.workers.reminder_worker.send_email", new=AsyncMock(return_value="msg-id")) as mock_email:
+    mock_send = AsyncMock(return_value="msg-id")
+    with patch("app.workers.reminder_worker.send_email", new=mock_send):
         result = await _deliver_email(reminder, patient, appointment, practice)
 
     assert result is True
-    mock_email.assert_awaited_once()
+    mock_send.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -135,11 +138,12 @@ async def test_deliver_email_skips_when_email_opt_out():
     reminder = _make_reminder("email")
     patient = _make_patient(email_opt_out=True)
 
-    with patch("app.workers.reminder_worker.send_email", new=AsyncMock()) as mock_email:
+    mock_send = AsyncMock()
+    with patch("app.workers.reminder_worker.send_email", new=mock_send):
         result = await _deliver_email(reminder, patient, _make_appointment(), _make_practice())
 
     assert result is False
-    mock_email.assert_not_awaited()
+    mock_send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -147,11 +151,12 @@ async def test_deliver_email_skips_when_no_email():
     reminder = _make_reminder("email")
     patient = _make_patient(email=None)
 
-    with patch("app.workers.reminder_worker.send_email", new=AsyncMock()) as mock_email:
+    mock_send = AsyncMock()
+    with patch("app.workers.reminder_worker.send_email", new=mock_send):
         result = await _deliver_email(reminder, patient, _make_appointment(), _make_practice())
 
     assert result is False
-    mock_email.assert_not_awaited()
+    mock_send.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -159,12 +164,12 @@ async def test_deliver_email_propagates_ses_error():
     reminder = _make_reminder("email")
     patient = _make_patient()
 
-    with patch(
-        "app.workers.reminder_worker.send_email",
-        new=AsyncMock(side_effect=RuntimeError("SES error")),
+    mock_send = AsyncMock(side_effect=RuntimeError("SES error"))
+    with (
+        patch("app.workers.reminder_worker.send_email", new=mock_send),
+        pytest.raises(RuntimeError, match="SES error"),
     ):
-        with pytest.raises(RuntimeError, match="SES error"):
-            await _deliver_email(reminder, patient, _make_appointment(), _make_practice())
+        await _deliver_email(reminder, patient, _make_appointment(), _make_practice())
 
 
 # ── _deliver dispatcher ───────────────────────────────────────────────────────
@@ -173,19 +178,21 @@ async def test_deliver_email_propagates_ses_error():
 @pytest.mark.asyncio
 async def test_deliver_routes_sms_type():
     reminder = _make_reminder("sms")
-    with patch("app.workers.reminder_worker._deliver_sms", new=AsyncMock(return_value=True)) as mock:
+    mock_deliver = AsyncMock(return_value=True)
+    with patch("app.workers.reminder_worker._deliver_sms", new=mock_deliver):
         result = await _deliver(reminder, _make_patient(), _make_appointment(), _make_practice())
     assert result is True
-    mock.assert_awaited_once()
+    mock_deliver.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_deliver_routes_email_type():
     reminder = _make_reminder("email")
-    with patch("app.workers.reminder_worker._deliver_email", new=AsyncMock(return_value=True)) as mock:
+    mock_deliver = AsyncMock(return_value=True)
+    with patch("app.workers.reminder_worker._deliver_email", new=mock_deliver):
         result = await _deliver(reminder, _make_patient(), _make_appointment(), _make_practice())
     assert result is True
-    mock.assert_awaited_once()
+    mock_deliver.assert_awaited_once()
 
 
 @pytest.mark.asyncio
