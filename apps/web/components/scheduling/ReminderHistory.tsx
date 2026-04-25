@@ -3,7 +3,6 @@
 import { useAppointmentReminders, type ReminderRecord } from "@/lib/api/reminders";
 import { type ReminderSummary } from "@/lib/api/scheduling";
 import { usePracticeTimezone } from "@/lib/api/practice";
-import { formatTimeInTz } from "@/lib/timezone";
 
 const CHANNEL_LABEL: Record<string, string> = {
   sms: "SMS",

@@ -25,8 +25,10 @@ from app.routers import (
     patients,
     practice,
     providers,
-    settings as settings_router,
     webhooks,
+)
+from app.routers import (
+    settings as settings_router,
 )
 
 logger = logging.getLogger(__name__)
