@@ -20,6 +20,7 @@ from app.routers import (
     appointment_types,
     appointments,
     insurance,
+    insurance_plans,
     intake,
     operatories,
     patients,
@@ -116,6 +117,7 @@ def create_app() -> FastAPI:
     # Additional routers registered here per module (2.x onward)
     app.include_router(patients.router)
     app.include_router(insurance.router)
+    app.include_router(insurance_plans.router)
     app.include_router(intake.public_router)
     app.include_router(intake.staff_router)
     app.include_router(appointment_types.router)

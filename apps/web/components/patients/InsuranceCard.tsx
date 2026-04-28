@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Building2, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,31 +26,14 @@ import {
   type RelationshipToInsured,
   type InsurancePriority,
 } from "@/lib/api/insurance";
-
-// ── Preset carrier list ───────────────────────────────────────────────────────
-
-const PRESET_CARRIERS = [
-  "Delta Dental",
-  "MassHealth / DentaQuest",
-  "Cigna",
-  "Aetna",
-  "MetLife",
-  "Guardian",
-  "United Concordia",
-  "Humana",
-  "Anthem Blue Cross",
-  "BlueCross BlueShield",
-  "Ameritas",
-  "Principal",
-  "Other",
-];
+import { useInsurancePlans, type InsurancePlan } from "@/lib/api/insurance-plans";
 
 // ── Insurance form state ──────────────────────────────────────────────────────
 
 interface InsuranceFormState {
   priority: InsurancePriority;
-  carrier: string;
-  carrierOther: string;
+  insurancePlanId: string | null;
+  carrier: string; // only used when insurancePlanId is null ("Other")
   memberId: string;
   groupNumber: string;
   relationshipToInsured: RelationshipToInsured;
@@ -61,8 +44,8 @@ interface InsuranceFormState {
 
 const EMPTY_FORM: InsuranceFormState = {
   priority: "primary",
+  insurancePlanId: null,
   carrier: "",
-  carrierOther: "",
   memberId: "",
   groupNumber: "",
   relationshipToInsured: "self",
@@ -71,12 +54,16 @@ const EMPTY_FORM: InsuranceFormState = {
   insuredDateOfBirth: "",
 };
 
-function rowToForm(row: Insurance): InsuranceFormState {
-  const isPreset = PRESET_CARRIERS.includes(row.carrier);
+const OTHER_PLAN_SENTINEL = "__other__";
+
+function rowToForm(row: Insurance, plans: InsurancePlan[]): InsuranceFormState {
+  const matchedPlan = row.insurancePlanId
+    ? plans.find((p) => p.id === row.insurancePlanId)
+    : plans.find((p) => p.carrierName === row.carrier);
   return {
     priority: row.priority,
-    carrier: isPreset ? row.carrier : "Other",
-    carrierOther: isPreset ? "" : row.carrier,
+    insurancePlanId: matchedPlan?.id ?? null,
+    carrier: matchedPlan ? "" : row.carrier,
     memberId: row.memberId ?? "",
     groupNumber: row.groupNumber ?? "",
     relationshipToInsured: row.relationshipToInsured,
@@ -87,10 +74,8 @@ function rowToForm(row: Insurance): InsuranceFormState {
 }
 
 function formToBody(form: InsuranceFormState): CreateInsuranceBody {
-  const carrier = form.carrier === "Other" ? form.carrierOther.trim() : form.carrier;
-  return {
+  const body: CreateInsuranceBody = {
     priority: form.priority,
-    carrier,
     memberId: form.memberId || null,
     groupNumber: form.groupNumber || null,
     relationshipToInsured: form.relationshipToInsured,
@@ -101,12 +86,19 @@ function formToBody(form: InsuranceFormState): CreateInsuranceBody {
     insuredDateOfBirth:
       form.relationshipToInsured !== "self" ? form.insuredDateOfBirth || null : null,
   };
+  if (form.insurancePlanId !== null) {
+    body.insurancePlanId = form.insurancePlanId;
+  } else {
+    body.carrier = form.carrier.trim();
+  }
+  return body;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 interface InsuranceFormProps {
   form: InsuranceFormState;
+  plans: InsurancePlan[];
   onChange: (next: InsuranceFormState) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -114,12 +106,32 @@ interface InsuranceFormProps {
   error?: string | undefined;
 }
 
-function InsuranceForm({ form, onChange, onSave, onCancel, isSaving, error }: InsuranceFormProps) {
+function InsuranceForm({
+  form,
+  plans,
+  onChange,
+  onSave,
+  onCancel,
+  isSaving,
+  error,
+}: InsuranceFormProps) {
   function set<K extends keyof InsuranceFormState>(key: K, value: InsuranceFormState[K]) {
     onChange({ ...form, [key]: value });
   }
 
   const showInsuredFields = form.relationshipToInsured !== "self";
+  const selectedPlanValue = form.insurancePlanId ?? OTHER_PLAN_SENTINEL;
+
+  function handlePlanChange(value: string) {
+    if (value === OTHER_PLAN_SENTINEL) {
+      onChange({ ...form, insurancePlanId: null });
+    } else {
+      onChange({ ...form, insurancePlanId: value, carrier: "" });
+    }
+  }
+
+  const isFormValid =
+    form.insurancePlanId !== null || form.carrier.trim().length > 0;
 
   return (
     <div className="space-y-3 pt-2">
@@ -140,27 +152,31 @@ function InsuranceForm({ form, onChange, onSave, onCancel, isSaving, error }: In
         </Select>
       </div>
 
-      {/* Carrier */}
+      {/* Carrier — from plans catalog */}
       <div className="flex flex-col gap-1">
         <Label className="text-xs text-muted-foreground">Carrier *</Label>
-        <Select value={form.carrier} onValueChange={(v) => set("carrier", v)}>
+        <Select value={selectedPlanValue} onValueChange={handlePlanChange}>
           <SelectTrigger className="h-8 text-sm">
             <SelectValue placeholder="Select carrier…" />
           </SelectTrigger>
           <SelectContent>
-            {PRESET_CARRIERS.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
+            {plans.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.carrierName}
+                {!p.isInNetwork && (
+                  <span className="ml-1 text-xs text-muted-foreground">(out-of-network)</span>
+                )}
               </SelectItem>
             ))}
+            <SelectItem value={OTHER_PLAN_SENTINEL}>Other (not in catalog)</SelectItem>
           </SelectContent>
         </Select>
-        {form.carrier === "Other" && (
+        {form.insurancePlanId === null && (
           <Input
             className="mt-1 h-8 text-sm"
             placeholder="Enter carrier name"
-            value={form.carrierOther}
-            onChange={(e) => set("carrierOther", e.target.value)}
+            value={form.carrier}
+            onChange={(e) => set("carrier", e.target.value)}
           />
         )}
       </div>
@@ -241,7 +257,7 @@ function InsuranceForm({ form, onChange, onSave, onCancel, isSaving, error }: In
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       <div className="flex gap-2">
-        <Button size="sm" onClick={onSave} disabled={isSaving || !form.carrier}>
+        <Button size="sm" onClick={onSave} disabled={isSaving || !isFormValid}>
           {isSaving ? "Saving…" : "Save"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={isSaving}>
@@ -257,9 +273,10 @@ function InsuranceForm({ form, onChange, onSave, onCancel, isSaving, error }: In
 interface InsuranceRowProps {
   row: Insurance;
   patientId: string;
+  plans: InsurancePlan[];
 }
 
-function InsuranceRow({ row, patientId }: InsuranceRowProps) {
+function InsuranceRow({ row, patientId, plans }: InsuranceRowProps) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<InsuranceFormState>(EMPTY_FORM);
   const [saveError, setSaveError] = useState<string | undefined>();
@@ -268,15 +285,14 @@ function InsuranceRow({ row, patientId }: InsuranceRowProps) {
   const deleteMutation = useDeleteInsurance(patientId);
 
   function startEdit() {
-    setForm(rowToForm(row));
+    setForm(rowToForm(row, plans));
     setSaveError(undefined);
     setEditing(true);
   }
 
   function handleSave() {
-    const effectiveCarrier =
-      form.carrier === "Other" ? form.carrierOther.trim() : form.carrier;
-    if (!effectiveCarrier) {
+    const isOther = form.insurancePlanId === null;
+    if (isOther && !form.carrier.trim()) {
       setSaveError("Carrier is required");
       return;
     }
@@ -291,6 +307,7 @@ function InsuranceRow({ row, patientId }: InsuranceRowProps) {
     return (
       <InsuranceForm
         form={form}
+        plans={plans}
         onChange={setForm}
         onSave={handleSave}
         onCancel={() => setEditing(false)}
@@ -308,11 +325,17 @@ function InsuranceRow({ row, patientId }: InsuranceRowProps) {
   return (
     <div className="flex items-start justify-between gap-2 rounded-md border p-3">
       <div className="flex-1 space-y-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{row.carrier}</span>
           <Badge variant={row.priority === "primary" ? "default" : "secondary"} className="text-xs">
             {row.priority}
           </Badge>
+          {row.priority === "secondary" && (
+            <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300">
+              <AlertTriangle className="h-3 w-3" />
+              Manual co-pay review
+            </Badge>
+          )}
         </div>
         {row.memberId && (
           <p className="text-xs text-muted-foreground">Member ID: {row.memberId}</p>
@@ -355,13 +378,15 @@ export function InsuranceCard({ patientId }: Props) {
   const [addForm, setAddForm] = useState<InsuranceFormState>(EMPTY_FORM);
   const [addError, setAddError] = useState<string | undefined>();
 
-  const { data: insuranceList, isLoading } = usePatientInsurance(patientId);
+  const { data: insuranceList, isLoading: isLoadingInsurance } = usePatientInsurance(patientId);
+  const { data: plans = [], isLoading: isLoadingPlans } = useInsurancePlans();
   const createMutation = useCreateInsurance(patientId);
 
+  const isLoading = isLoadingInsurance || isLoadingPlans;
+
   function handleAdd() {
-    const effectiveCarrier =
-      addForm.carrier === "Other" ? addForm.carrierOther.trim() : addForm.carrier;
-    if (!effectiveCarrier) {
+    const isOther = addForm.insurancePlanId === null;
+    if (isOther && !addForm.carrier.trim()) {
       setAddError("Carrier is required");
       return;
     }
@@ -407,7 +432,7 @@ export function InsuranceCard({ patientId }: Props) {
         )}
 
         {insuranceList?.map((row) => (
-          <InsuranceRow key={row.id} row={row} patientId={patientId} />
+          <InsuranceRow key={row.id} row={row} patientId={patientId} plans={plans} />
         ))}
 
         {adding && (
@@ -425,6 +450,7 @@ export function InsuranceCard({ patientId }: Props) {
             </div>
             <InsuranceForm
               form={addForm}
+              plans={plans}
               onChange={setAddForm}
               onSave={handleAdd}
               onCancel={() => setAdding(false)}

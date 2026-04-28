@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 
 from app.core.db import get_session_factory
+from app.models.insurance_plan import InsurancePlan as InsurancePlanModel
 from app.models.patient_insurance import PatientInsurance as InsuranceModel
 from app.routers.patients import _require_practice_scope, _require_write_role
 from app.schemas.generated import (
@@ -28,6 +29,7 @@ def _row_to_schema(row: InsuranceModel) -> Insurance:
         id=row.id,
         patientId=row.patient_id,
         practiceId=row.practice_id,
+        insurancePlanId=row.insurance_plan_id,
         priority=row.priority,  # type: ignore[arg-type]
         carrier=row.carrier,
         memberId=row.member_id,
@@ -40,6 +42,31 @@ def _row_to_schema(row: InsuranceModel) -> Insurance:
         createdAt=row.created_at.replace(tzinfo=UTC),
         updatedAt=row.updated_at.replace(tzinfo=UTC),
     )
+
+
+async def _resolve_plan_carrier(
+    session: object,
+    insurance_plan_id: uuid.UUID,
+    practice_id: uuid.UUID,
+) -> str:
+    plan = await session.scalar(  # type: ignore[union-attr]
+        select(InsurancePlanModel).where(
+            InsurancePlanModel.id == insurance_plan_id,
+            InsurancePlanModel.practice_id == practice_id,
+            InsurancePlanModel.deleted_at.is_(None),
+        )
+    )
+    if plan is None:
+        raise HTTPException(
+            status_code=404,
+            detail=ApiError(
+                error=Error(
+                    code="INSURANCE_PLAN_NOT_FOUND",
+                    message="Insurance plan not found or does not belong to this practice",
+                )
+            ).model_dump(by_alias=True),
+        )
+    return plan.carrier_name
 
 
 @router.get("", response_model=list[Insurance])
@@ -71,22 +98,26 @@ async def create_patient_insurance(
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
 
-    row = InsuranceModel(
-        id=uuid.uuid4(),
-        patient_id=patient_id,
-        practice_id=practice_id,
-        priority=body.priority or "primary",
-        carrier=body.carrier,
-        member_id=body.member_id,
-        group_number=body.group_number,
-        relationship_to_insured=body.relationship_to_insured or "self",
-        insured_first_name=body.insured_first_name,
-        insured_last_name=body.insured_last_name,
-        insured_date_of_birth=body.insured_date_of_birth,
-        is_active=True,
-    )
-
     async with get_session_factory()() as session:
+        carrier = body.carrier
+        if body.insurance_plan_id is not None:
+            carrier = await _resolve_plan_carrier(session, body.insurance_plan_id, practice_id)
+
+        row = InsuranceModel(
+            id=uuid.uuid4(),
+            patient_id=patient_id,
+            practice_id=practice_id,
+            insurance_plan_id=body.insurance_plan_id,
+            priority=body.priority or "primary",
+            carrier=carrier,
+            member_id=body.member_id,
+            group_number=body.group_number,
+            relationship_to_insured=body.relationship_to_insured or "self",
+            insured_first_name=body.insured_first_name,
+            insured_last_name=body.insured_last_name,
+            insured_date_of_birth=body.insured_date_of_birth,
+            is_active=True,
+        )
         session.add(row)
         await session.commit()
         await session.refresh(row)
@@ -122,10 +153,16 @@ async def patch_patient_insurance(
             )
 
         provided = body.model_fields_set
+
+        if "insurance_plan_id" in provided and body.insurance_plan_id is not None:
+            carrier_name = await _resolve_plan_carrier(session, body.insurance_plan_id, practice_id)
+            row.insurance_plan_id = body.insurance_plan_id
+            row.carrier = carrier_name
+        elif "carrier" in provided and body.carrier is not None:
+            row.carrier = body.carrier
+
         if "priority" in provided and body.priority is not None:
             row.priority = body.priority
-        if "carrier" in provided and body.carrier is not None:
-            row.carrier = body.carrier
         if "member_id" in provided:
             row.member_id = body.member_id
         if "group_number" in provided:

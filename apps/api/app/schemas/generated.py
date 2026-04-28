@@ -460,6 +460,40 @@ class Priority(StrEnum):
     secondary = 'secondary'
 
 
+class InsurancePlan(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: UUID
+    practice_id: UUID = Field(..., alias='practiceId')
+    carrier_name: str = Field(..., alias='carrierName', max_length=255, min_length=1)
+    payer_id: str = Field(..., alias='payerId', max_length=50, min_length=1)
+    group_number: str | None = Field(None, alias='groupNumber', max_length=100)
+    is_in_network: bool = Field(True, alias='isInNetwork')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    updated_at: AwareDatetime = Field(..., alias='updatedAt')
+
+
+class CreateInsurancePlan(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    carrier_name: str = Field(..., alias='carrierName', max_length=255, min_length=1)
+    payer_id: str = Field(..., alias='payerId', max_length=50, min_length=1)
+    group_number: str | None = Field(None, alias='groupNumber', max_length=100)
+    is_in_network: bool | None = Field(True, alias='isInNetwork')
+
+
+class UpdateInsurancePlan(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    carrier_name: str | None = Field(None, alias='carrierName', max_length=255, min_length=1)
+    payer_id: str | None = Field(None, alias='payerId', max_length=50, min_length=1)
+    group_number: str | None = Field(None, alias='groupNumber', max_length=100)
+    is_in_network: bool | None = Field(None, alias='isInNetwork')
+
+
 class Insurance(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -467,6 +501,7 @@ class Insurance(BaseModel):
     id: UUID
     patient_id: UUID = Field(..., alias='patientId')
     practice_id: UUID = Field(..., alias='practiceId')
+    insurance_plan_id: UUID | None = Field(None, alias='insurancePlanId')
     priority: Priority | None = 'primary'
     carrier: str = Field(..., max_length=255, min_length=1)
     member_id: str | None = Field(None, alias='memberId', max_length=100)
@@ -484,6 +519,7 @@ class CreateInsurance(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    insurance_plan_id: UUID | None = Field(None, alias='insurancePlanId')
     priority: Priority | None = 'primary'
     carrier: str = Field(..., max_length=255, min_length=1)
     member_id: str | None = Field(None, alias='memberId', max_length=100)
@@ -498,6 +534,7 @@ class UpdateInsurance(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    insurance_plan_id: UUID | None = Field(None, alias='insurancePlanId')
     priority: Priority | None = 'primary'
     carrier: str | None = Field(None, max_length=255, min_length=1)
     member_id: str | None = Field(None, alias='memberId', max_length=100)

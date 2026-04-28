@@ -32,6 +32,7 @@ class PatientInsurance(Base, TimestampMixin):
     insured_first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     insured_last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     insured_date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    insurance_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
