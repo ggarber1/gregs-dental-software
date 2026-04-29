@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session_factory
 from app.models.insurance_plan import InsurancePlan as InsurancePlanModel
@@ -45,11 +46,11 @@ def _row_to_schema(row: InsuranceModel) -> Insurance:
 
 
 async def _resolve_plan_carrier(
-    session: object,
+    session: AsyncSession,
     insurance_plan_id: uuid.UUID,
     practice_id: uuid.UUID,
 ) -> str:
-    plan = await session.scalar(  # type: ignore[union-attr]
+    plan = await session.scalar(
         select(InsurancePlanModel).where(
             InsurancePlanModel.id == insurance_plan_id,
             InsurancePlanModel.practice_id == practice_id,

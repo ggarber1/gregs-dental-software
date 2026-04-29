@@ -91,7 +91,7 @@ export function InsurancePlansSettings() {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (!values.carrierName.trim()) {
       setSaveError("Carrier name is required");
       return;
