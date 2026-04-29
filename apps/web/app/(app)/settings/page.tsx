@@ -8,12 +8,14 @@ import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
 import { OperatoriesSettings } from "@/components/settings/OperatoriesSettings";
 import { AppointmentTypesSettings } from "@/components/settings/AppointmentTypesSettings";
 import { RemindersSettings } from "@/components/settings/RemindersSettings";
+import { InsurancePlansSettings } from "@/components/settings/InsurancePlansSettings";
 
 const TABS = [
   { key: "providers", label: "Providers" },
   { key: "operatories", label: "Operatories" },
   { key: "appointment-types", label: "Appointment Types" },
   { key: "reminders", label: "Reminders" },
+  { key: "insurance-plans", label: "Insurance Plans" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -25,7 +27,7 @@ function SettingsContent() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Settings"
-        description="Manage providers, operatories, appointment types, and reminders"
+        description="Manage providers, operatories, appointment types, reminders, and insurance plans"
       />
 
       <div className="flex items-center gap-1 rounded-md border p-0.5 w-fit">
@@ -45,6 +47,7 @@ function SettingsContent() {
       {activeTab === "operatories" && <OperatoriesSettings />}
       {activeTab === "appointment-types" && <AppointmentTypesSettings />}
       {activeTab === "reminders" && <RemindersSettings />}
+      {activeTab === "insurance-plans" && <InsurancePlansSettings />}
     </div>
   );
 }

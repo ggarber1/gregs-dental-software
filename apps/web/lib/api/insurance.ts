@@ -17,6 +17,7 @@ export interface Insurance {
   id: string;
   patientId: string;
   practiceId: string;
+  insurancePlanId: string | null;
   priority: InsurancePriority;
   carrier: string;
   memberId: string | null;
@@ -31,8 +32,9 @@ export interface Insurance {
 }
 
 export interface CreateInsuranceBody {
+  insurancePlanId?: string | null;
   priority?: InsurancePriority;
-  carrier: string;
+  carrier?: string;
   memberId?: string | null;
   groupNumber?: string | null;
   relationshipToInsured?: RelationshipToInsured;
@@ -42,6 +44,7 @@ export interface CreateInsuranceBody {
 }
 
 export interface UpdateInsuranceBody {
+  insurancePlanId?: string | null;
   priority?: InsurancePriority;
   carrier?: string;
   memberId?: string | null;

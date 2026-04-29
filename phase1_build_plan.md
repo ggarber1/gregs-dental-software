@@ -741,10 +741,10 @@ Verify:
 
 ### 5.1 Insurance Plan Management
 
-- [ ] `insurance_plans` CRUD — carrier name, payer ID (clearinghouse ID), group number, in/out of network flag
-- [ ] Seed common carriers (Delta Dental, MassHealth `CKMA1`, Cigna, Aetna, United, MetLife)
-- [ ] `patient_insurance` — link patient to plan, subscriber info, priority (primary/secondary)
-- [ ] UI for adding/editing patient insurance on patient chart; supports adding a secondary plan (`priority = 'secondary'`); patients with secondary flagged for manual co-pay review
+- [x] `insurance_plans` CRUD — carrier name, payer ID (clearinghouse ID), group number, in/out of network flag
+- [x] Seed common carriers (Delta Dental, MassHealth `CKMA1`, Cigna, Aetna, United, MetLife)
+- [x] `patient_insurance` — link patient to plan, subscriber info, priority (primary/secondary)
+- [x] UI for adding/editing patient insurance on patient chart; supports adding a secondary plan (`priority = 'secondary'`); patients with secondary flagged for manual co-pay review
 
 ### 5.2 Eligibility Verification API
 

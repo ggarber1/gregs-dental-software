@@ -106,6 +106,9 @@ async def seed(
     finally:
         await engine.dispose()
 
+    from scripts.seed_insurance_plans import seed as seed_plans
+    await seed_plans(E2E_PRACTICE_UUID)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
