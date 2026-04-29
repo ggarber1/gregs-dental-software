@@ -11,16 +11,20 @@ from sqlalchemy.orm import selectinload
 
 from app.core.db import get_session_factory
 from app.models.appointment import Appointment as AppointmentModel
+from app.models.appointment_reminder import AppointmentReminder as AppointmentReminderModel
 from app.models.appointment_type import AppointmentType as AppointmentTypeModel
 from app.models.operatory import Operatory as OperatoryModel
 from app.models.patient import Patient as PatientModel
+from app.models.practice import Practice as PracticeModel
 from app.models.provider import Provider as ProviderModel
 from app.schemas.generated import (
     ApiError,
     Appointment,
+    AppointmentReminderRecord,
     CancelAppointment,
     CreateAppointment,
     Error,
+    ReminderSummary,
     UpdateAppointment,
 )
 from app.services.reminders import cancel_reminders_for_appointment, stage_reminder_jobs
@@ -163,13 +167,65 @@ def _validate_status_transition(current: str, proposed: str) -> None:
         )
 
 
+# ── Reminder summary ──────────────────────────────────────────────────────────
+
+# Priority used to pick the most informative status per channel across multiple
+# reminder rows (e.g. a 48h and a 24h reminder for the same channel).
+_STATUS_PRIORITY: dict[str, int] = {
+    "sent": 5,
+    "failed": 4,
+    "enqueued": 3,
+    "pending": 2,
+    "cancelled": 1,
+}
+
+
+async def _batch_reminder_summary(
+    session: AsyncSession,
+    appointment_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, dict[str, str | None]]:
+    """Return a map of appointment_id → {sms: status, email: status}.
+
+    Runs a single query for all IDs; callers must not call this in a loop.
+    """
+    if not appointment_ids:
+        return {}
+
+    rows = (
+        await session.execute(
+            select(
+                AppointmentReminderModel.appointment_id,
+                AppointmentReminderModel.reminder_type,
+                AppointmentReminderModel.status,
+            ).where(
+                AppointmentReminderModel.appointment_id.in_(appointment_ids),
+                AppointmentReminderModel.deleted_at.is_(None),
+            )
+        )
+    ).all()
+
+    best: dict[uuid.UUID, dict[str, str | None]] = {}
+    for appt_id, reminder_type, status in rows:
+        channels = best.setdefault(appt_id, {"sms": None, "email": None})
+        current = channels.get(reminder_type)
+        if current is None or _STATUS_PRIORITY.get(status, 0) > _STATUS_PRIORITY.get(current, 0):
+            channels[reminder_type] = status
+
+    return best
+
+
 # ── Serialisation ─────────────────────────────────────────────────────────────
 
 
-def _row_to_schema(row: AppointmentModel) -> Appointment:
+def _row_to_schema(
+    row: AppointmentModel,
+    reminder_channel_statuses: dict[str, str | None] | None = None,
+) -> Appointment:
     patient_name: str | None = None
+    patient_sms_opted_out = False
     if row.patient is not None:
         patient_name = f"{row.patient.first_name} {row.patient.last_name}"
+        patient_sms_opted_out = bool(row.patient.sms_opt_out)
 
     provider_name: str | None = None
     if row.provider is not None:
@@ -184,6 +240,12 @@ def _row_to_schema(row: AppointmentModel) -> Appointment:
     if row.appointment_type is not None:
         appt_type_name = row.appointment_type.name
         appt_type_color = row.appointment_type.color
+
+    reminder_summary = ReminderSummary(
+        smsStatus=reminder_channel_statuses.get("sms") if reminder_channel_statuses else None,
+        emailStatus=reminder_channel_statuses.get("email") if reminder_channel_statuses else None,
+        patientSmsOptedOut=patient_sms_opted_out,
+    )
 
     return Appointment(
         id=row.id,
@@ -202,6 +264,7 @@ def _row_to_schema(row: AppointmentModel) -> Appointment:
         operatoryName=operatory_name,
         appointmentTypeName=appt_type_name,
         appointmentTypeColor=appt_type_color,
+        reminderSummary=reminder_summary,
         createdAt=row.created_at,
         updatedAt=row.updated_at,
     )
@@ -245,8 +308,9 @@ async def list_appointments(
                 .order_by(AppointmentModel.start_time.asc())
             )
         ).all()
+        reminder_map = await _batch_reminder_summary(session, [r.id for r in rows])
 
-    return [_row_to_schema(r) for r in rows]
+    return [_row_to_schema(r, reminder_map.get(r.id)) for r in rows]
 
 
 @router.get("/{appointment_id}", response_model=Appointment)
@@ -272,13 +336,15 @@ async def get_appointment(
             )
         )
 
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": {"code": "APPOINTMENT_NOT_FOUND", "message": "Appointment not found"}},
-        )
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail=_err("APPOINTMENT_NOT_FOUND", "Appointment not found"),
+            )
 
-    return _row_to_schema(row)
+        reminder_map = await _batch_reminder_summary(session, [row.id])
+
+    return _row_to_schema(row, reminder_map.get(row.id))
 
 
 @router.post("", status_code=201, response_model=Appointment)
@@ -381,8 +447,13 @@ async def create_appointment(
             notes=body.notes,
         )
 
+        practice = await session.scalar(
+            select(PracticeModel).where(PracticeModel.id == practice_id)
+        )
+        reminder_hours = list(practice.reminder_hours) if practice else None
+
         session.add(row)
-        stage_reminder_jobs(session, row)
+        stage_reminder_jobs(session, row, reminder_hours=reminder_hours)
         await session.commit()
 
         # Re-fetch with relationships for the response
@@ -397,8 +468,9 @@ async def create_appointment(
             )
         )
         assert fetched is not None
+        reminder_map = await _batch_reminder_summary(session, [fetched.id])
 
-    return _row_to_schema(fetched)
+    return _row_to_schema(fetched, reminder_map.get(fetched.id))
 
 
 @router.patch("/{appointment_id}", response_model=Appointment)
@@ -542,8 +614,12 @@ async def update_appointment(
         if row.status in ("cancelled", "no_show"):
             await cancel_reminders_for_appointment(session, appointment_id)
         elif time_changed:
+            practice = await session.scalar(
+                select(PracticeModel).where(PracticeModel.id == practice_id)
+            )
+            reminder_hours = list(practice.reminder_hours) if practice else None
             await cancel_reminders_for_appointment(session, appointment_id)
-            stage_reminder_jobs(session, row)
+            stage_reminder_jobs(session, row, reminder_hours=reminder_hours)
 
         await session.commit()
 
@@ -559,8 +635,9 @@ async def update_appointment(
             )
         )
         assert fetched is not None
+        reminder_map = await _batch_reminder_summary(session, [fetched.id])
 
-    return _row_to_schema(fetched)
+    return _row_to_schema(fetched, reminder_map.get(fetched.id))
 
 
 @router.delete("/{appointment_id}", status_code=204)
@@ -605,3 +682,53 @@ async def cancel_appointment(
         row.deleted_at = datetime.now(UTC)
         await cancel_reminders_for_appointment(session, appointment_id)
         await session.commit()
+
+
+@router.get("/{appointment_id}/reminders", response_model=list[AppointmentReminderRecord])
+async def list_appointment_reminders(
+    appointment_id: uuid.UUID,
+    request: Request,
+) -> list[AppointmentReminderRecord]:
+    practice_id = _require_practice_scope(request)
+
+    async with get_session_factory()() as session:
+        # Verify appointment belongs to this practice
+        exists = await session.scalar(
+            select(AppointmentModel.id).where(
+                AppointmentModel.id == appointment_id,
+                AppointmentModel.practice_id == practice_id,
+                AppointmentModel.deleted_at.is_(None),
+            )
+        )
+        if exists is None:
+            raise HTTPException(
+                status_code=404,
+                detail=_err("APPOINTMENT_NOT_FOUND", "Appointment not found"),
+            )
+
+        reminders = (
+            await session.scalars(
+                select(AppointmentReminderModel)
+                .where(
+                    AppointmentReminderModel.appointment_id == appointment_id,
+                    AppointmentReminderModel.deleted_at.is_(None),
+                )
+                .order_by(AppointmentReminderModel.send_at.asc())
+            )
+        ).all()
+
+    return [
+        AppointmentReminderRecord(
+            id=r.id,
+            reminderType=r.reminder_type,
+            hoursBefore=r.hours_before,
+            sendAt=r.send_at,
+            status=r.status,
+            sentAt=r.sent_at,
+            failedAt=r.failed_at,
+            failureReason=r.failure_reason,
+            responseReceived=r.response_received,
+            respondedAt=r.responded_at,
+        )
+        for r in reminders
+    ]

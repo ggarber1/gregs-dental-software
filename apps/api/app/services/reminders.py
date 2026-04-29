@@ -12,7 +12,7 @@ from app.models.appointment_reminder import AppointmentReminder
 
 logger = logging.getLogger(__name__)
 
-_REMINDER_WINDOWS_HOURS: tuple[int, ...] = (48, 24)
+_DEFAULT_REMINDER_HOURS: tuple[int, ...] = (48, 24)
 
 
 def _build_reminder_row(
@@ -39,14 +39,20 @@ _REMINDER_TYPES: tuple[str, ...] = ("sms", "email")
 
 
 def stage_reminder_jobs(
-    session: AsyncSession, appointment: Appointment
+    session: AsyncSession,
+    appointment: Appointment,
+    *,
+    reminder_hours: list[int] | None = None,
 ) -> list[AppointmentReminder]:
     """Add pending AppointmentReminder rows to the session. Caller must commit."""
     if appointment.patient_id is None:
         return []
 
+    effective_hours = (
+        reminder_hours if reminder_hours is not None else list(_DEFAULT_REMINDER_HOURS)
+    )
     created: list[AppointmentReminder] = []
-    for hours in _REMINDER_WINDOWS_HOURS:
+    for hours in effective_hours:
         for reminder_type in _REMINDER_TYPES:
             row = _build_reminder_row(appointment, hours, reminder_type)
             if row is not None:

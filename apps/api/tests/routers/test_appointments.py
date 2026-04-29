@@ -81,7 +81,19 @@ def _make_patient_row(**overrides: Any) -> MagicMock:
         "practice_id": _PRACTICE_ID,
         "first_name": "Jane",
         "last_name": "Doe",
+        "sms_opt_out": False,
         "deleted_at": None,
+    }
+    row = MagicMock()
+    for k, v in {**defaults, **overrides}.items():
+        setattr(row, k, v)
+    return row
+
+
+def _make_practice_row(**overrides: Any) -> MagicMock:
+    defaults = {
+        "id": _PRACTICE_ID,
+        "reminder_hours": [48, 24],
     }
     row = MagicMock()
     for k, v in {**defaults, **overrides}.items():
@@ -166,12 +178,17 @@ def _make_appointment_row(**overrides: Any) -> MagicMock:
 
 def _mock_session() -> AsyncMock:
     """Create a mock async session with context-manager support."""
+    # Default execute result: empty reminder summary (no reminder rows).
+    _empty_execute = MagicMock()
+    _empty_execute.all.return_value = []
+
     session = AsyncMock()
     session.__aenter__ = AsyncMock(return_value=session)
     session.__aexit__ = AsyncMock(return_value=False)
     session.add = MagicMock()
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
+    session.execute = AsyncMock(return_value=_empty_execute)
     return session
 
 
@@ -216,6 +233,7 @@ async def test_create_appointment_returns_201():
     provider_row = _make_provider_row()
     operatory_row = _make_operatory_row()
     appt_type_row = _make_appointment_type_row()
+    practice_row = _make_practice_row()
     appointment_row = _make_appointment_row()
 
     with (
@@ -229,9 +247,17 @@ async def test_create_appointment_returns_201():
         #   2. Provider lookup
         #   3. Operatory lookup
         #   4. AppointmentType lookup
-        #   5. Re-fetch after commit (with selectinload)
+        #   5. Practice lookup (for reminder_hours)
+        #   6. Re-fetch after commit (with selectinload)
         mock_session.scalar = AsyncMock(
-            side_effect=[patient_row, provider_row, operatory_row, appt_type_row, appointment_row]
+            side_effect=[
+                patient_row,
+                provider_row,
+                operatory_row,
+                appt_type_row,
+                practice_row,
+                appointment_row,
+            ]
         )
 
         # session.scalars is called for conflict checks:

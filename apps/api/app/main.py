@@ -27,6 +27,9 @@ from app.routers import (
     providers,
     webhooks,
 )
+from app.routers import (
+    settings as settings_router,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(practice.router)
     app.include_router(providers.router)
     app.include_router(operatories.router)
+    app.include_router(settings_router.router)
     app.include_router(webhooks.router)
 
     return app

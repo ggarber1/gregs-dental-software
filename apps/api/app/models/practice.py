@@ -40,6 +40,14 @@ class Practice(Base, TimestampMixin):
         server_default="{}",
     )
 
+    # Hours before appointment to send each reminder window.
+    # Stored descending by convention (e.g. [48, 24]).
+    reminder_hours: Mapped[list[int]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default="[48, 24]",
+    )
+
     # Clearinghouse — SSM path only, never store the key directly.
     clearinghouse_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
     clearinghouse_submitter_id: Mapped[str | None] = mapped_column(Text, nullable=True)
