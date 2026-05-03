@@ -64,9 +64,19 @@ export const CreateOperatorySchema = OperatorySchema.omit({
   updatedAt: true,
 });
 
+export const ReminderSettingsSchema = z.object({
+  reminderHours: z.array(z.number().int()),
+});
+
+export const UpdateReminderSettingsSchema = z.object({
+  reminderHours: z.array(z.number().int()),
+});
+
 export type Practice = z.infer<typeof PracticeSchema>;
 export type CreatePractice = z.infer<typeof CreatePracticeSchema>;
 export type Provider = z.infer<typeof ProviderSchema>;
+export type ReminderSettings = z.infer<typeof ReminderSettingsSchema>;
+export type UpdateReminderSettings = z.infer<typeof UpdateReminderSettingsSchema>;
 export type CreateProvider = z.infer<typeof CreateProviderSchema>;
 export type Operatory = z.infer<typeof OperatorySchema>;
 export type CreateOperatory = z.infer<typeof CreateOperatorySchema>;
