@@ -147,7 +147,7 @@ export function useMedicalHistoryHistory(patientId: string, pageSize: number = 2
   return useInfiniteQuery({
     queryKey: medicalHistoryKeys.history(patientId),
     queryFn: ({ pageParam = 1 }) =>
-      getMedicalHistoryHistory(patientId, pageParam as number, pageSize),
+      getMedicalHistoryHistory(patientId, pageParam, pageSize),
     getNextPageParam: (lastPage) => {
       const totalPages = Math.ceil(lastPage.total / lastPage.pageSize);
       return lastPage.page < totalPages ? lastPage.page + 1 : undefined;
