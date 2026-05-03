@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -20,9 +21,15 @@ class MedicalHistoryVersion(Base, PHIMixin):
     recorded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    allergies: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
-    medications: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
-    conditions: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
+    allergies: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default="'[]'::jsonb"
+    )
+    medications: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default="'[]'::jsonb"
+    )
+    conditions: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default="'[]'::jsonb"
+    )
 
     flag_blood_thinners: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"

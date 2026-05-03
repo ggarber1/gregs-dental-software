@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import func, select, update
@@ -52,8 +53,8 @@ def _kw_match(names: set[str], keywords: frozenset[str]) -> bool:
 
 
 def _compute_flags(
-    conditions: list,
-    allergies: list,
+    conditions: list[Any],
+    allergies: list[Any],
     client_flags: Flags | None,
 ) -> dict[str, bool]:
     condition_names = {c.name.lower() for c in conditions}
