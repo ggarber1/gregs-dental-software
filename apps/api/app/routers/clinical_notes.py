@@ -23,7 +23,6 @@ from app.schemas.generated import (
     ClinicalNoteSummary,
     CreateClinicalNote,
     Error,
-    TemplateType,
     UpdateClinicalNote,
 )
 

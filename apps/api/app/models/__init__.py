@@ -3,9 +3,9 @@ from app.models.appointment import Appointment as Appointment
 from app.models.appointment_reminder import AppointmentReminder as AppointmentReminder
 from app.models.appointment_type import AppointmentType as AppointmentType
 from app.models.audit_log import AuditLog as AuditLog
+from app.models.clinical_note import ClinicalNote as ClinicalNote
 from app.models.insurance_plan import InsurancePlan as InsurancePlan
 from app.models.intake_form import IntakeForm as IntakeForm
-from app.models.clinical_note import ClinicalNote as ClinicalNote
 from app.models.medical_history_version import MedicalHistoryVersion as MedicalHistoryVersion
 from app.models.operatory import Operatory as Operatory
 from app.models.patient import Patient as Patient

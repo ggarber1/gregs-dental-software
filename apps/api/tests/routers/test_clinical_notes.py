@@ -314,7 +314,6 @@ async def test_list_empty_returns_no_cursor():
 async def test_create_note_returns_201():
     app = _get_app()
     patient = _make_patient_row()
-    created = _make_note_row()
     session = _make_session(scalar_returns=[patient])
     session.refresh = AsyncMock(side_effect=lambda row: None)
 
