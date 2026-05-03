@@ -24,6 +24,7 @@ import {
   useApplyIntakeForm,
 } from "@/lib/api/intake";
 import { useUpdatePatient, type UpdatePatientBody, type Sex } from "@/lib/api/patients";
+import { useCreateMedicalHistoryVersion } from "@/lib/api/medical-history";
 
 // ── Read-only display helpers ─────────────────────────────────────────────────
 
@@ -346,6 +347,7 @@ export function IntakeReviewModal({
   const { data: form, isLoading } = useIntakeFormDetail(open ? intakeFormId : null);
   const { mutate: applyIntake, isPending: isApplying, error: applyError } = useApplyIntakeForm(patientId);
   const { mutate: updatePatient, isPending: isUpdating } = useUpdatePatient(patientId);
+  const { mutate: createMedicalHistory, isPending: isCreatingHistory } = useCreateMedicalHistoryVersion(patientId);
 
   const [editing, setEditing] = useState(false);
   const [editFields, setEditFields] = useState<EditFields | null>(null);
@@ -361,41 +363,84 @@ export function IntakeReviewModal({
     setEditFields((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
+  function buildMedicalHistoryBody(
+    responses: Record<string, unknown> | null,
+    overrideAllergiesRaw?: string,
+    overrideAlertsRaw?: string,
+  ) {
+    const rawAllergies = Array.isArray(responses?.allergies)
+      ? (responses.allergies as string[])
+      : [];
+    const rawMedications = Array.isArray(responses?.medications)
+      ? (responses.medications as string[])
+      : [];
+    const rawConditions = Array.isArray(responses?.medicalConditions)
+      ? (responses.medicalConditions as string[])
+      : [];
+
+    const allergies = overrideAllergiesRaw !== undefined
+      ? splitComma(overrideAllergiesRaw)
+      : rawAllergies;
+    const conditions = overrideAlertsRaw !== undefined
+      ? splitComma(overrideAlertsRaw)
+      : rawConditions;
+    const medications = rawMedications;
+
+    return {
+      allergies: allergies.map((name) => ({ name })),
+      medications: medications.map((name) => ({ name })),
+      conditions: conditions.map((name) => ({ name })),
+    };
+  }
+
   function handleApply() {
     applyIntake(intakeFormId, {
       onSuccess: () => {
-        if (editing && editFields) {
-          // Override with front-desk corrections (omit empty required fields to avoid validation errors)
-          const body: UpdatePatientBody = {
-            sex: editFields.sex || null,
-            phone: editFields.phone || null,
-            email: editFields.email || null,
-            addressLine1: editFields.addressLine1 || null,
-            addressLine2: editFields.addressLine2 || null,
-            city: editFields.city || null,
-            state: editFields.state || null,
-            zip: editFields.zip || null,
-            allergies: splitComma(editFields.allergiesRaw),
-            medicalAlerts: splitComma(editFields.medicalAlertsRaw),
-          };
-          if (editFields.firstName) body.firstName = editFields.firstName;
-          if (editFields.lastName) body.lastName = editFields.lastName;
-          if (editFields.dateOfBirth) body.dateOfBirth = editFields.dateOfBirth;
-          updatePatient(body, {
-            onSuccess: () => {
+        const medicalBody = buildMedicalHistoryBody(
+          form?.responses ?? null,
+          editing && editFields ? editFields.allergiesRaw : undefined,
+          editing && editFields ? editFields.medicalAlertsRaw : undefined,
+        );
+
+        createMedicalHistory(medicalBody, {
+          onSuccess: () => {
+            if (editing && editFields) {
+              const body: UpdatePatientBody = {
+                sex: editFields.sex || null,
+                phone: editFields.phone || null,
+                email: editFields.email || null,
+                addressLine1: editFields.addressLine1 || null,
+                addressLine2: editFields.addressLine2 || null,
+                city: editFields.city || null,
+                state: editFields.state || null,
+                zip: editFields.zip || null,
+              };
+              if (editFields.firstName) body.firstName = editFields.firstName;
+              if (editFields.lastName) body.lastName = editFields.lastName;
+              if (editFields.dateOfBirth) body.dateOfBirth = editFields.dateOfBirth;
+              updatePatient(body, {
+                onSuccess: () => {
+                  onApplied();
+                  onClose();
+                },
+              });
+            } else {
               onApplied();
               onClose();
-            },
-          });
-        } else {
-          onApplied();
-          onClose();
-        }
+            }
+          },
+          onError: () => {
+            // Medical history creation failed — intake was applied but no version recorded.
+            // Proceed with apply so patient record is not left in a partial state.
+            onApplied();
+            onClose();
+          },
+        });
       },
     });
   }
 
-  const isBusy = isApplying || isUpdating;
+  const isBusy = isApplying || isUpdating || isCreatingHistory;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>

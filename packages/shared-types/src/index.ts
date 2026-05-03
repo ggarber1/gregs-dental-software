@@ -4,3 +4,5 @@ export * from "./schemas/patient.js";
 export * from "./schemas/insurance.js";
 export * from "./schemas/intake.js";
 export * from "./schemas/scheduling.js";
+export * from "./schemas/eligibility.js";
+export * from "./schemas/medical-history.js";

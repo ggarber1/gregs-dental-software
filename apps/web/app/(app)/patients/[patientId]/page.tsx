@@ -7,6 +7,7 @@ import Link from "next/link";
 
 import { InsuranceCard } from "@/components/patients/InsuranceCard";
 import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
+import { MedicalHistoryCard } from "@/components/patients/MedicalHistoryCard";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   usePatient,
   useUpdatePatient,
@@ -483,146 +483,6 @@ function EditField({
   );
 }
 
-// ── Clinical card ─────────────────────────────────────────────────────────────
-
-function ClinicalCard({ patient, patientId }: { patient: Patient; patientId: string }) {
-  const [editing, setEditing] = useState(false);
-  const [fields, setFields] = useState({
-    allergiesRaw: (patient.allergies ?? []).join(", "),
-    medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
-    medicationsRaw: (patient.medications ?? []).join(", "),
-    doctorNotes: patient.doctorNotes ?? "",
-  });
-  const [error, setError] = useState<string | null>(null);
-
-  const { mutate, isPending } = useUpdatePatient(patientId);
-
-  useEffect(() => {
-    if (!editing) {
-      setFields({
-        allergiesRaw: (patient.allergies ?? []).join(", "),
-        medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
-        medicationsRaw: (patient.medications ?? []).join(", "),
-        doctorNotes: patient.doctorNotes ?? "",
-      });
-    }
-  }, [patient, editing]);
-
-  function handleCancel() {
-    setFields({
-      allergiesRaw: (patient.allergies ?? []).join(", "),
-      medicalAlertsRaw: (patient.medicalAlerts ?? []).join(", "),
-      medicationsRaw: (patient.medications ?? []).join(", "),
-      doctorNotes: patient.doctorNotes ?? "",
-    });
-    setError(null);
-    setEditing(false);
-  }
-
-  function splitComma(raw: string): string[] {
-    return raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-
-  function handleSave() {
-    mutate(
-      {
-        allergies: splitComma(fields.allergiesRaw),
-        medicalAlerts: splitComma(fields.medicalAlertsRaw),
-        medications: splitComma(fields.medicationsRaw),
-        doctorNotes: fields.doctorNotes || null,
-      },
-      {
-        onSuccess: () => {
-          setError(null);
-          setEditing(false);
-        },
-        onError: () => setError("Failed to save. Please try again."),
-      },
-    );
-  }
-
-  const allergiesDisplay = (patient.allergies ?? []).join(", ") || "—";
-  const alertsDisplay = (patient.medicalAlerts ?? []).join(", ") || "—";
-  const medicationsDisplay = (patient.medications ?? []).join(", ") || "—";
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base font-semibold">Clinical</CardTitle>
-        {!editing ? (
-          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-        ) : (
-          <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending}>
-              <X className="h-4 w-4" />
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={isPending}>
-              <Check className="h-4 w-4" />
-              {isPending ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        )}
-      </CardHeader>
-      <CardContent>
-        {editing ? (
-          <div className="grid gap-4">
-            <EditField label="Allergies (comma-separated)">
-              <Input
-                value={fields.allergiesRaw}
-                onChange={(e) => setFields((p) => ({ ...p, allergiesRaw: e.target.value }))}
-                placeholder="Penicillin, Latex"
-              />
-            </EditField>
-            <EditField label="Medical conditions (comma-separated)">
-              <Input
-                value={fields.medicalAlertsRaw}
-                onChange={(e) =>
-                  setFields((p) => ({ ...p, medicalAlertsRaw: e.target.value }))
-                }
-                placeholder="Diabetes, Pacemaker"
-              />
-            </EditField>
-            <EditField label="Medications (comma-separated)">
-              <Input
-                value={fields.medicationsRaw}
-                onChange={(e) =>
-                  setFields((p) => ({ ...p, medicationsRaw: e.target.value }))
-                }
-                placeholder="Metformin, Lisinopril"
-              />
-            </EditField>
-            <EditField label="Doctor's note">
-              <Textarea
-                value={fields.doctorNotes}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFields((p) => ({ ...p, doctorNotes: e.target.value }))}
-                placeholder="Important notes for clinical staff…"
-                rows={3}
-              />
-            </EditField>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-        ) : (
-          <dl className="grid gap-y-3 text-sm">
-            <DataRow label="Allergies" value={allergiesDisplay} />
-            <DataRow label="Conditions" value={alertsDisplay} />
-            <DataRow label="Medications" value={medicationsDisplay} />
-            {patient.doctorNotes && (
-              <DataRow label="Doctor's note" value={patient.doctorNotes} />
-            )}
-          </dl>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── Dental history card ───────────────────────────────────────────────────────
 
 function DentalHistoryCard({ patient, patientId }: { patient: Patient; patientId: string }) {
@@ -976,7 +836,7 @@ export default function PatientDetailPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <DemographicsCard patient={patient} patientId={patientId} />
         <ContactCard patient={patient} patientId={patientId} />
-        <ClinicalCard patient={patient} patientId={patientId} />
+        <MedicalHistoryCard patientId={patientId} />
         <DentalHistoryCard patient={patient} patientId={patientId} />
         <InsuranceCard patientId={patientId} />
       </div>
