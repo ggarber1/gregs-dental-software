@@ -56,6 +56,11 @@ export const AppointmentSchema = z.object({
   operatoryName: z.string().optional(),
   appointmentTypeName: z.string().optional(),
   appointmentTypeColor: z.string().optional(),
+  reminderSummary: z.object({
+    smsStatus: z.string().optional(),
+    emailStatus: z.string().optional(),
+    patientSmsOptedOut: z.boolean().default(false),
+  }).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -128,6 +133,25 @@ export const OperatoryResponseSchema = CreateOperatoryBodySchema.extend({
   updatedAt: z.string().datetime(),
 });
 
+export const ReminderSummarySchema = z.object({
+  smsStatus: z.string().optional(),
+  emailStatus: z.string().optional(),
+  patientSmsOptedOut: z.boolean().default(false),
+});
+
+export const AppointmentReminderRecordSchema = z.object({
+  id: UuidSchema,
+  reminderType: z.string(),
+  hoursBefore: z.number().int(),
+  sendAt: z.string().datetime(),
+  status: z.string(),
+  sentAt: z.string().datetime().optional(),
+  failedAt: z.string().datetime().optional(),
+  failureReason: z.string().optional(),
+  responseReceived: z.string().optional(),
+  respondedAt: z.string().datetime().optional(),
+});
+
 // ── Type exports ─────────────────────────────────────────────────────────────
 
 export type AppointmentType = z.infer<typeof AppointmentTypeSchema>;
@@ -144,3 +168,5 @@ export type UpdateProviderBody = z.infer<typeof UpdateProviderBodySchema>;
 export type OperatoryResponse = z.infer<typeof OperatoryResponseSchema>;
 export type CreateOperatoryBody = z.infer<typeof CreateOperatoryBodySchema>;
 export type UpdateOperatoryBody = z.infer<typeof UpdateOperatoryBodySchema>;
+export type ReminderSummary = z.infer<typeof ReminderSummarySchema>;
+export type AppointmentReminderRecord = z.infer<typeof AppointmentReminderRecordSchema>;

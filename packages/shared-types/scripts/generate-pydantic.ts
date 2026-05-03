@@ -27,6 +27,8 @@ import {
   CreateProviderSchema,
   OperatorySchema,
   CreateOperatorySchema,
+  ReminderSettingsSchema,
+  UpdateReminderSettingsSchema,
 } from "../src/schemas/practice.js";
 import {
   PatientSchema,
@@ -46,6 +48,9 @@ import {
   InsuranceSchema,
   CreateInsuranceSchema,
   UpdateInsuranceSchema,
+  InsurancePlanSchema,
+  CreateInsurancePlanSchema,
+  UpdateInsurancePlanSchema,
 } from "../src/schemas/insurance.js";
 import {
   PaginationQuerySchema,
@@ -66,7 +71,23 @@ import {
   OperatoryResponseSchema,
   CreateOperatoryBodySchema,
   UpdateOperatoryBodySchema,
+  AppointmentReminderRecordSchema,
+  ReminderSummarySchema,
 } from "../src/schemas/scheduling.js";
+import {
+  EligibilityCheckSchema,
+  CreateEligibilityCheckSchema,
+} from "../src/schemas/eligibility.js";
+import {
+  AllergyEntrySchema,
+  MedicationEntrySchema,
+  ConditionEntrySchema,
+  MedicalFlagsSchema,
+  MedicalHistoryVersionSchema,
+  MedicalHistoryVersionSummarySchema,
+  CreateMedicalHistorySchema,
+  MedicalHistoryHistoryResponseSchema,
+} from "../src/schemas/medical-history.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -92,6 +113,11 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   Insurance: InsuranceSchema,
   CreateInsurance: CreateInsuranceSchema,
   UpdateInsurance: UpdateInsuranceSchema,
+  InsurancePlan: InsurancePlanSchema,
+  CreateInsurancePlan: CreateInsurancePlanSchema,
+  UpdateInsurancePlan: UpdateInsurancePlanSchema,
+  ReminderSettings: ReminderSettingsSchema,
+  UpdateReminderSettings: UpdateReminderSettingsSchema,
   // Scheduling
   AppointmentType: AppointmentTypeSchema,
   CreateAppointmentType: CreateAppointmentTypeSchema,
@@ -106,6 +132,20 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   OperatoryResponse: OperatoryResponseSchema,
   CreateOperatoryBody: CreateOperatoryBodySchema,
   UpdateOperatoryBody: UpdateOperatoryBodySchema,
+  ReminderSummary: ReminderSummarySchema,
+  AppointmentReminderRecord: AppointmentReminderRecordSchema,
+  // Eligibility
+  EligibilityCheck: EligibilityCheckSchema,
+  CreateEligibilityCheck: CreateEligibilityCheckSchema,
+  // Medical History
+  AllergyEntry: AllergyEntrySchema,
+  MedicationEntry: MedicationEntrySchema,
+  ConditionEntry: ConditionEntrySchema,
+  MedicalFlags: MedicalFlagsSchema,
+  MedicalHistoryVersion: MedicalHistoryVersionSchema,
+  MedicalHistoryVersionSummary: MedicalHistoryVersionSummarySchema,
+  CreateMedicalHistory: CreateMedicalHistorySchema,
+  MedicalHistoryHistoryResponse: MedicalHistoryHistoryResponseSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

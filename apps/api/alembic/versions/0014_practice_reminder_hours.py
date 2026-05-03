@@ -1,6 +1,6 @@
 """Add reminder_hours JSONB column to practices
 
-Revision ID: 0014
+Revision ID: 0014b
 Revises: 0013
 Create Date: 2026-04-24
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from alembic import op
 
-revision: str = "0014"
+revision: str = "0014b"
 down_revision: str | Sequence[str] | None = "0013"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
