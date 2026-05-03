@@ -1,0 +1,69 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CLINICAL_NOTE_TEMPLATES > matches snapshot 1`] = `
+{
+  "crown_prep": {
+    "anesthesia": "Lidocaine 2% 1:100,000 epinephrine, 1.7 mL",
+    "chiefComplaint": "Crown preparation",
+    "label": "Crown Prep",
+    "treatmentRendered": "Crown preparation (D2710) of tooth #___. Local anesthesia administered. Existing restoration/decay removed. Tooth prepared with appropriate taper and margin placement. Impression taken. Temporary crown fabricated and cemented. Bite checked and adjusted.",
+    "type": "crown_prep",
+  },
+  "crown_seat": {
+    "anesthesia": "",
+    "chiefComplaint": "Crown delivery",
+    "label": "Crown Seat",
+    "treatmentRendered": "Permanent crown delivery for tooth #___. Temporary removed and site cleaned. Crown tried in for fit, contacts, and occlusion. Adjustments made as needed. Crown cemented with ___. Bite verified.",
+    "type": "crown_seat",
+  },
+  "exam": {
+    "anesthesia": "",
+    "chiefComplaint": "Routine examination",
+    "label": "Exam",
+    "treatmentRendered": "Comprehensive oral examination (D0150) performed. Radiographs reviewed. Periodontal screening completed. Treatment plan discussed with patient.",
+    "type": "exam",
+  },
+  "extraction": {
+    "anesthesia": "Lidocaine 2% 1:100,000 epinephrine, 1.7 mL",
+    "chiefComplaint": "Tooth removal",
+    "label": "Extraction",
+    "treatmentRendered": "Extraction (D7140/D7210) of tooth #___. Local anesthesia administered. Tooth removed atraumatically. Socket irrigated and packed with gauze. Post-operative instructions given.",
+    "type": "extraction",
+  },
+  "filling": {
+    "anesthesia": "Lidocaine 2% 1:100,000 epinephrine, 1.7 mL",
+    "chiefComplaint": "Restoration",
+    "label": "Filling",
+    "treatmentRendered": "Composite restoration (D2391) on tooth #___, ___ surface(s). Local anesthesia administered. Decay/old restoration removed. Bonding agent applied. Composite placed and cured in increments. Occlusion checked and adjusted. Polished.",
+    "type": "filling",
+  },
+  "other": {
+    "anesthesia": "",
+    "chiefComplaint": "",
+    "label": "Other",
+    "treatmentRendered": "",
+    "type": "other",
+  },
+  "prophy": {
+    "anesthesia": "",
+    "chiefComplaint": "Routine cleaning",
+    "label": "Prophy",
+    "treatmentRendered": "Adult prophylaxis (D1110) performed. Supragingival scaling and polishing completed. Oral hygiene instructions reinforced. Fluoride applied.",
+    "type": "prophy",
+  },
+  "root_canal": {
+    "anesthesia": "Lidocaine 2% 1:100,000 epinephrine, 3.4 mL",
+    "chiefComplaint": "Root canal therapy",
+    "label": "Root Canal",
+    "treatmentRendered": "Root canal therapy (D3310-D3330) on tooth #___. Local anesthesia administered. Access opening made. ___ canals located and negotiated to length. Canals instrumented with rotary files and irrigated with NaOCl. Canals dried and obturated with gutta percha and sealer. Access restored. Patient tolerating well.",
+    "type": "root_canal",
+  },
+  "srp": {
+    "anesthesia": "Lidocaine 2% 1:100,000 epinephrine, 1.7 mL per quadrant",
+    "chiefComplaint": "Scaling and root planing",
+    "label": "SRP",
+    "treatmentRendered": "Scaling and root planing (D4341/D4342) of ___ quadrant(s). Local anesthesia administered. Subgingival calculus and biofilm removed. Root surfaces debrided. Oral hygiene instructions reinforced. Chlorhexidine rinse prescribed. 4–6 week re-evaluation scheduled.",
+    "type": "srp",
+  },
+}
+`;

@@ -969,3 +969,107 @@ class MedicalHistoryHistoryResponse(BaseModel):
     total: int
     page: int
     page_size: int = Field(..., alias='pageSize')
+
+
+# ── Clinical Notes ─────────────────────────────────────────────────────────────
+
+
+class PatientTolerance(StrEnum):
+    excellent = 'excellent'
+    good = 'good'
+    fair = 'fair'
+    poor = 'poor'
+
+
+class TemplateType(StrEnum):
+    exam = 'exam'
+    prophy = 'prophy'
+    extraction = 'extraction'
+    crown_prep = 'crown_prep'
+    crown_seat = 'crown_seat'
+    root_canal = 'root_canal'
+    filling = 'filling'
+    srp = 'srp'
+    other = 'other'
+
+
+class ClinicalNote(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: UUID
+    practice_id: UUID = Field(..., alias='practiceId')
+    patient_id: UUID = Field(..., alias='patientId')
+    appointment_id: UUID | None = Field(None, alias='appointmentId')
+    provider_id: UUID = Field(..., alias='providerId')
+    visit_date: date = Field(..., alias='visitDate')
+    chief_complaint: str | None = Field(None, alias='chiefComplaint')
+    anesthesia: str | None = None
+    patient_tolerance: PatientTolerance | None = Field(None, alias='patientTolerance')
+    complications: str | None = None
+    treatment_rendered: str = Field(..., alias='treatmentRendered')
+    next_visit_plan: str | None = Field(None, alias='nextVisitPlan')
+    notes: str | None = None
+    template_type: TemplateType | None = Field(None, alias='templateType')
+    is_signed: bool = Field(..., alias='isSigned')
+    signed_at: AwareDatetime | None = Field(None, alias='signedAt')
+    signed_by_provider_id: UUID | None = Field(None, alias='signedByProviderId')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    updated_at: AwareDatetime = Field(..., alias='updatedAt')
+
+
+class ClinicalNoteSummary(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: UUID
+    patient_id: UUID = Field(..., alias='patientId')
+    provider_id: UUID = Field(..., alias='providerId')
+    appointment_id: UUID | None = Field(None, alias='appointmentId')
+    visit_date: date = Field(..., alias='visitDate')
+    treatment_rendered: str = Field(..., alias='treatmentRendered')
+    template_type: TemplateType | None = Field(None, alias='templateType')
+    is_signed: bool = Field(..., alias='isSigned')
+    signed_at: AwareDatetime | None = Field(None, alias='signedAt')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    updated_at: AwareDatetime = Field(..., alias='updatedAt')
+
+
+class CreateClinicalNote(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    appointment_id: UUID | None = Field(None, alias='appointmentId')
+    provider_id: UUID = Field(..., alias='providerId')
+    visit_date: date = Field(..., alias='visitDate')
+    chief_complaint: str | None = Field(None, alias='chiefComplaint')
+    anesthesia: str | None = None
+    patient_tolerance: PatientTolerance | None = Field(None, alias='patientTolerance')
+    complications: str | None = None
+    treatment_rendered: str = Field(..., alias='treatmentRendered', min_length=1)
+    next_visit_plan: str | None = Field(None, alias='nextVisitPlan')
+    notes: str | None = None
+    template_type: TemplateType | None = Field(None, alias='templateType')
+
+
+class UpdateClinicalNote(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    chief_complaint: str | None = Field(None, alias='chiefComplaint')
+    anesthesia: str | None = None
+    patient_tolerance: PatientTolerance | None = Field(None, alias='patientTolerance')
+    complications: str | None = None
+    treatment_rendered: str | None = Field(None, alias='treatmentRendered', min_length=1)
+    next_visit_plan: str | None = Field(None, alias='nextVisitPlan')
+    notes: str | None = None
+    template_type: TemplateType | None = Field(None, alias='templateType')
+
+
+class ClinicalNoteListResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    items: list[ClinicalNoteSummary]
+    next_cursor: str | None = Field(None, alias='nextCursor')
+    has_more: bool = Field(..., alias='hasMore')

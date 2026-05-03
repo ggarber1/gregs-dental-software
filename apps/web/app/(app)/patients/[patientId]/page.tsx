@@ -8,6 +8,8 @@ import Link from "next/link";
 import { InsuranceCard } from "@/components/patients/InsuranceCard";
 import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
 import { MedicalHistoryCard } from "@/components/patients/MedicalHistoryCard";
+import { ClinicalNoteCard } from "@/components/patients/ClinicalNoteCard";
+import { ClinicalNoteList } from "@/components/patients/ClinicalNoteList";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -763,6 +765,7 @@ export default function PatientDetailPage() {
 
   const { data: patient, isLoading, isError, error } = usePatient(patientId);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "notes">("overview");
 
   // Redirect on 404
   useEffect(() => {
@@ -832,17 +835,44 @@ export default function PatientDetailPage() {
         medications={patient.medications ?? []}
       />
 
-      {/* Cards */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <DemographicsCard patient={patient} patientId={patientId} />
-        <ContactCard patient={patient} patientId={patientId} />
-        <MedicalHistoryCard patientId={patientId} />
-        <DentalHistoryCard patient={patient} patientId={patientId} />
-        <InsuranceCard patientId={patientId} />
+      {/* Tab navigation */}
+      <div className="flex gap-1 border-b border-border">
+        {(["overview", "notes"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${
+              activeTab === tab
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
-      {/* Intake forms */}
-      <IntakeFormsCard patient={patient} patientId={patientId} />
+      {/* Overview tab */}
+      {activeTab === "overview" && (
+        <>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DemographicsCard patient={patient} patientId={patientId} />
+            <ContactCard patient={patient} patientId={patientId} />
+            <MedicalHistoryCard patientId={patientId} />
+            <DentalHistoryCard patient={patient} patientId={patientId} />
+            <InsuranceCard patientId={patientId} />
+            <ClinicalNoteCard patientId={patientId} />
+          </div>
+          <IntakeFormsCard patient={patient} patientId={patientId} />
+        </>
+      )}
+
+      {/* Notes tab */}
+      {activeTab === "notes" && (
+        <div className="rounded-lg border border-border bg-card">
+          <ClinicalNoteList patientId={patientId} />
+        </div>
+      )}
     </div>
   );
 }
