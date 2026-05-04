@@ -454,7 +454,6 @@ async def test_add_item_to_nonexistent_plan_returns_404():
 @pytest.mark.asyncio
 async def test_get_nonexistent_plan_returns_404():
     app = _get_app()
-    plan = _make_plan_row()
     session = _make_session(scalar_returns=[None])
     mock_scalars = MagicMock()
     mock_scalars.all.return_value = []

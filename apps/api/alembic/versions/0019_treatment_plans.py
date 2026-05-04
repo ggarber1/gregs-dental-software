@@ -32,7 +32,8 @@ def upgrade() -> None:
             "status",
             sa.Text,
             sa.CheckConstraint(
-                "status IN ('proposed', 'accepted', 'in_progress', 'completed', 'refused', 'superseded')",
+                "status IN ('proposed', 'accepted', 'in_progress', "
+                "'completed', 'refused', 'superseded')",
                 name="ck_treatment_plans_status",
             ),
             nullable=False,

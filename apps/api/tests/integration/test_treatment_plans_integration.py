@@ -55,9 +55,12 @@ async def test_full_treatment_plan_flow(
     payload = {
         "name": "Phase 1 — Restorations",
         "items": [
-            {"procedureCode": "D2391", "procedureName": "Resin composite #14", "feeCents": 25000, "toothNumber": "14"},
-            {"procedureCode": "D2391", "procedureName": "Resin composite #18", "feeCents": 25000, "toothNumber": "18"},
-            {"procedureCode": "D2750", "procedureName": "Crown #30", "feeCents": 150000, "toothNumber": "30"},
+            {"procedureCode": "D2391", "procedureName": "Resin composite #14",
+             "feeCents": 25000, "toothNumber": "14"},
+            {"procedureCode": "D2391", "procedureName": "Resin composite #18",
+             "feeCents": 25000, "toothNumber": "18"},
+            {"procedureCode": "D2750", "procedureName": "Crown #30",
+             "feeCents": 150000, "toothNumber": "30"},
         ],
     }
     response = await client.post(base_url, json=payload, headers=mut(auth_headers))
@@ -207,7 +210,8 @@ async def test_open_plan_queue(
     assert queue[0]["pendingItemCount"] == 1
 
     # ── 4. Schedule the item → disappears from open queue ────────────────────
-    item_id = (await client.get(f"{base_url}/{plan_id}", headers=auth_headers)).json()["items"][0]["id"]
+    detail = await client.get(f"{base_url}/{plan_id}", headers=auth_headers)
+    item_id = detail.json()["items"][0]["id"]
 
     await client.patch(
         f"{base_url}/{plan_id}/items/{item_id}",
