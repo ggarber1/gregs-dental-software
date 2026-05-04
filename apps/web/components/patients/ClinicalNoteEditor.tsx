@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
+  signClinicalNote,
   useCreateClinicalNote,
   useUpdateClinicalNote,
   useSignClinicalNote,
@@ -30,6 +31,7 @@ import {
   type PatientTolerance,
   type TemplateType,
 } from "@/lib/api/clinical-notes";
+import { useProviders } from "@/lib/api/scheduling";
 import {
   CLINICAL_NOTE_TEMPLATES,
   TEMPLATE_TYPE_OPTIONS,
@@ -107,7 +109,9 @@ export function ClinicalNoteEditor({
   );
   const [error, setError] = useState<string | null>(null);
   const [showSignConfirm, setShowSignConfirm] = useState(false);
+  const [isSavingAndSigning, setIsSavingAndSigning] = useState(false);
 
+  const { data: providers } = useProviders();
   const { mutate: createNote, isPending: isCreating } = useCreateClinicalNote(patientId);
   const { mutate: updateNote, isPending: isUpdating } = useUpdateClinicalNote(
     patientId,
@@ -118,7 +122,7 @@ export function ClinicalNoteEditor({
     existingNote?.id ?? "",
   );
 
-  const isSaving = isCreating || isUpdating;
+  const isSaving = isCreating || isUpdating || isSavingAndSigning;
 
   function applyTemplate(type: TemplateType) {
     const tpl = CLINICAL_NOTE_TEMPLATES[type];
@@ -131,20 +135,42 @@ export function ClinicalNoteEditor({
     }));
   }
 
-  function handleSave() {
+  function validate(): boolean {
     if (!fields.treatmentRendered.trim()) {
       setError("Treatment rendered is required.");
-      return;
+      return false;
     }
     if (!fields.visitDate) {
       setError("Visit date is required.");
-      return;
+      return false;
     }
     if (!fields.providerId.trim()) {
-      setError("Provider ID is required.");
-      return;
+      setError("Provider is required.");
+      return false;
     }
     setError(null);
+    return true;
+  }
+
+  function buildCreateBody(): CreateClinicalNoteBody {
+    const body: CreateClinicalNoteBody = {
+      providerId: fields.providerId,
+      visitDate: fields.visitDate,
+      treatmentRendered: fields.treatmentRendered,
+    };
+    if (prefill?.appointmentId) body.appointmentId = prefill.appointmentId;
+    if (fields.chiefComplaint) body.chiefComplaint = fields.chiefComplaint;
+    if (fields.anesthesia) body.anesthesia = fields.anesthesia;
+    if (fields.patientTolerance) body.patientTolerance = fields.patientTolerance;
+    if (fields.complications) body.complications = fields.complications;
+    if (fields.nextVisitPlan) body.nextVisitPlan = fields.nextVisitPlan;
+    if (fields.notes) body.notes = fields.notes;
+    if (fields.templateType) body.templateType = fields.templateType;
+    return body;
+  }
+
+  function handleSave() {
+    if (!validate()) return;
 
     if (isEdit && existingNote) {
       const updateBody: UpdateClinicalNoteBody = {
@@ -163,24 +189,26 @@ export function ClinicalNoteEditor({
         onError: () => setError("Failed to save. Please try again."),
       });
     } else {
-      const createBody: CreateClinicalNoteBody = {
-        providerId: fields.providerId,
-        visitDate: fields.visitDate,
-        treatmentRendered: fields.treatmentRendered,
-      };
-      if (prefill?.appointmentId) createBody.appointmentId = prefill.appointmentId;
-      if (fields.chiefComplaint) createBody.chiefComplaint = fields.chiefComplaint;
-      if (fields.anesthesia) createBody.anesthesia = fields.anesthesia;
-      if (fields.patientTolerance) createBody.patientTolerance = fields.patientTolerance;
-      if (fields.complications) createBody.complications = fields.complications;
-      if (fields.nextVisitPlan) createBody.nextVisitPlan = fields.nextVisitPlan;
-      if (fields.notes) createBody.notes = fields.notes;
-      if (fields.templateType) createBody.templateType = fields.templateType;
-
-      createNote(createBody, {
+      createNote(buildCreateBody(), {
         onSuccess: onClose,
         onError: () => setError("Failed to save. Please try again."),
       });
+    }
+  }
+
+  async function handleSaveAndSign() {
+    if (!validate()) return;
+    setIsSavingAndSigning(true);
+    try {
+      const note = await new Promise<ClinicalNote>((resolve, reject) => {
+        createNote(buildCreateBody(), { onSuccess: resolve, onError: reject });
+      });
+      await signClinicalNote(patientId, note.id);
+      onClose();
+    } catch {
+      setError("Failed to save and sign. Please try again.");
+    } finally {
+      setIsSavingAndSigning(false);
     }
   }
 
@@ -249,13 +277,23 @@ export function ClinicalNoteEditor({
                     disabled={readOnly || isEdit}
                   />
                 </Field>
-                <Field label="Provider ID *">
-                  <Input
+                <Field label="Provider *">
+                  <Select
                     value={fields.providerId}
-                    onChange={(e) => set("providerId", e.target.value)}
-                    placeholder="UUID"
+                    onValueChange={(v) => set("providerId", v)}
                     disabled={readOnly || isEdit}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(providers ?? []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
 
@@ -348,9 +386,19 @@ export function ClinicalNoteEditor({
             </Button>
             {!readOnly && (
               <div className="flex gap-2">
-                <Button onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? "Saving…" : isEdit ? "Save changes" : "Save note"}
+                <Button onClick={handleSave} disabled={isSaving || isSigning}>
+                  {isCreating ? "Saving…" : isEdit ? "Save changes" : "Save draft"}
                 </Button>
+                {!isEdit && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleSaveAndSign()}
+                    disabled={isSaving || isSigning}
+                  >
+                    <PenLine className="mr-1.5 h-4 w-4" />
+                    {isSavingAndSigning ? "Signing…" : "Save & Sign"}
+                  </Button>
+                )}
                 {isEdit && (
                   <Button
                     variant="secondary"

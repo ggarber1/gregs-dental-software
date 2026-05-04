@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Plus, Printer, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronRight, Plus, Printer, Trash2 } from "lucide-react";
+import { AppointmentModal } from "@/components/scheduling/AppointmentModal";
+import { usePatient } from "@/lib/api/patients";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,7 @@ import {
   useCreateTreatmentPlan,
   useUpdateTreatmentPlan,
   useAddTreatmentPlanItem,
+  useUpdateTreatmentPlanItem,
   useDeleteTreatmentPlanItem,
   type TreatmentPlan,
   type TreatmentPlanStatus,
@@ -44,13 +47,31 @@ const ACTIVE_STATUSES: TreatmentPlanStatus[] = ["proposed", "accepted", "in_prog
 
 // ── Plan detail expand panel ───────────────────────────────────────────────────
 
+const ITEM_NEXT_ACTION: Partial<Record<string, { label: string; next: string }>> = {
+  accepted: { label: "Mark scheduled", next: "scheduled" },
+  scheduled: { label: "Mark complete", next: "completed" },
+};
+
 function PlanDetail({ patientId, planId }: { patientId: string; planId: string }) {
   const { data, isLoading } = useTreatmentPlanDetail(patientId, planId);
+  const { data: patient } = usePatient(patientId);
+  const updateItem = useUpdateTreatmentPlanItem(patientId, planId);
   const deleteItem = useDeleteTreatmentPlanItem(patientId, planId);
 
   const [addingItem, setAddingItem] = useState(false);
   const [newItem, setNewItem] = useState<Partial<CreateTreatmentPlanItemBody>>({});
   const addItem = useAddTreatmentPlanItem(patientId, planId);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [schedulingOpen, setSchedulingOpen] = useState(false);
+
+  function toggleItem(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
 
   function handlePrint() {
     window.print();
@@ -80,6 +101,7 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground print:bg-transparent">
+              <th className="w-8 px-3 py-2 print:hidden" />
               <th className="px-3 py-2">Tooth</th>
               <th className="px-3 py-2">Code</th>
               <th className="px-3 py-2">Procedure</th>
@@ -94,13 +116,24 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
           <tbody>
             {data.items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-4 text-center text-muted-foreground">
+                <td colSpan={10} className="px-3 py-4 text-center text-muted-foreground">
                   No items yet.
                 </td>
               </tr>
             )}
             {data.items.map((item) => (
               <tr key={item.id} className="border-b border-border last:border-0">
+                <td className="px-3 py-2 print:hidden">
+                  {item.status === "accepted" && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleItem(item.id)}
+                      className="h-4 w-4 cursor-pointer rounded border-border"
+                      aria-label={`Select ${item.procedureName}`}
+                    />
+                  )}
+                </td>
                 <td className="px-3 py-2 text-muted-foreground">{item.toothNumber ?? "—"}</td>
                 <td className="px-3 py-2 font-mono text-xs">{item.procedureCode}</td>
                 <td className="px-3 py-2">{item.procedureName}</td>
@@ -118,16 +151,34 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
                   </Badge>
                 </td>
                 <td className="px-3 py-2 print:hidden">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteItem.mutate(item.id)}
-                    disabled={deleteItem.isPending}
-                    aria-label="Remove item"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {ITEM_NEXT_ACTION[item.status] && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() =>
+                          updateItem.mutate({
+                            itemId: item.id,
+                            body: { status: ITEM_NEXT_ACTION[item.status]!.next as "scheduled" | "completed" },
+                          })
+                        }
+                        disabled={updateItem.isPending}
+                      >
+                        {ITEM_NEXT_ACTION[item.status]!.label}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteItem.mutate(item.id)}
+                      disabled={deleteItem.isPending}
+                      aria-label="Remove item"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -294,11 +345,35 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
             Add procedure
           </Button>
         )}
+        {selectedIds.size > 0 && (
+          <Button size="sm" onClick={() => setSchedulingOpen(true)}>
+            <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+            Schedule {selectedIds.size} item{selectedIds.size > 1 ? "s" : ""}
+          </Button>
+        )}
         <Button size="sm" variant="outline" onClick={handlePrint}>
           <Printer className="mr-1.5 h-3.5 w-3.5" />
           Print
         </Button>
       </div>
+
+      <AppointmentModal
+        open={schedulingOpen}
+        onOpenChange={setSchedulingOpen}
+        defaultPatientId={patientId}
+        defaultPatientName={
+          patient ? `${patient.firstName} ${patient.lastName}` : undefined
+        }
+        onCreated={(appt) => {
+          [...selectedIds].forEach((itemId) => {
+            updateItem.mutate({
+              itemId,
+              body: { status: "scheduled", appointmentId: appt.id },
+            });
+          });
+          setSelectedIds(new Set());
+        }}
+      />
     </div>
   );
 }
@@ -363,45 +438,123 @@ function PlanRow({ plan, patientId }: { plan: TreatmentPlan; patientId: string }
 
 // ── New plan form ─────────────────────────────────────────────────────────────
 
+interface DraftItem {
+  key: number;
+  toothNumber: string;
+  procedureCode: string;
+  procedureName: string;
+  feeCents: string;
+}
+
+const EMPTY_DRAFT_ITEM: Omit<DraftItem, "key"> = {
+  toothNumber: "",
+  procedureCode: "",
+  procedureName: "",
+  feeCents: "",
+};
+
 function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => void }) {
   const [name, setName] = useState("Treatment Plan");
-  const [notes, setNotes] = useState("");
+  const [items, setItems] = useState<DraftItem[]>([{ key: 0, ...EMPTY_DRAFT_ITEM }]);
+  const [nextKey, setNextKey] = useState(1);
   const create = useCreateTreatmentPlan(patientId);
 
+  function addItem() {
+    setItems((prev) => [...prev, { key: nextKey, ...EMPTY_DRAFT_ITEM }]);
+    setNextKey((k) => k + 1);
+  }
+
+  function removeItem(key: number) {
+    setItems((prev) => prev.filter((i) => i.key !== key));
+  }
+
+  function setItemField(key: number, field: keyof Omit<DraftItem, "key">, value: string) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, [field]: value } : i)));
+  }
+
   async function handleSubmit() {
+    const validItems = items.filter(
+      (i) => i.procedureCode.trim() && i.procedureName.trim() && i.feeCents.trim(),
+    );
     await create.mutateAsync({
       name: name.trim() || "Treatment Plan",
-      ...(notes ? { notes } : {}),
+      items: validItems.map((i, idx) => ({
+        ...(i.toothNumber.trim() ? { toothNumber: i.toothNumber.trim() } : {}),
+        procedureCode: i.procedureCode.trim(),
+        procedureName: i.procedureName.trim(),
+        feeCents: Math.round(parseFloat(i.feeCents) * 100),
+        priority: idx + 1,
+      })),
     });
     onDone();
   }
 
   return (
     <div className="rounded-md border border-border p-4">
-      <p className="mb-3 text-sm font-medium">New treatment plan</p>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Plan name</Label>
-          <Input
-            className="h-9"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Treatment Plan"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Notes</Label>
-          <Input
-            className="h-9"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes"
-          />
-        </div>
+      <p className="mb-4 text-sm font-medium">New treatment plan</p>
+
+      <div className="mb-4 space-y-1">
+        <Label className="text-xs">Plan name</Label>
+        <Input
+          className="h-9"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Treatment Plan"
+        />
       </div>
-      <div className="mt-3 flex gap-2">
+
+      <div className="mb-2 text-xs font-medium text-muted-foreground">Procedures</div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.key} className="grid grid-cols-[3rem_6rem_1fr_5rem_1.5rem] gap-2 items-center">
+            <Input
+              className="h-8 text-sm"
+              placeholder="Tooth"
+              value={item.toothNumber}
+              onChange={(e) => setItemField(item.key, "toothNumber", e.target.value)}
+            />
+            <Input
+              className="h-8 text-sm"
+              placeholder="Code *"
+              value={item.procedureCode}
+              onChange={(e) => setItemField(item.key, "procedureCode", e.target.value)}
+            />
+            <Input
+              className="h-8 text-sm"
+              placeholder="Procedure name *"
+              value={item.procedureName}
+              onChange={(e) => setItemField(item.key, "procedureName", e.target.value)}
+            />
+            <Input
+              className="h-8 text-sm"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Fee *"
+              value={item.feeCents}
+              onChange={(e) => setItemField(item.key, "feeCents", e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => removeItem(item.key)}
+              disabled={items.length === 1}
+              className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+              aria-label="Remove row"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <Button size="sm" variant="ghost" className="mt-2 h-7 px-2 text-xs" onClick={addItem}>
+        <Plus className="mr-1 h-3 w-3" />
+        Add row
+      </Button>
+
+      <div className="mt-4 flex gap-2">
         <Button size="sm" onClick={() => void handleSubmit()} disabled={create.isPending}>
-          Create
+          {create.isPending ? "Creating…" : "Create plan"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDone}>
           Cancel
