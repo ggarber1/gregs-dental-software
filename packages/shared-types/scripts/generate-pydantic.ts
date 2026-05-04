@@ -96,11 +96,27 @@ import {
   ClinicalNoteListResponseSchema,
 } from "../src/schemas/clinical-notes.js";
 import {
+  ConditionTypeSchema,
+  NotationSystemSchema,
+  ToothConditionStatusSchema,
   ToothConditionSchema,
   CreateToothConditionSchema,
   UpdateToothConditionSchema,
   ToothChartResponseSchema,
 } from "../src/schemas/tooth-chart.js";
+import {
+  TreatmentPlanStatusSchema,
+  TreatmentPlanItemStatusSchema,
+  TreatmentPlanSchema,
+  TreatmentPlanDetailSchema,
+  TreatmentPlanItemSchema,
+  CreateTreatmentPlanSchema,
+  CreateTreatmentPlanItemSchema,
+  UpdateTreatmentPlanSchema,
+  UpdateTreatmentPlanItemSchema,
+  TreatmentPlanListResponseSchema,
+  OpenPlanQueueItemSchema,
+} from "../src/schemas/treatment-plans.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -166,10 +182,25 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   UpdateClinicalNote: UpdateClinicalNoteSchema,
   ClinicalNoteListResponse: ClinicalNoteListResponseSchema,
   // Tooth Chart
+  ConditionType: ConditionTypeSchema,
+  NotationSystem: NotationSystemSchema,
+  ToothConditionStatus: ToothConditionStatusSchema,
   ToothCondition: ToothConditionSchema,
   CreateToothCondition: CreateToothConditionSchema,
   UpdateToothCondition: UpdateToothConditionSchema,
   ToothChartResponse: ToothChartResponseSchema,
+  // Treatment Plans
+  TreatmentPlanStatus: TreatmentPlanStatusSchema,
+  TreatmentPlanItemStatus: TreatmentPlanItemStatusSchema,
+  TreatmentPlan: TreatmentPlanSchema,
+  TreatmentPlanDetail: TreatmentPlanDetailSchema,
+  TreatmentPlanItem: TreatmentPlanItemSchema,
+  CreateTreatmentPlan: CreateTreatmentPlanSchema,
+  CreateTreatmentPlanItem: CreateTreatmentPlanItemSchema,
+  UpdateTreatmentPlan: UpdateTreatmentPlanSchema,
+  UpdateTreatmentPlanItem: UpdateTreatmentPlanItemSchema,
+  TreatmentPlanListResponse: TreatmentPlanListResponseSchema,
+  OpenPlanQueueItem: OpenPlanQueueItemSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

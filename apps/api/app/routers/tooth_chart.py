@@ -48,7 +48,7 @@ def _row_to_schema(row: ToothConditionModel) -> ToothCondition:
         surface=row.surface,
         material=row.material,
         notes=row.notes,
-        status=ToothConditionStatus(row.status),
+        status=ToothConditionStatus(row.status),  # type: ignore[arg-type]
         recordedAt=row.recorded_at,
         recordedBy=row.recorded_by,
         appointmentId=row.appointment_id,
@@ -103,7 +103,8 @@ async def get_tooth_chart(
         if rows:
             await session.commit()
 
-    return ToothChartResponse(conditions=[_row_to_schema(r) for r in rows])
+    conditions = [_row_to_schema(r).model_dump(by_alias=True) for r in rows]
+    return ToothChartResponse(conditions=conditions)  # type: ignore[arg-type]
 
 
 @router.post("/conditions", status_code=201, response_model=ToothCondition)
