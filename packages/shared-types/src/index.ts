@@ -7,3 +7,4 @@ export * from "./schemas/scheduling.js";
 export * from "./schemas/eligibility.js";
 export * from "./schemas/medical-history.js";
 export * from "./schemas/clinical-notes.js";
+export * from "./schemas/tooth-chart.js";

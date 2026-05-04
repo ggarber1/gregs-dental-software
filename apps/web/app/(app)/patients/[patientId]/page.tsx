@@ -10,6 +10,7 @@ import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
 import { MedicalHistoryCard } from "@/components/patients/MedicalHistoryCard";
 import { ClinicalNoteCard } from "@/components/patients/ClinicalNoteCard";
 import { ClinicalNoteList } from "@/components/patients/ClinicalNoteList";
+import { ToothChartCard } from "@/components/patients/ToothChartCard";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -765,7 +766,7 @@ export default function PatientDetailPage() {
 
   const { data: patient, isLoading, isError, error } = usePatient(patientId);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "notes">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart">("overview");
 
   // Redirect on 404
   useEffect(() => {
@@ -837,7 +838,7 @@ export default function PatientDetailPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 border-b border-border">
-        {(["overview", "notes"] as const).map((tab) => (
+        {(["overview", "notes", "tooth-chart"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -847,7 +848,7 @@ export default function PatientDetailPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {tab}
+            {tab === "tooth-chart" ? "Tooth Chart" : tab}
           </button>
         ))}
       </div>
@@ -872,6 +873,11 @@ export default function PatientDetailPage() {
         <div className="rounded-lg border border-border bg-card">
           <ClinicalNoteList patientId={patientId} />
         </div>
+      )}
+
+      {/* Tooth Chart tab */}
+      {activeTab === "tooth-chart" && (
+        <ToothChartCard patientId={patientId} />
       )}
     </div>
   );
