@@ -174,7 +174,7 @@ async def list_clinical_notes(
             await session.commit()
 
     return ClinicalNoteListResponse(
-        items=[_row_to_summary(r) for r in items],
+        items=[_row_to_summary(r).model_dump(by_alias=True) for r in items],  # type: ignore[misc]
         nextCursor=next_cursor,
         hasMore=has_more,
     )

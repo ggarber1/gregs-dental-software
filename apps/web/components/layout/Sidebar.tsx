@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
+  ClipboardList,
   CreditCard,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/patients", label: "Patients", icon: Users },
+  { href: "/treatment-plans/open", label: "Open Plans", icon: ClipboardList },
   { href: "/billing", label: "Billing", icon: CreditCard },
 ] as const;
 

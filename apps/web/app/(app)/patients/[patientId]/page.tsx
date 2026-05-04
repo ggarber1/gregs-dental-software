@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Pencil, X, Check, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 
@@ -11,6 +11,8 @@ import { MedicalHistoryCard } from "@/components/patients/MedicalHistoryCard";
 import { ClinicalNoteCard } from "@/components/patients/ClinicalNoteCard";
 import { ClinicalNoteList } from "@/components/patients/ClinicalNoteList";
 import { ToothChartCard } from "@/components/patients/ToothChartCard";
+import { TreatmentPlanCard } from "@/components/patients/TreatmentPlanCard";
+import { TreatmentPlanTab } from "@/components/patients/TreatmentPlanTab";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -764,9 +766,13 @@ export default function PatientDetailPage() {
   const router = useRouter();
   const patientId = params.patientId;
 
+  const searchParams = useSearchParams();
   const { data: patient, isLoading, isError, error } = usePatient(patientId);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart">("overview");
+  const initialTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart" | "treatment-plan">(
+    initialTab === "treatment-plan" ? "treatment-plan" : "overview",
+  );
 
   // Redirect on 404
   useEffect(() => {
@@ -838,7 +844,7 @@ export default function PatientDetailPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 border-b border-border">
-        {(["overview", "notes", "tooth-chart"] as const).map((tab) => (
+        {(["overview", "notes", "tooth-chart", "treatment-plan"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -848,7 +854,11 @@ export default function PatientDetailPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {tab === "tooth-chart" ? "Tooth Chart" : tab}
+            {tab === "tooth-chart"
+              ? "Tooth Chart"
+              : tab === "treatment-plan"
+              ? "Treatment Plan"
+              : tab}
           </button>
         ))}
       </div>
@@ -863,6 +873,10 @@ export default function PatientDetailPage() {
             <DentalHistoryCard patient={patient} patientId={patientId} />
             <InsuranceCard patientId={patientId} />
             <ClinicalNoteCard patientId={patientId} />
+            <TreatmentPlanCard
+              patientId={patientId}
+              onViewAll={() => setActiveTab("treatment-plan")}
+            />
           </div>
           <IntakeFormsCard patient={patient} patientId={patientId} />
         </>
@@ -878,6 +892,11 @@ export default function PatientDetailPage() {
       {/* Tooth Chart tab */}
       {activeTab === "tooth-chart" && (
         <ToothChartCard patientId={patientId} />
+      )}
+
+      {/* Treatment Plan tab */}
+      {activeTab === "treatment-plan" && (
+        <TreatmentPlanTab patientId={patientId} />
       )}
     </div>
   );
