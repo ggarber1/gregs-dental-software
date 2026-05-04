@@ -30,6 +30,7 @@ import {
   type PatientTolerance,
   type TemplateType,
 } from "@/lib/api/clinical-notes";
+import { useProviders } from "@/lib/api/scheduling";
 import {
   CLINICAL_NOTE_TEMPLATES,
   TEMPLATE_TYPE_OPTIONS,
@@ -108,6 +109,7 @@ export function ClinicalNoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [showSignConfirm, setShowSignConfirm] = useState(false);
 
+  const { data: providers } = useProviders();
   const { mutate: createNote, isPending: isCreating } = useCreateClinicalNote(patientId);
   const { mutate: updateNote, isPending: isUpdating } = useUpdateClinicalNote(
     patientId,
@@ -249,13 +251,23 @@ export function ClinicalNoteEditor({
                     disabled={readOnly || isEdit}
                   />
                 </Field>
-                <Field label="Provider ID *">
-                  <Input
+                <Field label="Provider *">
+                  <Select
                     value={fields.providerId}
-                    onChange={(e) => set("providerId", e.target.value)}
-                    placeholder="UUID"
+                    onValueChange={(v) => set("providerId", v)}
                     disabled={readOnly || isEdit}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(providers ?? []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
 
