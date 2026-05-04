@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Plus, Printer, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronRight, Plus, Printer, Trash2 } from "lucide-react";
+import { AppointmentModal } from "@/components/scheduling/AppointmentModal";
+import { usePatient } from "@/lib/api/patients";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -52,12 +54,24 @@ const ITEM_NEXT_ACTION: Partial<Record<string, { label: string; next: string }>>
 
 function PlanDetail({ patientId, planId }: { patientId: string; planId: string }) {
   const { data, isLoading } = useTreatmentPlanDetail(patientId, planId);
+  const { data: patient } = usePatient(patientId);
   const updateItem = useUpdateTreatmentPlanItem(patientId, planId);
   const deleteItem = useDeleteTreatmentPlanItem(patientId, planId);
 
   const [addingItem, setAddingItem] = useState(false);
   const [newItem, setNewItem] = useState<Partial<CreateTreatmentPlanItemBody>>({});
   const addItem = useAddTreatmentPlanItem(patientId, planId);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [schedulingOpen, setSchedulingOpen] = useState(false);
+
+  function toggleItem(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
 
   function handlePrint() {
     window.print();
@@ -87,6 +101,7 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground print:bg-transparent">
+              <th className="w-8 px-3 py-2 print:hidden" />
               <th className="px-3 py-2">Tooth</th>
               <th className="px-3 py-2">Code</th>
               <th className="px-3 py-2">Procedure</th>
@@ -101,13 +116,24 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
           <tbody>
             {data.items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-4 text-center text-muted-foreground">
+                <td colSpan={10} className="px-3 py-4 text-center text-muted-foreground">
                   No items yet.
                 </td>
               </tr>
             )}
             {data.items.map((item) => (
               <tr key={item.id} className="border-b border-border last:border-0">
+                <td className="px-3 py-2 print:hidden">
+                  {item.status === "accepted" && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleItem(item.id)}
+                      className="h-4 w-4 cursor-pointer rounded border-border"
+                      aria-label={`Select ${item.procedureName}`}
+                    />
+                  )}
+                </td>
                 <td className="px-3 py-2 text-muted-foreground">{item.toothNumber ?? "—"}</td>
                 <td className="px-3 py-2 font-mono text-xs">{item.procedureCode}</td>
                 <td className="px-3 py-2">{item.procedureName}</td>
@@ -319,11 +345,35 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
             Add procedure
           </Button>
         )}
+        {selectedIds.size > 0 && (
+          <Button size="sm" onClick={() => setSchedulingOpen(true)}>
+            <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+            Schedule {selectedIds.size} item{selectedIds.size > 1 ? "s" : ""}
+          </Button>
+        )}
         <Button size="sm" variant="outline" onClick={handlePrint}>
           <Printer className="mr-1.5 h-3.5 w-3.5" />
           Print
         </Button>
       </div>
+
+      <AppointmentModal
+        open={schedulingOpen}
+        onOpenChange={setSchedulingOpen}
+        defaultPatientId={patientId}
+        defaultPatientName={
+          patient ? `${patient.firstName} ${patient.lastName}` : undefined
+        }
+        onCreated={(appt) => {
+          [...selectedIds].forEach((itemId) => {
+            updateItem.mutate({
+              itemId,
+              body: { status: "scheduled", appointmentId: appt.id },
+            });
+          });
+          setSelectedIds(new Set());
+        }}
+      />
     </div>
   );
 }

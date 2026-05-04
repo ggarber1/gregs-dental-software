@@ -46,6 +46,11 @@ interface Props {
   defaultStartTime?: string | undefined; // HH:mm
   defaultEndTime?: string | undefined; // HH:mm — when set (e.g. from a drag-to-range), overrides the start+30min fallback
   defaultOperatoryId?: string | undefined;
+  /** Pre-fill and lock patient — used when opening from a patient context (e.g. treatment plan) */
+  defaultPatientId?: string | undefined;
+  defaultPatientName?: string | undefined;
+  /** Called with the newly created appointment after a successful create */
+  onCreated?: ((appointment: Appointment) => void) | undefined;
   /** If set, we're editing an existing appointment */
   appointment?: Appointment | null | undefined;
   /** Edit-mode only: invoked when the user clicks "Cancel appointment". The
@@ -110,6 +115,9 @@ export function AppointmentModal({
   defaultStartTime,
   defaultEndTime,
   defaultOperatoryId,
+  defaultPatientId,
+  defaultPatientName,
+  onCreated,
   appointment,
   onCancelAppointment,
 }: Props) {
@@ -167,13 +175,15 @@ export function AppointmentModal({
     } else {
       setValues({
         ...EMPTY,
+        patientId: defaultPatientId ?? "",
+        patientSearch: defaultPatientName ?? "",
         date: defaultDate ?? todayInTz(timezone),
         startTime: defaultStartTime ?? "09:00",
         endTime: resolveDefaultEndTime(defaultEndTime, defaultStartTime),
         operatoryId: defaultOperatoryId ?? "",
       });
     }
-  }, [open, appointment, defaultDate, defaultStartTime, defaultEndTime, defaultOperatoryId, timezone]);
+  }, [open, appointment, defaultDate, defaultStartTime, defaultEndTime, defaultOperatoryId, defaultPatientId, defaultPatientName, timezone]);
 
   // Close patient dropdown on outside click
   useEffect(() => {
@@ -232,7 +242,7 @@ export function AppointmentModal({
 
   function validate(): boolean {
     const errs: Partial<Record<keyof FormValues, string>> = {};
-    if (!isEditing && !values.patientId) errs.patientSearch = "Select a patient";
+    if (!isEditing && !values.patientId && !defaultPatientId) errs.patientSearch = "Select a patient";
     if (!values.providerId) errs.providerId = "Required";
     if (!values.operatoryId) errs.operatoryId = "Required";
     if (!values.date) errs.date = "Required";
@@ -270,7 +280,7 @@ export function AppointmentModal({
         });
       } else {
         const body: CreateAppointmentBody = {
-          patientId: values.patientId,
+          patientId: values.patientId || defaultPatientId!,
           providerId: values.providerId,
           operatoryId: values.operatoryId,
           startTime: startTimeISO,
@@ -278,7 +288,8 @@ export function AppointmentModal({
         };
         if (values.appointmentTypeId) body.appointmentTypeId = values.appointmentTypeId;
         if (values.notes) body.notes = values.notes;
-        await createMutation.mutateAsync(body);
+        const created = await createMutation.mutateAsync(body);
+        onCreated?.(created);
       }
       onOpenChange(false);
     } catch (err) {
@@ -324,8 +335,14 @@ export function AppointmentModal({
             </div>
           )}
 
-          {/* Patient search */}
-          {!isEditing && (
+          {/* Patient search — hidden when patient is pre-filled from context */}
+          {!isEditing && defaultPatientId && defaultPatientName && (
+            <div>
+              <Label>Patient</Label>
+              <p className="mt-1 text-sm font-medium">{defaultPatientName}</p>
+            </div>
+          )}
+          {!isEditing && !defaultPatientId && (
             <div className="relative" ref={dropdownRef}>
               <Label htmlFor="patient-search">Patient</Label>
               <Input
