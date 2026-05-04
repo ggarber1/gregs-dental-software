@@ -363,45 +363,123 @@ function PlanRow({ plan, patientId }: { plan: TreatmentPlan; patientId: string }
 
 // ── New plan form ─────────────────────────────────────────────────────────────
 
+interface DraftItem {
+  key: number;
+  toothNumber: string;
+  procedureCode: string;
+  procedureName: string;
+  feeCents: string;
+}
+
+const EMPTY_DRAFT_ITEM: Omit<DraftItem, "key"> = {
+  toothNumber: "",
+  procedureCode: "",
+  procedureName: "",
+  feeCents: "",
+};
+
 function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => void }) {
   const [name, setName] = useState("Treatment Plan");
-  const [notes, setNotes] = useState("");
+  const [items, setItems] = useState<DraftItem[]>([{ key: 0, ...EMPTY_DRAFT_ITEM }]);
+  const [nextKey, setNextKey] = useState(1);
   const create = useCreateTreatmentPlan(patientId);
 
+  function addItem() {
+    setItems((prev) => [...prev, { key: nextKey, ...EMPTY_DRAFT_ITEM }]);
+    setNextKey((k) => k + 1);
+  }
+
+  function removeItem(key: number) {
+    setItems((prev) => prev.filter((i) => i.key !== key));
+  }
+
+  function setItemField(key: number, field: keyof Omit<DraftItem, "key">, value: string) {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, [field]: value } : i)));
+  }
+
   async function handleSubmit() {
+    const validItems = items.filter(
+      (i) => i.procedureCode.trim() && i.procedureName.trim() && i.feeCents.trim(),
+    );
     await create.mutateAsync({
       name: name.trim() || "Treatment Plan",
-      ...(notes ? { notes } : {}),
+      items: validItems.map((i, idx) => ({
+        ...(i.toothNumber.trim() ? { toothNumber: i.toothNumber.trim() } : {}),
+        procedureCode: i.procedureCode.trim(),
+        procedureName: i.procedureName.trim(),
+        feeCents: Math.round(parseFloat(i.feeCents) * 100),
+        priority: idx + 1,
+      })),
     });
     onDone();
   }
 
   return (
     <div className="rounded-md border border-border p-4">
-      <p className="mb-3 text-sm font-medium">New treatment plan</p>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Plan name</Label>
-          <Input
-            className="h-9"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Treatment Plan"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Notes</Label>
-          <Input
-            className="h-9"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes"
-          />
-        </div>
+      <p className="mb-4 text-sm font-medium">New treatment plan</p>
+
+      <div className="mb-4 space-y-1">
+        <Label className="text-xs">Plan name</Label>
+        <Input
+          className="h-9"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Treatment Plan"
+        />
       </div>
-      <div className="mt-3 flex gap-2">
+
+      <div className="mb-2 text-xs font-medium text-muted-foreground">Procedures</div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.key} className="grid grid-cols-[3rem_6rem_1fr_5rem_1.5rem] gap-2 items-center">
+            <Input
+              className="h-8 text-sm"
+              placeholder="Tooth"
+              value={item.toothNumber}
+              onChange={(e) => setItemField(item.key, "toothNumber", e.target.value)}
+            />
+            <Input
+              className="h-8 text-sm"
+              placeholder="Code *"
+              value={item.procedureCode}
+              onChange={(e) => setItemField(item.key, "procedureCode", e.target.value)}
+            />
+            <Input
+              className="h-8 text-sm"
+              placeholder="Procedure name *"
+              value={item.procedureName}
+              onChange={(e) => setItemField(item.key, "procedureName", e.target.value)}
+            />
+            <Input
+              className="h-8 text-sm"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Fee *"
+              value={item.feeCents}
+              onChange={(e) => setItemField(item.key, "feeCents", e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => removeItem(item.key)}
+              disabled={items.length === 1}
+              className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+              aria-label="Remove row"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <Button size="sm" variant="ghost" className="mt-2 h-7 px-2 text-xs" onClick={addItem}>
+        <Plus className="mr-1 h-3 w-3" />
+        Add row
+      </Button>
+
+      <div className="mt-4 flex gap-2">
         <Button size="sm" onClick={() => void handleSubmit()} disabled={create.isPending}>
-          Create
+          {create.isPending ? "Creating…" : "Create plan"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDone}>
           Cancel
