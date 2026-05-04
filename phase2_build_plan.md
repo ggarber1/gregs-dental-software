@@ -344,7 +344,7 @@ Some procedures require multiple appointments (crown prep + crown seat). Model t
 
 Verify:
 
-- [ ] Create a patient → complete medical history → medical alerts bar shows correct flags
+- [x] Create a patient → complete medical history → medical alerts bar shows correct flags
 - [ ] Add clinical note for an appointment → sign it → attempt to edit after signing returns error
 - [ ] Version history drawer shows prior medical history snapshots in order
 - [ ] Tooth chart: add crown to tooth 14, mark tooth 17 missing → chart colors match; history mode with a past date excludes conditions added after that date
@@ -538,6 +538,68 @@ Verify:
 
 ---
 
+## Module 2.6: Practice Fee Schedule
+
+Pre-defined CDT code catalog per practice. Prerequisite for insurance estimation.
+
+### Why this exists
+
+Treatment plan items are currently free-form (staff type code, name, and fee manually). This causes inconsistent codes, no insurance estimation hook, and data that can't be queried by procedure. The fee schedule is the fix: a practice-maintained list of CDT codes with standard fees. When adding a treatment plan item, staff pick from this list and code + name + fee auto-fill.
+
+### DB Schema
+
+```
+fee_schedule_items
+  id              UUID PK
+  practice_id     UUID NOT NULL FK → practices(id)
+  procedure_code  TEXT NOT NULL                    -- e.g. 'D2391'
+  description     TEXT NOT NULL                    -- e.g. 'Resin Composite - 1 Surface, Posterior'
+  standard_fee_cents INTEGER NOT NULL
+  is_active       BOOLEAN NOT NULL DEFAULT TRUE
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  deleted_at      TIMESTAMPTZ
+```
+
+- UNIQUE on `(practice_id, procedure_code)` — one fee per code per practice
+- Index on `(practice_id, is_active)`
+- Not PHI — no audit log required
+
+### API
+
+- `GET /api/v1/fee-schedule` — list all active items for the practice; supports `q` search param for code/description typeahead
+- `POST /api/v1/fee-schedule` — add item
+- `PATCH /api/v1/fee-schedule/{itemId}` — update fee or description
+- `DELETE /api/v1/fee-schedule/{itemId}` — soft delete
+
+### Frontend
+
+- **Settings page** — fee schedule tab where the practice manages their list (add, edit, deactivate items); supports bulk import from CSV (CDT code, description, fee)
+- **Treatment plan item entry** — replace free-form code/name/fee inputs with a searchable picker that queries `/api/v1/fee-schedule?q=...`; selecting a code auto-fills description and standard fee; staff can override the fee before saving
+- Fee override on a treatment plan item is stored on the item, not the fee schedule
+
+### Insurance estimation hook
+
+Once the fee schedule exists, insurance estimation becomes: `patient_est_cents = standard_fee_cents - insurance_est_cents`. The insurance portion is derived from the patient's plan coverage table (a future module). The fee schedule is the prerequisite.
+
+### Deferred
+
+- ADA CDT code import (full 2024 CDT list as a seed) — useful but not required for launch
+- Insurance coverage table (links CDT codes to coverage percentages per plan) — Phase 3
+
+### Checklist
+
+- [ ] `0021_fee_schedule.py` Alembic migration
+- [ ] `app/models/fee_schedule_item.py` SQLAlchemy model
+- [ ] `app/routers/fee_schedule.py` — all endpoints
+- [ ] `packages/shared-types` — `FeeScheduleItem`, `CreateFeeScheduleItem`, `UpdateFeeScheduleItem` Zod schemas
+- [ ] `apps/web/lib/api/fee-schedule.ts` API client
+- [ ] Settings fee schedule tab (list, add, edit, deactivate)
+- [ ] Treatment plan item picker replaces free-form inputs
+- [ ] All tests passing, lint clean
+
+---
+
 ## Non-Negotiable Technical Requirements (apply to all Phase 2 modules)
 
 - **PHI** — all new tables with patient data use `PHIMixin`; audit logs on every read and write
@@ -558,5 +620,6 @@ Verify:
 | `0018` | 2.1 | `tooth_conditions` |
 | `0019` | 2.4 | `treatment_plans`, `treatment_plan_items` |
 | `0020` | 2.3 | `perio_charts`, `perio_readings` |
+| `0021` | 2.6 | `fee_schedule_items` |
 
-Next available migration number: `0021`
+Next available migration number: `0022`
