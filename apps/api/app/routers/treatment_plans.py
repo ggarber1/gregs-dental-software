@@ -465,6 +465,17 @@ async def update_treatment_plan(
             plan.status = body.status
             if body.status == "accepted" and plan.accepted_at is None:
                 plan.accepted_at = now.date()
+                # Auto-accept all proposed items when the plan is accepted
+                await session.execute(
+                    update(TreatmentPlanItemModel)
+                    .where(
+                        TreatmentPlanItemModel.treatment_plan_id == plan_id,
+                        TreatmentPlanItemModel.status == "proposed",
+                        TreatmentPlanItemModel.deleted_at.is_(None),
+                    )
+                    .values(status="accepted", updated_at=now)
+                    .execution_options(synchronize_session=False)
+                )
             elif body.status == "completed" and plan.completed_at is None:
                 plan.completed_at = now.date()
 

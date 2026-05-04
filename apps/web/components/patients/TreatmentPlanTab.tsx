@@ -12,6 +12,7 @@ import {
   useCreateTreatmentPlan,
   useUpdateTreatmentPlan,
   useAddTreatmentPlanItem,
+  useUpdateTreatmentPlanItem,
   useDeleteTreatmentPlanItem,
   type TreatmentPlan,
   type TreatmentPlanStatus,
@@ -44,8 +45,14 @@ const ACTIVE_STATUSES: TreatmentPlanStatus[] = ["proposed", "accepted", "in_prog
 
 // ── Plan detail expand panel ───────────────────────────────────────────────────
 
+const ITEM_NEXT_ACTION: Partial<Record<string, { label: string; next: string }>> = {
+  accepted: { label: "Mark scheduled", next: "scheduled" },
+  scheduled: { label: "Mark complete", next: "completed" },
+};
+
 function PlanDetail({ patientId, planId }: { patientId: string; planId: string }) {
   const { data, isLoading } = useTreatmentPlanDetail(patientId, planId);
+  const updateItem = useUpdateTreatmentPlanItem(patientId, planId);
   const deleteItem = useDeleteTreatmentPlanItem(patientId, planId);
 
   const [addingItem, setAddingItem] = useState(false);
@@ -118,16 +125,34 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
                   </Badge>
                 </td>
                 <td className="px-3 py-2 print:hidden">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteItem.mutate(item.id)}
-                    disabled={deleteItem.isPending}
-                    aria-label="Remove item"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {ITEM_NEXT_ACTION[item.status] && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() =>
+                          updateItem.mutate({
+                            itemId: item.id,
+                            body: { status: ITEM_NEXT_ACTION[item.status]!.next as "scheduled" | "completed" },
+                          })
+                        }
+                        disabled={updateItem.isPending}
+                      >
+                        {ITEM_NEXT_ACTION[item.status]!.label}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteItem.mutate(item.id)}
+                      disabled={deleteItem.isPending}
+                      aria-label="Remove item"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
