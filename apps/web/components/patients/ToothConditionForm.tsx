@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useProviders } from "@/lib/api/scheduling";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -73,6 +74,7 @@ export function ToothConditionForm({
   const [providerId, setProviderId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const { data: providers } = useProviders();
   const { mutate, isPending } = useAddToothCondition(patientId);
 
   const showMaterial = MATERIAL_CONDITION_TYPES.includes(conditionType);
@@ -188,12 +190,19 @@ export function ToothConditionForm({
           </div>
 
           <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Provider ID *</Label>
-            <Input
-              value={providerId}
-              onChange={(e) => setProviderId(e.target.value)}
-              placeholder="Provider UUID"
-            />
+            <Label className="text-xs text-muted-foreground">Provider *</Label>
+            <Select value={providerId} onValueChange={setProviderId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {(providers ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.fullName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
