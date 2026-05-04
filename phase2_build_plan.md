@@ -233,7 +233,7 @@ tooth_conditions
 
 ---
 
-## Module 2.4: Treatment Planning
+## Module 2.4: Treatment Planning  - Done
 
 Link planned procedures to teeth. Track plan from proposal to completion.
 
