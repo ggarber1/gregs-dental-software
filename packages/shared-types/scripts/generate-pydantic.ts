@@ -88,6 +88,19 @@ import {
   CreateMedicalHistorySchema,
   MedicalHistoryHistoryResponseSchema,
 } from "../src/schemas/medical-history.js";
+import {
+  ClinicalNoteSchema,
+  ClinicalNoteSummarySchema,
+  CreateClinicalNoteSchema,
+  UpdateClinicalNoteSchema,
+  ClinicalNoteListResponseSchema,
+} from "../src/schemas/clinical-notes.js";
+import {
+  ToothConditionSchema,
+  CreateToothConditionSchema,
+  UpdateToothConditionSchema,
+  ToothChartResponseSchema,
+} from "../src/schemas/tooth-chart.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -146,6 +159,17 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   MedicalHistoryVersionSummary: MedicalHistoryVersionSummarySchema,
   CreateMedicalHistory: CreateMedicalHistorySchema,
   MedicalHistoryHistoryResponse: MedicalHistoryHistoryResponseSchema,
+  // Clinical Notes
+  ClinicalNote: ClinicalNoteSchema,
+  ClinicalNoteSummary: ClinicalNoteSummarySchema,
+  CreateClinicalNote: CreateClinicalNoteSchema,
+  UpdateClinicalNote: UpdateClinicalNoteSchema,
+  ClinicalNoteListResponse: ClinicalNoteListResponseSchema,
+  // Tooth Chart
+  ToothCondition: ToothConditionSchema,
+  CreateToothCondition: CreateToothConditionSchema,
+  UpdateToothCondition: UpdateToothConditionSchema,
+  ToothChartResponse: ToothChartResponseSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

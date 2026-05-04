@@ -139,7 +139,7 @@ Templates to ship:
 
 ---
 
-## Module 2.1: Digital Tooth Chart
+## Module 2.1: Digital Tooth Chart ✅
 
 Interactive tooth diagram. The core visual artifact of the paper chart.
 
