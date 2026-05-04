@@ -42,7 +42,7 @@ Structured medical history with version tracking. Replaces Eaglesoft's weak medi
 
 ---
 
-## Module 2.2: Clinical Notes
+## Module 2.2: Clinical Notes - Done
 
 Per-visit notes tied to appointments. Replaces the paper chart narrative.
 
