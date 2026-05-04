@@ -595,8 +595,11 @@ Once the fee schedule exists, insurance estimation becomes: `patient_est_cents =
 - [ ] `packages/shared-types` — `FeeScheduleItem`, `CreateFeeScheduleItem`, `UpdateFeeScheduleItem` Zod schemas
 - [ ] `apps/web/lib/api/fee-schedule.ts` API client
 - [ ] Settings fee schedule tab (list, add, edit, deactivate)
-- [ ] Treatment plan item picker replaces free-form inputs
+- [ ] Treatment plan item picker replaces free-form inputs — **blocked until practice defines their procedure list**
 - [ ] All tests passing, lint clean
+
+### Blocked on: Practice procedure list
+Treatment plan item entry stays free-form until the practice decides which CDT codes they use and at what fees. Once that list is defined, enter it into the fee schedule and the picker can be wired up. The new plan form and add-procedure form in `TreatmentPlanTab.tsx` are the two places to update.
 
 ---
 
