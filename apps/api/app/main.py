@@ -26,6 +26,7 @@ from app.routers import (
     medical_history,
     operatories,
     patients,
+    perio_charts,
     practice,
     providers,
     tooth_chart,
@@ -123,6 +124,7 @@ def create_app() -> FastAPI:
     app.include_router(medical_history.router)
     app.include_router(clinical_notes.router)
     app.include_router(tooth_chart.router)
+    app.include_router(perio_charts.router)
     app.include_router(treatment_plans.router)
     app.include_router(treatment_plans.open_router)
     app.include_router(insurance.router)

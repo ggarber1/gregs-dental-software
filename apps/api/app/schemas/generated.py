@@ -1449,3 +1449,121 @@ class OpenPlanQueueItem(BaseModel):
     pending_item_count: int = Field(..., alias='pendingItemCount', ge=0)
     days_since_acceptance: int = Field(..., alias='daysSinceAcceptance', ge=0)
     accepted_at: date | None = Field(..., alias='acceptedAt')
+
+
+# ── Perio Charting ────────────────────────────────────────────────────────────
+
+
+class PerioSite(StrEnum):
+    db = 'db'
+    b = 'b'
+    mb = 'mb'
+    dl = 'dl'
+    l = 'l'
+    ml = 'ml'
+
+
+class Furcation(StrEnum):
+    I = 'I'
+    II = 'II'
+    III = 'III'
+
+
+class PerioReadingCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
+    tooth_number: str = Field(..., alias='toothNumber', pattern=r'^([1-9]|[12][0-9]|3[0-2])$')
+    site: PerioSite
+    probing_depth_mm: int = Field(..., alias='probingDepthMm', ge=0, le=20)
+    recession_mm: int = Field(0, alias='recessionMm', ge=0, le=15)
+    bleeding: bool = False
+    suppuration: bool = False
+    furcation: Furcation | None = None
+    mobility: int | None = Field(None, ge=0, le=3)
+
+
+class PerioReadingOut(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: UUID
+    perio_chart_id: UUID = Field(..., alias='perioChartId')
+    tooth_number: str = Field(..., alias='toothNumber')
+    site: PerioSite
+    probing_depth_mm: int = Field(..., alias='probingDepthMm')
+    recession_mm: int = Field(..., alias='recessionMm')
+    cal: int
+    bleeding: bool
+    suppuration: bool
+    furcation: Furcation | None
+    mobility: int | None
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+
+
+class PerioChartCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
+    appointment_id: UUID | None = Field(None, alias='appointmentId')
+    provider_id: UUID = Field(..., alias='providerId')
+    chart_date: date = Field(..., alias='chartDate')
+    notes: str | None = None
+    readings: list[PerioReadingCreate] = []
+
+
+class AddPerioReadings(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    readings: list[PerioReadingCreate]
+
+
+class PerioChartSummary(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: UUID
+    practice_id: UUID = Field(..., alias='practiceId')
+    patient_id: UUID = Field(..., alias='patientId')
+    appointment_id: UUID | None = Field(..., alias='appointmentId')
+    provider_id: UUID = Field(..., alias='providerId')
+    chart_date: date = Field(..., alias='chartDate')
+    notes: str | None
+    avg_probing_depth_mm: float = Field(..., alias='avgProbingDepthMm')
+    sites_gte_4mm: int = Field(..., alias='sitesGte4mm')
+    sites_gte_6mm: int = Field(..., alias='sitesGte6mm')
+    bleeding_site_count: int = Field(..., alias='bleedingSiteCount')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    updated_at: AwareDatetime = Field(..., alias='updatedAt')
+
+
+class PerioChartDetail(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: UUID
+    practice_id: UUID = Field(..., alias='practiceId')
+    patient_id: UUID = Field(..., alias='patientId')
+    appointment_id: UUID | None = Field(..., alias='appointmentId')
+    provider_id: UUID = Field(..., alias='providerId')
+    chart_date: date = Field(..., alias='chartDate')
+    notes: str | None
+    avg_probing_depth_mm: float = Field(..., alias='avgProbingDepthMm')
+    sites_gte_4mm: int = Field(..., alias='sitesGte4mm')
+    sites_gte_6mm: int = Field(..., alias='sitesGte6mm')
+    bleeding_site_count: int = Field(..., alias='bleedingSiteCount')
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    updated_at: AwareDatetime = Field(..., alias='updatedAt')
+    readings: list[dict[str, Any]]
+
+
+class PerioChartListResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    items: list[dict[str, Any]]
+    next_cursor: str | None = Field(None, alias='nextCursor')
+    has_more: bool = Field(..., alias='hasMore')
+
+
+class PerioSiteDelta(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    tooth_number: str = Field(..., alias='toothNumber')
+    site: PerioSite
+    depth_a: int = Field(..., alias='depthA')
+    depth_b: int = Field(..., alias='depthB')
+    delta: int
+
+
+class PerioChartComparison(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    chart_a: dict[str, Any] = Field(..., alias='chartA')
+    chart_b: dict[str, Any] = Field(..., alias='chartB')
+    deltas: list[dict[str, Any]]

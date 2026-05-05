@@ -548,6 +548,11 @@ Pre-defined CDT code catalog per practice. Prerequisite for insurance estimation
 
 Treatment plan items are currently free-form (staff type code, name, and fee manually). This causes inconsistent codes, no insurance estimation hook, and data that can't be queried by procedure. The fee schedule is the fix: a practice-maintained list of CDT codes with standard fees. When adding a treatment plan item, staff pick from this list and code + name + fee auto-fill.
 
+### Questions i have for dad
+
+does each practice have there own fee for a procedure?
+do they ever charge more than what the insurance pays for?
+
 ### DB Schema
 
 ```
