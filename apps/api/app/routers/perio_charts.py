@@ -276,9 +276,9 @@ async def list_perio_charts(
     ]
 
     return PerioChartListResponse(
-        items=items,  # type: ignore[arg-type]
-        next_cursor=next_cursor,
-        has_more=has_more,
+        items=items,
+        nextCursor=next_cursor,
+        hasMore=has_more,
     )
 
 
@@ -417,9 +417,9 @@ async def compare_perio_charts(
     ]
 
     return PerioChartComparison(
-        chartA=_chart_to_detail(chart_a, list(readings_a)).model_dump(by_alias=True),  # type: ignore[arg-type]
-        chartB=_chart_to_detail(chart_b, list(readings_b)).model_dump(by_alias=True),  # type: ignore[arg-type]
-        deltas=deltas,  # type: ignore[arg-type]
+        chartA=_chart_to_detail(chart_a, list(readings_a)).model_dump(by_alias=True),
+        chartB=_chart_to_detail(chart_b, list(readings_b)).model_dump(by_alias=True),
+        deltas=deltas,
     )
 
 
