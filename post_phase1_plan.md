@@ -12,14 +12,14 @@ Everything below is what turns a working MVP into a full Eaglesoft replacement a
 
 Dad explicitly said he likes paper charts because history is easy to flip through and they work when the system is down. The digital chart has to match that or it won't get used.
 
-### 2.1 Digital Tooth Chart
+### 2.1 Digital Tooth Chart - Done
 - Interactive tooth diagram (adult 32-tooth + primary 20-tooth)
 - Per-tooth status: existing restorations, missing teeth, implants, crowns
 - Colour-coded by status (existing work vs. treatment planned vs. completed today)
 - History view — see the full chart state at any past visit date
 - Print-to-PDF for physical backup (addresses dad's offline concern)
 
-### 2.2 Clinical Notes
+### 2.2 Clinical Notes - Done
 - Per-visit notes tied to appointment
 - Free-text + structured fields (anesthesia used, patient tolerance, complications)
 - Previous visit notes visible in sidebar while writing current note
@@ -32,7 +32,7 @@ Dad explicitly said he likes paper charts because history is easy to flip throug
 - Side-by-side comparison of current vs. previous perio chart
 - Hygienist-entry workflow (different role from dentist)
 
-### 2.4 Treatment Planning
+### 2.4 Treatment Planning - Done
 - Link planned procedures (CDT codes) to specific teeth
 - Treatment plan statuses: proposed → accepted → scheduled → completed → refused
 - Multi-visit plan grouping (e.g. crown requires prep + seat appointments)
@@ -40,7 +40,7 @@ Dad explicitly said he likes paper charts because history is easy to flip throug
 - Open treatment plan tracking — who has accepted a plan but never scheduled?
 - Follow-up queue for patients with unscheduled accepted treatment
 
-### 2.5 Medical History
+### 2.5 Medical History - Done
 - Structured medical history form (conditions, medications, allergies)
 - Flag high-risk conditions relevant to dental treatment (blood thinners, bisphosphonates, heart conditions)
 - Medical alerts prominently displayed on every patient view
