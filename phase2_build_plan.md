@@ -345,13 +345,15 @@ Some procedures require multiple appointments (crown prep + crown seat). Model t
 Verify:
 
 - [x] Create a patient → complete medical history → medical alerts bar shows correct flags
-- [ ] Add clinical note for an appointment → sign it → attempt to edit after signing returns error
-- [ ] Version history drawer shows prior medical history snapshots in order
-- [ ] Tooth chart: add crown to tooth 14, mark tooth 17 missing → chart colors match; history mode with a past date excludes conditions added after that date
-- [ ] Treatment plan: create plan with 3 items → accept → schedule one item → verify item links to appointment
-- [ ] Open treatment plan queue shows the patient above; disappears when all items are scheduled
+- [x] Add clinical note for an appointment → sign it → attempt to edit after signing returns error
+- [x] Version history drawer shows prior medical history snapshots in order
+- [x] Tooth chart: add crown to tooth 14, mark tooth 17 missing → chart colors match; history mode with a past date excludes conditions added after that date
+- [x] Treatment plan: create plan with 3 items → accept → schedule one item → verify item links to appointment
+- [x] Open treatment plan queue shows the patient above; disappears when all items are scheduled
 - [ ] Print tooth chart to PDF — output looks correct for a physical backup
 - [ ] **Dad review:** walk through the full chart experience; confirm it replaces the paper chart flow
+
+what needs to be printed out?
 
 ---
 
