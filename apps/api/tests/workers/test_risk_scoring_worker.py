@@ -6,12 +6,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.workers.risk_scoring_worker import (
-    _fetch_existing_4h_reminder_ids,
     _run,
 )
 

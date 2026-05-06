@@ -94,8 +94,9 @@ async def db_engine(_ensure_test_db: None) -> AsyncGenerator[AsyncEngine, None]:
     """
     import asyncio
 
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_cfg = Config("alembic.ini")
     # env.py calls asyncio.run() internally — run in a thread so it gets its own loop
