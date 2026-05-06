@@ -33,6 +33,8 @@ from sqlalchemy.ext.asyncio import (
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://dental:dental@localhost:5432/dental_test"
 os.environ["APP_ENCRYPTION_KEY"] = "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleTEyMzQ="
 os.environ["REDIS_URL"] = "redis://localhost:6379/1"  # DB 1 avoids dev collision
+# Disable Twilio signature validation — integration tests don't use real Twilio credentials.
+os.environ["TWILIO_AUTH_TOKEN"] = ""
 
 _TEST_DB_URL = "postgresql+asyncpg://dental:dental@localhost:5432/dental_test"
 
@@ -65,26 +67,42 @@ _TRUNCATE_TABLES = (
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def _ensure_test_db() -> None:
-    """Create the dental_test database if it does not exist."""
+    """Drop and recreate dental_test so Alembic always starts from a clean schema.
+
+    Dropping every session prevents schema drift from partial or failed prior runs.
+    Individual tests truncate tables via the db_session fixture — the DB itself
+    only needs to be recreated once per pytest session.
+    """
     conn = await asyncpg.connect("postgresql://dental:dental@localhost:5432/dental")
     try:
-        exists = await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = 'dental_test'")
-        if not exists:
-            await conn.execute("CREATE DATABASE dental_test")
+        await conn.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = 'dental_test' AND pid <> pg_backend_pid()"
+        )
+        await conn.execute("DROP DATABASE IF EXISTS dental_test")
+        await conn.execute("CREATE DATABASE dental_test")
     finally:
         await conn.close()
 
 
 @pytest_asyncio.fixture(scope="session")
 async def db_engine(_ensure_test_db: None) -> AsyncGenerator[AsyncEngine, None]:
-    """Session-scoped async engine pointing at dental_test. Creates all tables once."""
-    # Import models so they register with Base before create_all.
-    import app.models  # noqa: F401 — triggers __init__ imports
-    from app.models.base import Base
+    """Session-scoped async engine pointing at dental_test. Runs Alembic migrations once.
+
+    Using Alembic instead of Base.metadata.create_all avoids asyncpg DDL quoting
+    bugs with JSONB server_default expressions.
+    """
+    import asyncio
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    alembic_cfg = Config("alembic.ini")
+    # env.py calls asyncio.run() internally — run in a thread so it gets its own loop
+    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
 
     engine = create_async_engine(_TEST_DB_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield engine
     await engine.dispose()
 

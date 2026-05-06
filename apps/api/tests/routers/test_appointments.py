@@ -162,6 +162,8 @@ def _make_appointment_row(**overrides: Any) -> MagicMock:
         "status": "scheduled",
         "notes": None,
         "cancellation_reason": None,
+        "no_show_risk": None,
+        "no_show_risk_computed_at": None,
         "deleted_at": None,
         "created_at": datetime(2026, 1, 1, tzinfo=UTC),
         "updated_at": datetime(2026, 1, 1, tzinfo=UTC),
@@ -178,9 +180,16 @@ def _make_appointment_row(**overrides: Any) -> MagicMock:
 
 def _mock_session() -> AsyncMock:
     """Create a mock async session with context-manager support."""
-    # Default execute result: empty reminder summary (no reminder rows).
+    # history result used by _fetch_patient_history (calls .one())
+    _history_one = MagicMock()
+    _history_one.total = 0
+    _history_one.no_show_count = 0
+    _history_one.cancel_count = 0
+
+    # reminder summary result used by _batch_reminder_summary (calls .all())
     _empty_execute = MagicMock()
     _empty_execute.all.return_value = []
+    _empty_execute.one.return_value = _history_one
 
     session = AsyncMock()
     session.__aenter__ = AsyncMock(return_value=session)

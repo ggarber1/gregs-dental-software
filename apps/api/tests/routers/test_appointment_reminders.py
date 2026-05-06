@@ -91,6 +91,8 @@ def _make_appointment_mock(patient: MagicMock | None = None) -> MagicMock:
     row.provider = provider
     row.operatory = operatory
     row.appointment_type = None
+    row.no_show_risk = None
+    row.no_show_risk_computed_at = None
     return row
 
 

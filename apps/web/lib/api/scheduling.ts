@@ -45,6 +45,7 @@ export interface Appointment {
   appointmentTypeName: string | null;
   appointmentTypeColor: string | null;
   reminderSummary: ReminderSummary | null;
+  noShowRisk: "low" | "medium" | "high" | null;
   createdAt: string;
   updatedAt: string;
 }

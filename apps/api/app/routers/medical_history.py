@@ -42,7 +42,7 @@ _BISPHOSPHONATE_KW: frozenset[str] = frozenset(
     {"bisphosphonate", "fosamax", "boniva", "prolia", "actonel"}
 )
 _HEART_CONDITION_KW: frozenset[str] = frozenset(
-    {"heart", "cardiac", "arrhythmia", "afib", "murmur"}
+    {"heart", "cardiac", "arrhythmia", "afib", "atrial", "fibrillation", "murmur"}
 )
 _DIABETES_KW: frozenset[str] = frozenset({"diabetes", "diabetic", "insulin", "metformin"})
 _PACEMAKER_KW: frozenset[str] = frozenset({"pacemaker", "icd", "defibrillator"})
@@ -55,18 +55,20 @@ def _kw_match(names: set[str], keywords: frozenset[str]) -> bool:
 def _compute_flags(
     conditions: list[Any],
     allergies: list[Any],
+    medications: list[Any],
     client_flags: Flags | None,
 ) -> dict[str, bool]:
     condition_names = {c.name.lower() for c in conditions}
     allergy_names = {a.name.lower() for a in allergies}
-    all_names = condition_names | allergy_names
+    medication_names = {m.name.lower() for m in medications}
+    all_names = condition_names | allergy_names | medication_names
 
     computed = {
-        "flag_blood_thinners": _kw_match(condition_names, _BLOOD_THINNER_KW),
-        "flag_bisphosphonates": _kw_match(condition_names, _BISPHOSPHONATE_KW),
-        "flag_heart_condition": _kw_match(condition_names, _HEART_CONDITION_KW),
-        "flag_diabetes": _kw_match(condition_names, _DIABETES_KW),
-        "flag_pacemaker": _kw_match(condition_names, _PACEMAKER_KW),
+        "flag_blood_thinners": _kw_match(all_names, _BLOOD_THINNER_KW),
+        "flag_bisphosphonates": _kw_match(all_names, _BISPHOSPHONATE_KW),
+        "flag_heart_condition": _kw_match(all_names, _HEART_CONDITION_KW),
+        "flag_diabetes": _kw_match(all_names, _DIABETES_KW),
+        "flag_pacemaker": _kw_match(all_names, _PACEMAKER_KW),
         "flag_latex_allergy": _kw_match(all_names, frozenset({"latex"})),
     }
 
@@ -299,7 +301,7 @@ async def create_medical_history_version(
     medications = body.medications or []
     conditions = body.conditions or []
 
-    flags = _compute_flags(conditions, allergies, body.flags)
+    flags = _compute_flags(conditions, allergies, medications, body.flags)
 
     allergies_json = [a.model_dump(by_alias=True, exclude_none=True) for a in allergies]
     medications_json = [m.model_dump(by_alias=True, exclude_none=True) for m in medications]

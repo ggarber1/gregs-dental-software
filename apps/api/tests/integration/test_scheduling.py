@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.integration.conftest import mut
 
@@ -606,3 +608,175 @@ async def test_reschedule_into_conflict_rejected(
     )
     assert resp.status_code == 409
     assert resp.json()["error"]["code"] == "SCHEDULING_CONFLICT"
+
+
+# ── No-Show Risk Scoring ──────────────────────────────────────────────────────
+
+
+@pytest.mark.integration
+async def test_no_show_risk_present_on_create(
+    client, auth_headers, patient, provider, operatory
+) -> None:
+    """noShowRisk is set immediately on appointment creation — never null."""
+    h = auth_headers
+
+    # Mid-week, mid-day, far-future: only unconfirmed (+25) signal fires → medium
+    start = datetime(2030, 9, 18, 10, 0, tzinfo=UTC)  # Wednesday
+    end = start + timedelta(minutes=45)
+
+    resp = await client.post(
+        "/api/v1/appointments",
+        json={
+            "patientId": str(patient.id),
+            "providerId": str(provider.id),
+            "operatoryId": str(operatory.id),
+            "startTime": start.isoformat(),
+            "endTime": end.isoformat(),
+        },
+        headers=mut(h),
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert "noShowRisk" in body
+    assert body["noShowRisk"] in ("low", "medium", "high")
+    # New patient, no history, unconfirmed → exactly medium (score=25)
+    assert body["noShowRisk"] == "medium"
+
+
+@pytest.mark.integration
+async def test_no_show_risk_recomputed_on_confirmation(
+    client, auth_headers, patient, provider, operatory
+) -> None:
+    """Confirming an appointment recomputes the risk in the same response.
+
+    Before confirm: unconfirmed (+25), no history, mid-week mid-day far future → medium.
+    After confirm: confirmed (0 penalty), same clean signals → low.
+    """
+    h = auth_headers
+
+    start = datetime(2030, 9, 18, 10, 0, tzinfo=UTC)  # Wednesday 10am UTC
+    end = start + timedelta(minutes=45)
+
+    resp = await client.post(
+        "/api/v1/appointments",
+        json={
+            "patientId": str(patient.id),
+            "providerId": str(provider.id),
+            "operatoryId": str(operatory.id),
+            "startTime": start.isoformat(),
+            "endTime": end.isoformat(),
+        },
+        headers=mut(h),
+    )
+    assert resp.status_code == 201
+    appt_id = resp.json()["id"]
+    assert resp.json()["noShowRisk"] == "medium"
+
+    # Confirm — risk must drop in the same response
+    resp = await client.patch(
+        f"/api/v1/appointments/{appt_id}",
+        json={"status": "confirmed"},
+        headers=mut(h),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "confirmed"
+    assert body["noShowRisk"] == "low"
+
+
+@pytest.mark.integration
+async def test_nightly_worker_scores_and_deduplicates_reminder(
+    db_engine, db_session: AsyncSession, patient, provider, operatory, practice
+) -> None:
+    """The nightly worker:
+
+    1. Sets no_show_risk on upcoming appointments.
+    2. Stages a 4h reminder for high-risk appointments.
+    3. Does NOT create a second 4h reminder on a second run.
+    """
+    from sqlalchemy import select
+
+    from app.models.appointment import Appointment
+    from app.models.appointment_reminder import AppointmentReminder
+    from app.workers.risk_scoring_worker import _run
+
+    now = datetime.now(UTC)
+
+    # Give the patient a bad history: 2 no-shows out of 4 past appointments (50%)
+    past_base = now - timedelta(days=30)
+    for i, status in enumerate(["no_show", "no_show", "completed", "completed"]):
+        past = Appointment(
+            id=uuid.uuid4(),
+            practice_id=practice.id,
+            patient_id=patient.id,
+            provider_id=provider.id,
+            operatory_id=operatory.id,
+            start_time=past_base + timedelta(days=i),
+            end_time=past_base + timedelta(days=i, minutes=30),
+            status=status,
+        )
+        db_session.add(past)
+    await db_session.commit()
+
+    # Create an upcoming appointment: unconfirmed + 50% no-show history → high risk
+    # Monday 8am UTC: +40 history + +25 unconfirmed + +10 Monday + +10 early = 85 → high
+    next_monday_8am = _next_weekday(now + timedelta(days=2), weekday=0).replace(
+        hour=8, minute=0, second=0, microsecond=0
+    )
+    appt = Appointment(
+        id=uuid.uuid4(),
+        practice_id=practice.id,
+        patient_id=patient.id,
+        provider_id=provider.id,
+        operatory_id=operatory.id,
+        start_time=next_monday_8am,
+        end_time=next_monday_8am + timedelta(minutes=45),
+        status="scheduled",
+    )
+    db_session.add(appt)
+    await db_session.commit()
+
+    # Wire the worker to the test DB
+    test_factory = async_sessionmaker(db_engine, expire_on_commit=False)
+
+    with patch("app.workers.risk_scoring_worker.get_session_factory", return_value=test_factory):
+        await _run()
+
+    # Score must be set
+    await db_session.refresh(appt)
+    assert appt.no_show_risk == "high"
+    assert appt.no_show_risk_computed_at is not None
+
+    # A 4h reminder must have been staged (both SMS and email)
+    reminders = (
+        await db_session.scalars(
+            select(AppointmentReminder).where(
+                AppointmentReminder.appointment_id == appt.id,
+                AppointmentReminder.hours_before == 4,
+            )
+        )
+    ).all()
+    assert len(reminders) == 2  # sms + email
+    assert {r.reminder_type for r in reminders} == {"sms", "email"}
+
+    # Second run must not create duplicate 4h reminders
+    with patch("app.workers.risk_scoring_worker.get_session_factory", return_value=test_factory):
+        await _run()
+
+    reminders_after = (
+        await db_session.scalars(
+            select(AppointmentReminder).where(
+                AppointmentReminder.appointment_id == appt.id,
+                AppointmentReminder.hours_before == 4,
+            )
+        )
+    ).all()
+    assert len(reminders_after) == 2  # still exactly 2 — no duplicates
+
+
+def _next_weekday(from_dt: datetime, weekday: int) -> datetime:
+    """Return the next occurrence of weekday (0=Mon) at or after from_dt."""
+    days_ahead = weekday - from_dt.weekday()
+    if days_ahead < 0:
+        days_ahead += 7
+    return from_dt + timedelta(days=days_ahead)

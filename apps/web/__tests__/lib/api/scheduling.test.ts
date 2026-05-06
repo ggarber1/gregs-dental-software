@@ -87,6 +87,7 @@ function makeAppt(overrides: Partial<Appointment["reminderSummary"]> = {}): Appo
     operatoryName: null,
     appointmentTypeName: null,
     appointmentTypeColor: null,
+    noShowRisk: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     reminderSummary: {

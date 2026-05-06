@@ -57,10 +57,10 @@ async def test_create_appointment_creates_two_pending_reminders(
     appt_id = uuid.UUID(resp.json()["id"])
 
     reminders = await _fetch_reminders(db_session, appt_id)
-    assert len(reminders) == 2
+    assert len(reminders) == 4  # 2 windows × 2 channels (sms + email)
     assert {r.hours_before for r in reminders} == {48, 24}
+    assert {r.reminder_type for r in reminders} == {"sms", "email"}
     assert all(r.status == "pending" for r in reminders)
-    assert all(r.reminder_type == "sms" for r in reminders)
     assert all(r.patient_id == patient.id for r in reminders)
     assert all(r.practice_id == provider.practice_id for r in reminders)
 
@@ -120,7 +120,7 @@ async def test_cancel_appointment_cancels_pending_reminders(
     appt_id = uuid.UUID(resp.json()["id"])
 
     reminders_before = await _fetch_reminders(db_session, appt_id)
-    assert len(reminders_before) == 2
+    assert len(reminders_before) == 4  # 2 windows × 2 channels
     assert all(r.status == "pending" for r in reminders_before)
 
     resp = await client.delete(f"/api/v1/appointments/{appt_id}", headers=mut(h))
@@ -160,7 +160,7 @@ async def test_reschedule_appointment_cancels_old_and_creates_new_reminders(
     appt_id = uuid.UUID(resp.json()["id"])
 
     original_reminders = await _fetch_reminders(db_session, appt_id)
-    assert len(original_reminders) == 2
+    assert len(original_reminders) == 4  # 2 windows × 2 channels
     original_ids = {r.id for r in original_reminders}
 
     # Reschedule to 14 days out
@@ -193,7 +193,7 @@ async def test_reschedule_appointment_cancels_old_and_creates_new_reminders(
     all_reminders = all_reminders_result.all()
 
     new_reminders = [r for r in all_reminders if r.id not in original_ids]
-    assert len(new_reminders) == 2
+    assert len(new_reminders) == 4  # 2 windows × 2 channels
     assert all(r.status == "pending" for r in new_reminders)
     # New send_at values should be based on the new start time
     new_send_ats = {r.hours_before: r.send_at for r in new_reminders}
@@ -227,7 +227,7 @@ async def test_no_show_status_cancels_pending_reminders(
     appt_id = uuid.UUID(resp.json()["id"])
 
     reminders = await _fetch_reminders(db_session, appt_id)
-    assert len(reminders) == 2
+    assert len(reminders) == 4  # 2 windows × 2 channels
 
     resp = await client.patch(
         f"/api/v1/appointments/{appt_id}",
