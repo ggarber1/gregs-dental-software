@@ -51,6 +51,57 @@ jobs:
             echo "No tests directory — skipping"
           fi
 
+  integration-test-python:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test-python
+    defaults:
+      run:
+        working-directory: apps/api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dental
+          POSTGRES_PASSWORD: dental
+          POSTGRES_DB: dental
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dental -d dental"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.18"
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Run integration tests
+        run: uv run pytest -m integration
+        env:
+          DATABASE_URL: postgresql+asyncpg://dental:dental@localhost:5432/dental_test
+          APP_ENCRYPTION_KEY: dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleTEyMzQ=
+          REDIS_URL: redis://localhost:6379/1
+          TWILIO_AUTH_TOKEN: ""
+
   lint-node:
     name: Lint Node
     runs-on: ubuntu-latest

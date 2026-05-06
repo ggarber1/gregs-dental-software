@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +28,7 @@ from app.schemas.generated import (
     UpdateAppointment,
 )
 from app.services.reminders import cancel_reminders_for_appointment, stage_reminder_jobs
+from app.services.risk_scoring import PatientAppointmentHistory, compute_risk_score
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ _WRITE_ROLES: frozenset[str] = frozenset({"admin", "provider", "front_desk"})
 
 def _err(code: str, message: str) -> dict[str, dict[str, str]]:
     return {"error": {"code": code, "message": message}}
+
 
 # ── Status state machine ─────────────────────────────────────────────────────
 
@@ -126,11 +128,13 @@ async def _check_conflicts(
             )
         ).all()
         for row in provider_rows:
-            conflicts.append({
-                "type": "provider",
-                "appointmentId": str(row.id),
-                "resourceId": str(provider_id),
-            })
+            conflicts.append(
+                {
+                    "type": "provider",
+                    "appointmentId": str(row.id),
+                    "resourceId": str(provider_id),
+                }
+            )
 
     # Check operatory conflicts
     if operatory_id is not None:
@@ -143,11 +147,13 @@ async def _check_conflicts(
             )
         ).all()
         for row in operatory_rows:
-            conflicts.append({
-                "type": "operatory",
-                "appointmentId": str(row.id),
-                "resourceId": str(operatory_id),
-            })
+            conflicts.append(
+                {
+                    "type": "operatory",
+                    "appointmentId": str(row.id),
+                    "resourceId": str(operatory_id),
+                }
+            )
 
     return conflicts
 
@@ -214,6 +220,46 @@ async def _batch_reminder_summary(
     return best
 
 
+# ── Patient history ───────────────────────────────────────────────────────────
+
+_HISTORY_STATUSES = ("completed", "no_show", "cancelled", "checked_in", "in_chair")
+
+
+async def _fetch_patient_history(
+    session: AsyncSession,
+    patient_id: uuid.UUID,
+    exclude_appointment_id: uuid.UUID | None = None,
+) -> PatientAppointmentHistory:
+    filters = [
+        AppointmentModel.patient_id == patient_id,
+        AppointmentModel.status.in_(_HISTORY_STATUSES),
+        AppointmentModel.start_time < datetime.now(UTC),
+        AppointmentModel.deleted_at.is_(None),
+    ]
+    if exclude_appointment_id is not None:
+        filters.append(AppointmentModel.id != exclude_appointment_id)
+
+    row = (
+        await session.execute(
+            select(
+                func.count().label("total"),
+                func.sum(case((AppointmentModel.status == "no_show", 1), else_=0)).label(
+                    "no_show_count"
+                ),
+                func.sum(case((AppointmentModel.status == "cancelled", 1), else_=0)).label(
+                    "cancel_count"
+                ),
+            ).where(*filters)
+        )
+    ).one()
+
+    return PatientAppointmentHistory(
+        total=row.total or 0,
+        no_show_count=row.no_show_count or 0,
+        cancel_count=row.cancel_count or 0,
+    )
+
+
 # ── Serialisation ─────────────────────────────────────────────────────────────
 
 
@@ -265,6 +311,7 @@ def _row_to_schema(
         appointmentTypeName=appt_type_name,
         appointmentTypeColor=appt_type_color,
         reminderSummary=reminder_summary,
+        noShowRisk=row.no_show_risk,  # type: ignore[arg-type]
         createdAt=row.created_at,
         updatedAt=row.updated_at,
     )
@@ -452,6 +499,13 @@ async def create_appointment(
         )
         reminder_hours = list(practice.reminder_hours) if practice else None
 
+        history = await _fetch_patient_history(session, body.patient_id)
+        lead_hours = (body.start_time - datetime.now(UTC)).total_seconds() / 3600
+        row.no_show_risk = compute_risk_score(
+            row, history, is_confirmed=False, lead_time_hours=lead_hours
+        )
+        row.no_show_risk_computed_at = datetime.now(UTC)
+
         session.add(row)
         stage_reminder_jobs(session, row, reminder_hours=reminder_hours)
         await session.commit()
@@ -508,7 +562,6 @@ async def update_appointment(
         scheduling_fields_changed = bool(
             provided & {"start_time", "end_time", "provider_id", "operatory_id"}
         )
-
 
         # Validate FK references if they're being changed
         if "provider_id" in provided and body.provider_id is not None:
@@ -620,6 +673,17 @@ async def update_appointment(
             reminder_hours = list(practice.reminder_hours) if practice else None
             await cancel_reminders_for_appointment(session, appointment_id)
             stage_reminder_jobs(session, row, reminder_hours=reminder_hours)
+
+        # Recompute risk when status transitions to confirmed — highest-weight signal.
+        if "status" in provided and body.status == "confirmed" and row.patient_id is not None:
+            history = await _fetch_patient_history(
+                session, row.patient_id, exclude_appointment_id=appointment_id
+            )
+            lead_hours = (row.start_time - datetime.now(UTC)).total_seconds() / 3600
+            row.no_show_risk = compute_risk_score(
+                row, history, is_confirmed=True, lead_time_hours=lead_hours
+            )
+            row.no_show_risk_computed_at = datetime.now(UTC)
 
         await session.commit()
 

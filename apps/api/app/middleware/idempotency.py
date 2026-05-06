@@ -12,9 +12,12 @@ logger = logging.getLogger(__name__)
 _MUTATION_METHODS: frozenset[str] = frozenset({"POST", "PATCH", "PUT", "DELETE"})
 _TTL_SECONDS = 86_400  # 24 hours
 
-# Public routes that use their own idempotency mechanism (e.g. single-use tokens)
-# and must not require the Idempotency-Key header.
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/api/intake/form/",)
+# Public routes that use their own idempotency mechanism or are called by external
+# services (e.g. Twilio) that cannot send Idempotency-Key headers.
+_PUBLIC_PREFIXES: tuple[str, ...] = (
+    "/api/intake/form/",
+    "/api/v1/webhooks/",
+)
 
 
 def _cache_key(practice_id: str | None, idempotency_key: str) -> str:

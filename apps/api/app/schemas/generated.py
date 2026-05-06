@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, RootModel
@@ -614,6 +614,7 @@ class Appointment(BaseModel):
     appointment_type_name: str | None = Field(None, alias='appointmentTypeName')
     appointment_type_color: str | None = Field(None, alias='appointmentTypeColor')
     reminder_summary: ReminderSummary | None = Field(None, alias='reminderSummary')
+    no_show_risk: Literal['low', 'medium', 'high'] | None = Field(None, alias='noShowRisk')
     created_at: AwareDatetime = Field(..., alias='createdAt')
     updated_at: AwareDatetime = Field(..., alias='updatedAt')
 

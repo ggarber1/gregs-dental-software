@@ -84,7 +84,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
     .filter((a) => a.status !== "cancelled")
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-  const colCount = 9;
+  const colCount = 10;
 
   return (
     <div className="flex flex-col gap-4">
@@ -114,6 +114,7 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
               <TableHead className="w-8 text-center">Conf</TableHead>
               <TableHead className="w-28">Reminders</TableHead>
               <TableHead>Patient</TableHead>
+              <TableHead className="w-14">Risk</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Operatory</TableHead>
@@ -168,6 +169,15 @@ export function DaySheet({ date, onEditAppointment, onCancelAppointment }: DaySh
                       )}
                     </TableCell>
                     <TableCell className="font-medium">{appt.patientName ?? "—"}</TableCell>
+                    <TableCell className="text-sm">
+                      {appt.noShowRisk === "high" ? (
+                        <span className="font-medium text-red-500">High</span>
+                      ) : appt.noShowRisk === "medium" ? (
+                        <span className="font-medium text-yellow-500">Med</span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {appt.appointmentTypeName ? (
                         <span className="flex items-center gap-1.5">

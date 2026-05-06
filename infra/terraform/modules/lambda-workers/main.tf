@@ -140,3 +140,63 @@ resource "aws_lambda_event_source_mapping" "worker" {
   # Report individual item failures back to SQS so only failed messages go to DLQ
   function_response_types = ["ReportBatchItemFailures"]
 }
+
+# ── Risk-scoring Lambda (EventBridge-scheduled, not SQS-triggered) ────────────
+
+resource "aws_lambda_function" "risk_scoring" {
+  function_name = "dental-risk-scoring-worker-${var.env}"
+  role          = aws_iam_role.worker.arn
+  runtime       = "python3.12"
+  handler       = "app.workers.risk_scoring_worker.handler"
+  timeout       = 300
+  memory_size   = 256
+
+  filename         = data.archive_file.placeholder.output_path
+  source_code_hash = data.archive_file.placeholder.output_base64sha256
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.worker_sg_id]
+  }
+
+  environment {
+    variables = {
+      ENV                = var.env
+      SSM_PARAMETER_PATH = var.ssm_parameter_path
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+
+  tags = merge(var.tags, { Name = "dental-risk-scoring-worker-${var.env}" })
+}
+
+resource "aws_cloudwatch_log_group" "risk_scoring" {
+  name              = "/aws/lambda/dental-risk-scoring-worker-${var.env}"
+  retention_in_days = 90
+  tags              = var.tags
+}
+
+# 2am ET = 7am UTC
+resource "aws_cloudwatch_event_rule" "risk_scoring_nightly" {
+  name                = "dental-risk-scoring-nightly-${var.env}"
+  description         = "Trigger no-show risk scoring run nightly at 2am ET"
+  schedule_expression = "cron(0 7 * * ? *)"
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "risk_scoring_nightly" {
+  rule      = aws_cloudwatch_event_rule.risk_scoring_nightly.name
+  target_id = "RiskScoringLambda"
+  arn       = aws_lambda_function.risk_scoring.arn
+}
+
+resource "aws_lambda_permission" "risk_scoring_eventbridge" {
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.risk_scoring.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.risk_scoring_nightly.arn
+}

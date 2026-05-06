@@ -162,9 +162,11 @@ async def test_full_treatment_plan_flow(
     assert new_item_id not in item_ids
 
     # ── 11. Auth: Practice B cannot access this plan ──────────────────────────
+    # The user has no PracticeUser row for a random practice, so the auth
+    # middleware rejects at the membership check — 403, not 404.
     practice_b_headers = {**auth_headers, "X-Practice-ID": str(uuid.uuid4())}
     response = await client.get(f"{base_url}/{plan_id}", headers=practice_b_headers)
-    assert response.status_code == 404
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio
