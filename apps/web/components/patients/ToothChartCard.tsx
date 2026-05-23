@@ -267,8 +267,8 @@ function ToothButton({
   const fills = surfaceFillColors(conditions, toothNumber);
   const zoneFills = zoneFillColors(conditions);
   const center = centerSurfaceCode(toothNumber);
-  const emptyCell = "bg-gray-50";
-  const emptyZone = "bg-gray-100";
+  const emptyCell = "bg-gray-100";
+  const emptyZone = "bg-gray-200";
 
   const titleParts: string[] = [`Tooth ${displayLabel}`];
   if (conditions.length > 0) {
@@ -294,19 +294,19 @@ function ToothButton({
       `}
     >
       {isUpper && (
-        <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
+        <span className="text-[11px] text-muted-foreground leading-none pt-0.5">
           {displayLabel}
         </span>
       )}
 
-      {/* Tooth body — surface grid + cervical band + root box. Badges hang off
-          the outer wrapper so they aren't clipped by the grid's overflow. */}
+      {/* Tooth body — crown grid + cervical band + tapered root. Badges hang
+          off the outer wrapper so they aren't clipped by the grid's overflow. */}
       <div className="relative">
         <div
-          className={`w-9 h-9 rounded-sm rounded-b-none border border-gray-400 overflow-hidden ${statusOverlay}`}
+          className={`w-14 h-14 rounded-t-md rounded-b-none border border-gray-500 overflow-hidden ${statusOverlay}`}
         >
           {isMissing ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-300 text-gray-700 text-[10px] font-bold">
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-300 text-gray-700 text-base font-bold">
               ×
             </div>
           ) : (
@@ -314,33 +314,33 @@ function ToothButton({
               <div className={emptyCell} />
               <div
                 data-testid={`surface-${toothNumber}-B`}
-                className={`${fills.B ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+                className={`${fills.B ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
               >
                 B
               </div>
               <div className={emptyCell} />
               <div
                 data-testid={`surface-${toothNumber}-M`}
-                className={`${fills.M ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+                className={`${fills.M ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
               >
                 M
               </div>
               <div
                 data-testid={`surface-${toothNumber}-${center}`}
-                className={`${fills[center] ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+                className={`${fills[center] ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
               >
                 {center}
               </div>
               <div
                 data-testid={`surface-${toothNumber}-D`}
-                className={`${fills.D ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+                className={`${fills.D ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
               >
                 D
               </div>
               <div className={emptyCell} />
               <div
                 data-testid={`surface-${toothNumber}-L`}
-                className={`${fills.L ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+                className={`${fills.L ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
               >
                 L
               </div>
@@ -353,22 +353,22 @@ function ToothButton({
         {!isMissing && (
           <div
             data-testid={`cervical-${toothNumber}`}
-            className={`w-9 h-1.5 border-x border-gray-400 ${zoneFills.cervical ?? emptyZone}`}
+            className={`w-14 h-2.5 border-x border-gray-500 ${zoneFills.cervical ?? emptyZone}`}
           />
         )}
 
-        {/* Root box — narrower rectangle representing the root. */}
+        {/* Root box — narrower rounded rectangle, tapers visually. */}
         {!isMissing && (
           <div className="flex justify-center">
             <div
               data-testid={`root-${toothNumber}`}
-              className={`w-6 h-2 rounded-b-sm border border-t-0 border-gray-400 ${zoneFills.root ?? emptyZone}`}
+              className={`w-9 h-5 rounded-b-lg border border-t-0 border-gray-500 ${zoneFills.root ?? emptyZone}`}
             />
           </div>
         )}
 
         {hasMultiple && !isMissing && (
-          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground">
             {conditions.length}
           </span>
         )}
@@ -379,13 +379,13 @@ function ToothButton({
             data-urgency={planUrgency}
             aria-label={`${treatmentItems.length} planned (${planUrgency})`}
             title={`Treatment planned (${planUrgency})`}
-            className={`absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
+            className={`absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
           />
         )}
       </div>
 
       {!isUpper && (
-        <span className="text-[9px] text-muted-foreground leading-none pb-0.5">
+        <span className="text-[11px] text-muted-foreground leading-none pb-0.5">
           {displayLabel}
         </span>
       )}
@@ -735,9 +735,9 @@ export function ToothChartCard({
             <>
               {/* Chart grid */}
               <div className="overflow-x-auto">
-                <div className="min-w-[560px]">
+                <div className="min-w-[900px]">
                   {/* Upper arch */}
-                  <div className="flex justify-center gap-1 pb-1 border-b border-dashed border-border">
+                  <div className="flex justify-center gap-1.5 pb-2 border-b border-dashed border-border">
                     {upperTeeth.map((t) => (
                       <ToothButton
                         key={t}
@@ -759,7 +759,7 @@ export function ToothChartCard({
                   </div>
 
                   {/* Lower arch */}
-                  <div className="flex justify-center gap-1 pt-1">
+                  <div className="flex justify-center gap-1.5 pt-2">
                     {lowerTeeth.map((t) => (
                       <ToothButton
                         key={t}
