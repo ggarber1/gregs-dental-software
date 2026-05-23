@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/tooth-chart";
 import type { TreatmentPlanItem } from "@/lib/api/treatment-plans";
 import { ToothConditionForm } from "./ToothConditionForm";
+import { highestUrgency, urgencyBadgeColor } from "./toothChartHelpers";
 
 export { hasTreatmentPlannedItem } from "./toothChartHelpers";
 
@@ -140,13 +141,14 @@ function ToothButton({
   const primaryType = primaryConditionType(conditions);
   const hasMultiple = conditions.length > 1;
   const hasTreatmentPlan = treatmentItems.length > 0;
+  const planUrgency = highestUrgency(treatmentItems);
 
   const titleParts: string[] = [`Tooth ${displayLabel}`];
   if (conditions.length > 0) {
     titleParts.push(conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", "));
   }
-  if (hasTreatmentPlan) {
-    titleParts.push(`${treatmentItems.length} treatment-planned`);
+  if (hasTreatmentPlan && planUrgency) {
+    titleParts.push(`${treatmentItems.length} treatment-planned (${planUrgency})`);
   }
 
   return (
@@ -175,12 +177,13 @@ function ToothButton({
             {conditions.length}
           </span>
         )}
-        {hasTreatmentPlan && (
+        {hasTreatmentPlan && planUrgency && (
           <span
             data-testid="treatment-plan-badge"
-            aria-label={`${treatmentItems.length} planned`}
-            title="Treatment planned"
-            className="absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 bg-orange-500 border border-white"
+            data-urgency={planUrgency}
+            aria-label={`${treatmentItems.length} planned (${planUrgency})`}
+            title={`Treatment planned (${planUrgency})`}
+            className={`absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
           />
         )}
       </div>
@@ -308,8 +311,16 @@ function ChartLegend() {
         </div>
       ))}
       <div className="flex items-center gap-1">
+        <span className="inline-block w-2.5 h-2.5 rotate-45 bg-red-600" />
+        <span className="text-[10px] text-muted-foreground">Urgent</span>
+      </div>
+      <div className="flex items-center gap-1">
         <span className="inline-block w-2.5 h-2.5 rotate-45 bg-orange-500" />
-        <span className="text-[10px] text-muted-foreground">Planned item</span>
+        <span className="text-[10px] text-muted-foreground">Soon</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="inline-block w-2.5 h-2.5 rotate-45 bg-gray-400" />
+        <span className="text-[10px] text-muted-foreground">Elective</span>
       </div>
     </div>
   );
