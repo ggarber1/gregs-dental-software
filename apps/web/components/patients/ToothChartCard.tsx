@@ -197,8 +197,6 @@ interface ToothButtonProps {
   notation: NotationSystem;
   isUpper: boolean;
   isSelected: boolean;
-  isHovered: boolean;
-  showHoverCard: boolean;
   onClick: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
@@ -211,8 +209,6 @@ function ToothButton({
   notation,
   isUpper,
   isSelected,
-  isHovered,
-  showHoverCard,
   onClick,
   onMouseEnter,
   onMouseLeave,
@@ -250,29 +246,29 @@ function ToothButton({
   const titleText = titleParts.join(" — ");
 
   return (
-    <div className="relative">
-      <button
-        onClick={onClick}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onFocus={onMouseEnter}
-        onBlur={onMouseLeave}
-        data-testid={`tooth-button-${toothNumber}`}
-        data-tooth-number={toothNumber}
-        aria-label={titleText}
-        className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
-          ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
-        `}
-      >
-        {isUpper && (
-          <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
-            {displayLabel}
-          </span>
-        )}
+    <button
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onMouseEnter}
+      onBlur={onMouseLeave}
+      data-testid={`tooth-button-${toothNumber}`}
+      data-tooth-number={toothNumber}
+      aria-label={titleText}
+      className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
+        ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
+      `}
+    >
+      {isUpper && (
+        <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
+          {displayLabel}
+        </span>
+      )}
 
-        {/* Tooth body — 3×3 surface grid (BMODL cross) */}
+      {/* Tooth body — surface grid inside overflow-hidden; badges as siblings so they don't clip. */}
+      <div className="relative">
         <div
-          className={`relative w-9 h-9 rounded-sm border border-gray-400 overflow-hidden ${statusOverlay}`}
+          className={`w-9 h-9 rounded-sm border border-gray-400 overflow-hidden ${statusOverlay}`}
         >
           {isMissing ? (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-300 text-gray-700 text-[10px] font-bold">
@@ -316,77 +312,87 @@ function ToothButton({
               <div className={emptyCell} />
             </div>
           )}
-
-          {hasMultiple && !isMissing && (
-            <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
-              {conditions.length}
-            </span>
-          )}
-
-          {hasTreatmentPlan && planUrgency && (
-            <span
-              data-testid="treatment-plan-badge"
-              data-urgency={planUrgency}
-              aria-label={`${treatmentItems.length} planned (${planUrgency})`}
-              title={`Treatment planned (${planUrgency})`}
-              className={`absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
-            />
-          )}
         </div>
 
-        {!isUpper && (
-          <span className="text-[9px] text-muted-foreground leading-none pb-0.5">
-            {displayLabel}
+        {hasMultiple && !isMissing && (
+          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
+            {conditions.length}
           </span>
         )}
-      </button>
 
-      {showHoverCard && isHovered && (
-        <ToothHoverCard
-          toothLabel={displayLabel}
-          conditions={conditions}
-          isUpper={isUpper}
-        />
+        {hasTreatmentPlan && planUrgency && (
+          <span
+            data-testid="treatment-plan-badge"
+            data-urgency={planUrgency}
+            aria-label={`${treatmentItems.length} planned (${planUrgency})`}
+            title={`Treatment planned (${planUrgency})`}
+            className={`absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
+          />
+        )}
+      </div>
+
+      {!isUpper && (
+        <span className="text-[9px] text-muted-foreground leading-none pb-0.5">
+          {displayLabel}
+        </span>
       )}
-    </div>
+    </button>
   );
 }
 
-// ── ToothHoverCard ────────────────────────────────────────────────────────────
+// ── ToothInspector ────────────────────────────────────────────────────────────
 
-interface ToothHoverCardProps {
-  toothLabel: string;
+// Inline panel under the chart that shows whatever tooth is currently hovered.
+// Rendered outside the chart's overflow-x-auto wrapper so it never gets clipped
+// (the earlier per-tooth floating popover was unreliable for that reason).
+interface ToothInspectorProps {
+  toothLabel: string | null;
   conditions: ToothCondition[];
-  isUpper: boolean;
+  treatmentItems: TreatmentPlanItem[];
 }
 
-function ToothHoverCard({ toothLabel, conditions, isUpper }: ToothHoverCardProps) {
-  // Position above the tooth for upper arch (so it doesn't cover the lower row),
-  // and below for the lower arch.
-  const positionClass = isUpper
-    ? "bottom-full left-1/2 -translate-x-1/2 mb-1"
-    : "top-full left-1/2 -translate-x-1/2 mt-1";
+function ToothInspector({ toothLabel, conditions, treatmentItems }: ToothInspectorProps) {
+  const planUrgency = highestUrgency(treatmentItems);
 
   return (
     <div
-      role="tooltip"
-      data-testid="tooth-hover-card"
-      className={`absolute ${positionClass} z-50 w-44 rounded-md border bg-popover p-2 text-popover-foreground shadow-md print:hidden`}
+      role="region"
+      aria-label="Tooth inspector"
+      data-testid="tooth-inspector"
+      className="mt-2 min-h-[68px] rounded-md border bg-muted/30 p-2 print:hidden"
     >
-      <p className="text-xs font-semibold mb-1">Tooth {toothLabel}</p>
-      {conditions.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">No conditions recorded.</p>
+      {!toothLabel ? (
+        <p className="text-[11px] text-muted-foreground">
+          Hover a tooth to see its details.
+        </p>
       ) : (
-        <ul className="space-y-1">
-          {conditions.map((c) => (
-            <li key={c.id} className="flex items-center gap-1.5 text-[11px]">
+        <>
+          <p className="text-xs font-semibold mb-1">Tooth {toothLabel}</p>
+          {conditions.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">No conditions recorded.</p>
+          ) : (
+            <ul className="space-y-1">
+              {conditions.map((c) => (
+                <li key={c.id} className="flex items-center gap-1.5 text-[11px]">
+                  <span
+                    className={`inline-block h-2 w-2 rounded-sm ${CONDITION_COLORS[c.conditionType].split(" ")[0]}`}
+                  />
+                  <span>{formatHoverConditionLine(c)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {treatmentItems.length > 0 && planUrgency && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
               <span
-                className={`inline-block h-2 w-2 rounded-sm ${CONDITION_COLORS[c.conditionType].split(" ")[0]}`}
+                className={`inline-block h-2 w-2 rotate-45 ${urgencyBadgeColor(planUrgency)}`}
               />
-              <span>{formatHoverConditionLine(c)}</span>
-            </li>
-          ))}
-        </ul>
+              <span>
+                {treatmentItems.length} planned ({planUrgency})
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -685,8 +691,6 @@ export function ToothChartCard({
                         notation={notation}
                         isUpper={true}
                         isSelected={selectedTooth === t}
-                        isHovered={hoveredTooth === t}
-                        showHoverCard={shouldShowHoverCard(hoveredTooth, selectedTooth, t)}
                         onClick={() =>
                           setSelectedTooth((prev) => (prev === t ? null : t))
                         }
@@ -709,8 +713,6 @@ export function ToothChartCard({
                         notation={notation}
                         isUpper={false}
                         isSelected={selectedTooth === t}
-                        isHovered={hoveredTooth === t}
-                        showHoverCard={shouldShowHoverCard(hoveredTooth, selectedTooth, t)}
                         onClick={() =>
                           setSelectedTooth((prev) => (prev === t ? null : t))
                         }
@@ -723,6 +725,18 @@ export function ToothChartCard({
                   </div>
                 </div>
               </div>
+
+              <ToothInspector
+                toothLabel={
+                  hoveredTooth && shouldShowHoverCard(hoveredTooth, selectedTooth, hoveredTooth)
+                    ? hoveredTooth
+                    : null
+                }
+                conditions={hoveredTooth ? (conditionsByTooth.get(hoveredTooth) ?? []) : []}
+                treatmentItems={
+                  hoveredTooth ? (treatmentItemsByTooth?.get(hoveredTooth) ?? []) : []
+                }
+              />
 
               <ChartLegend />
 
