@@ -7,6 +7,7 @@ import {
   isAnteriorTooth,
   surfaceCellsForTooth,
   surfaceFillColors,
+  zoneFillColors,
 } from "@/components/patients/ToothChartCard";
 import {
   hasTreatmentPlannedItem,
@@ -31,6 +32,7 @@ const mkCondition = (overrides: Partial<ToothCondition> = {}): ToothCondition =>
   material: null,
   notes: null,
   status: "existing",
+  verticalZone: "crown",
   recordedAt: "2026-01-01T00:00:00Z",
   recordedBy: "u-1",
   appointmentId: null,
@@ -115,6 +117,94 @@ describe("formatHoverConditionLine", () => {
       mkCondition({ conditionType: "crown", surface: "" }),
     );
     expect(line).toBe("Crown");
+  });
+
+  it("appends cervical/root zone annotation when not crown", () => {
+    expect(
+      formatHoverConditionLine(
+        mkCondition({ conditionType: "decay", surface: null, verticalZone: "cervical" }),
+      ),
+    ).toBe("Decay (cervical)");
+    expect(
+      formatHoverConditionLine(
+        mkCondition({ conditionType: "decay", surface: "B", verticalZone: "root" }),
+      ),
+    ).toBe("Decay (B, root)");
+  });
+
+  it("does not annotate when zone is crown (the default)", () => {
+    expect(
+      formatHoverConditionLine(
+        mkCondition({ conditionType: "decay", surface: null, verticalZone: "crown" }),
+      ),
+    ).toBe("Decay");
+  });
+});
+
+describe("zoneFillColors", () => {
+  it("returns null for both zones when no condition targets them", () => {
+    const result = zoneFillColors([
+      mkCondition({ conditionType: "decay", verticalZone: "crown" }),
+    ]);
+    expect(result.cervical).toBeNull();
+    expect(result.root).toBeNull();
+  });
+
+  it("fills cervical when a condition has verticalZone='cervical'", () => {
+    const result = zoneFillColors([
+      mkCondition({ conditionType: "decay", verticalZone: "cervical" }),
+    ]);
+    expect(result.cervical).not.toBeNull();
+    expect(result.root).toBeNull();
+  });
+
+  it("fills root when a condition has verticalZone='root'", () => {
+    const result = zoneFillColors([
+      mkCondition({ conditionType: "decay", verticalZone: "root" }),
+    ]);
+    expect(result.root).not.toBeNull();
+    expect(result.cervical).toBeNull();
+  });
+
+  it("higher-priority condition wins per zone", () => {
+    const watchColor = zoneFillColors([
+      mkCondition({ id: "w", conditionType: "watch", verticalZone: "cervical" }),
+    ]).cervical;
+    const decayColor = zoneFillColors([
+      mkCondition({ id: "d", conditionType: "decay", verticalZone: "cervical" }),
+    ]).cervical;
+    const combined = zoneFillColors([
+      mkCondition({ id: "w", conditionType: "watch", verticalZone: "cervical" }),
+      mkCondition({ id: "d", conditionType: "decay", verticalZone: "cervical" }),
+    ]).cervical;
+    expect(combined).toBe(decayColor);
+    expect(combined).not.toBe(watchColor);
+  });
+
+  it("crown-zone conditions don't contribute to cervical or root", () => {
+    const result = zoneFillColors([
+      mkCondition({ conditionType: "decay", surfaces: ["B"], verticalZone: "crown" }),
+    ]);
+    expect(result.cervical).toBeNull();
+    expect(result.root).toBeNull();
+  });
+});
+
+describe("surfaceFillColors (vertical zone filtering)", () => {
+  it("ignores cervical-zone conditions when filling crown surfaces", () => {
+    const result = surfaceFillColors(
+      [mkCondition({ conditionType: "decay", surfaces: ["B"], verticalZone: "cervical" })],
+      "14",
+    );
+    expect(result.B).toBeNull();
+  });
+
+  it("ignores root-zone conditions when filling crown surfaces", () => {
+    const result = surfaceFillColors(
+      [mkCondition({ conditionType: "decay", surfaces: ["O"], verticalZone: "root" })],
+      "14",
+    );
+    expect(result.O).toBeNull();
   });
 });
 

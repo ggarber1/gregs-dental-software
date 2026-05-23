@@ -50,6 +50,7 @@ const CONDITION: ToothCondition = {
   material: "zirconia",
   notes: null,
   status: "existing",
+  verticalZone: "crown",
   recordedAt: "2026-05-04",
   recordedBy: PROVIDER_ID,
   appointmentId: null,

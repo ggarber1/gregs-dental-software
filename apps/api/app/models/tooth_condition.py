@@ -33,6 +33,8 @@ class ToothCondition(Base, PHIMixin):
     material: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="existing")
+    # Vertical position: crown (default), cervical (Class V), or root caries.
+    vertical_zone: Mapped[str] = mapped_column(Text, nullable=False, server_default="crown")
 
     recorded_at: Mapped[date] = mapped_column(Date, nullable=False)
     recorded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
@@ -52,6 +54,10 @@ class ToothCondition(Base, PHIMixin):
         CheckConstraint(
             "status IN ('existing', 'treatment_planned', 'completed_today')",
             name="ck_tooth_conditions_status",
+        ),
+        CheckConstraint(
+            "vertical_zone IN ('crown', 'cervical', 'root')",
+            name="ck_tooth_conditions_vertical_zone",
         ),
         Index("ix_tooth_conditions_patient_recorded_at", "patient_id", "recorded_at"),
         Index("ix_tooth_conditions_patient_tooth_number", "patient_id", "tooth_number"),

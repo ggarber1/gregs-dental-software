@@ -1124,6 +1124,12 @@ class ToothSurface(StrEnum):
     i = 'I'
 
 
+class VerticalZone(StrEnum):
+    crown = 'crown'
+    cervical = 'cervical'
+    root = 'root'
+
+
 class Status5(StrEnum):
     existing = 'existing'
     treatment_planned = 'treatment_planned'
@@ -1145,6 +1151,7 @@ class ToothCondition(BaseModel):
     material: str | None
     notes: str | None
     status: Status5
+    vertical_zone: VerticalZone = Field(..., alias='verticalZone')
     recorded_at: date = Field(..., alias='recordedAt')
     recorded_by: UUID = Field(..., alias='recordedBy')
     appointment_id: UUID | None = Field(..., alias='appointmentId')
@@ -1164,6 +1171,7 @@ class CreateToothCondition(BaseModel):
     material: str | None = None
     notes: str | None = None
     status: Status5 | None = None
+    vertical_zone: VerticalZone | None = Field(None, alias='verticalZone')
     recorded_at: date = Field(..., alias='recordedAt')
     recorded_by: UUID = Field(..., alias='recordedBy')
     appointment_id: UUID | None = Field(None, alias='appointmentId')
@@ -1178,6 +1186,7 @@ class UpdateToothCondition(BaseModel):
     surfaces: list[ToothSurface] | None = None
     material: str | None = None
     notes: str | None = None
+    vertical_zone: VerticalZone | None = Field(None, alias='verticalZone')
 
 
 class Condition2(BaseModel):
@@ -1195,6 +1204,7 @@ class Condition2(BaseModel):
     material: str | None
     notes: str | None
     status: Status5
+    vertical_zone: VerticalZone = Field(..., alias='verticalZone')
     recorded_at: date = Field(..., alias='recordedAt')
     recorded_by: UUID = Field(..., alias='recordedBy')
     appointment_id: UUID | None = Field(..., alias='appointmentId')

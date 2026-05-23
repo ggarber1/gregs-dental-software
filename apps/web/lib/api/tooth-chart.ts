@@ -31,6 +31,10 @@ export type ToothConditionStatus = "existing" | "treatment_planned" | "completed
 //   I = incisal (anterior teeth — used in place of O).
 export type ToothSurface = "B" | "M" | "O" | "D" | "L" | "I";
 
+// Vertical position. Crown (default) is everything coronal of the gumline;
+// cervical is the gingival third / Class V; root is below the gumline.
+export type VerticalZone = "crown" | "cervical" | "root";
+
 export interface ToothCondition {
   id: string;
   practiceId: string;
@@ -43,6 +47,7 @@ export interface ToothCondition {
   material: string | null;
   notes: string | null;
   status: ToothConditionStatus;
+  verticalZone: VerticalZone;
   recordedAt: string;
   recordedBy: string;
   appointmentId: string | null;
@@ -63,6 +68,7 @@ export interface CreateToothConditionBody {
   material?: string;
   notes?: string;
   status?: ToothConditionStatus;
+  verticalZone?: VerticalZone;
   recordedAt: string;
   recordedBy: string;
   appointmentId?: string;
@@ -74,6 +80,7 @@ export interface UpdateToothConditionBody {
   surfaces?: ToothSurface[];
   material?: string;
   notes?: string;
+  verticalZone?: VerticalZone;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import {
   type ConditionType,
   type ToothConditionStatus,
   type ToothSurface,
+  type VerticalZone,
 } from "@/lib/api/tooth-chart";
 import { centerSurfaceCode, isAnteriorTooth } from "./ToothChartCard";
 
@@ -45,6 +46,14 @@ const STATUS_LABELS: Record<ToothConditionStatus, string> = {
   treatment_planned: "Treatment planned",
   completed_today: "Completed today",
 };
+
+const VERTICAL_ZONE_LABELS: Record<VerticalZone, string> = {
+  crown: "Crown",
+  cervical: "Cervical (gumline)",
+  root: "Root",
+};
+
+const VERTICAL_ZONE_ORDER: VerticalZone[] = ["crown", "cervical", "root"];
 
 // Condition types that have meaningful material choices
 const MATERIAL_CONDITION_TYPES: ConditionType[] = [
@@ -170,6 +179,7 @@ export function ToothConditionForm({
 }: ToothConditionFormProps) {
   const [conditionType, setConditionType] = useState<ConditionType>("existing_restoration");
   const [surfaces, setSurfaces] = useState<ToothSurface[]>([]);
+  const [verticalZone, setVerticalZone] = useState<VerticalZone>("crown");
   const [material, setMaterial] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<ToothConditionStatus>("existing");
@@ -189,18 +199,22 @@ export function ToothConditionForm({
     );
   }
 
+  // Cervical and root caries don't use per-crown-surface targeting.
+  const showSurfaces = !isWholeTooth && verticalZone === "crown";
+
   function handleSubmit() {
     if (!providerId.trim()) {
       setError("Provider ID is required.");
       return;
     }
     setError(null);
-    const effectiveSurfaces = isWholeTooth ? [] : surfaces;
+    const effectiveSurfaces = showSurfaces ? surfaces : [];
     mutate(
       {
         toothNumber,
         conditionType,
         status,
+        verticalZone,
         recordedAt: new Date().toISOString().slice(0, 10),
         recordedBy: providerId.trim(),
         ...(effectiveSurfaces.length > 0 && { surfaces: effectiveSurfaces }),
@@ -210,6 +224,7 @@ export function ToothConditionForm({
       {
         onSuccess: () => {
           setSurfaces([]);
+          setVerticalZone("crown");
           setMaterial("");
           setNotes("");
           setConditionType("existing_restoration");
@@ -269,6 +284,30 @@ export function ToothConditionForm({
           </div>
 
           {!isWholeTooth && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Vertical position</Label>
+              <div className="flex gap-1">
+                {VERTICAL_ZONE_ORDER.map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    data-testid={`vertical-zone-${z}`}
+                    aria-pressed={verticalZone === z}
+                    onClick={() => setVerticalZone(z)}
+                    className={`flex-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                      verticalZone === z
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {VERTICAL_ZONE_LABELS[z]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showSurfaces && (
             <div className="flex flex-col gap-2">
               <Label className="text-xs text-muted-foreground">
                 Surfaces {anterior ? "(B / M / I / D / L)" : "(B / M / O / D / L)"}

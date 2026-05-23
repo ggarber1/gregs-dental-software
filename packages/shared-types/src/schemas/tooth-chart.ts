@@ -28,6 +28,11 @@ export const ToothConditionStatusSchema = z.enum([
 //   I = incisal (anterior teeth — used in place of O).
 export const ToothSurfaceSchema = z.enum(["B", "M", "O", "D", "L", "I"]);
 
+// Vertical position on the tooth. Most caries are crown-level. Cervical
+// (Class V, at the gumline) and root caries change treatment and prognosis
+// enough to chart separately.
+export const VerticalZoneSchema = z.enum(["crown", "cervical", "root"]);
+
 export const ToothConditionSchema = z.object({
   id: UuidSchema,
   practiceId: UuidSchema,
@@ -40,6 +45,7 @@ export const ToothConditionSchema = z.object({
   material: z.string().nullable(),
   notes: z.string().nullable(),
   status: ToothConditionStatusSchema,
+  verticalZone: VerticalZoneSchema,
   recordedAt: z.string().date(),
   recordedBy: UuidSchema,
   appointmentId: UuidSchema.nullable(),
@@ -56,6 +62,7 @@ export const CreateToothConditionSchema = z.object({
   material: z.string().optional(),
   notes: z.string().optional(),
   status: ToothConditionStatusSchema.optional(),
+  verticalZone: VerticalZoneSchema.optional(),
   recordedAt: z.string().date(),
   recordedBy: UuidSchema,
   appointmentId: UuidSchema.optional(),
@@ -67,6 +74,7 @@ export const UpdateToothConditionSchema = z.object({
   surfaces: z.array(ToothSurfaceSchema).optional(),
   material: z.string().optional(),
   notes: z.string().optional(),
+  verticalZone: VerticalZoneSchema.optional(),
 });
 
 export const ToothChartResponseSchema = z.object({
@@ -77,6 +85,7 @@ export type ConditionType = z.infer<typeof ConditionTypeSchema>;
 export type NotationSystem = z.infer<typeof NotationSystemSchema>;
 export type ToothConditionStatus = z.infer<typeof ToothConditionStatusSchema>;
 export type ToothSurface = z.infer<typeof ToothSurfaceSchema>;
+export type VerticalZone = z.infer<typeof VerticalZoneSchema>;
 export type ToothCondition = z.infer<typeof ToothConditionSchema>;
 export type CreateToothCondition = z.infer<typeof CreateToothConditionSchema>;
 export type UpdateToothCondition = z.infer<typeof UpdateToothConditionSchema>;

@@ -14,6 +14,7 @@ import {
   type ConditionType,
   type NotationSystem,
   type ToothSurface,
+  type VerticalZone,
 } from "@/lib/api/tooth-chart";
 import type { TreatmentPlanItem } from "@/lib/api/treatment-plans";
 import { ToothConditionForm } from "./ToothConditionForm";
@@ -110,7 +111,11 @@ export function shouldShowHoverCard(
 
 export function formatHoverConditionLine(condition: ToothCondition): string {
   const label = CONDITION_LABELS[condition.conditionType];
-  return condition.surface ? `${label} (${condition.surface})` : label;
+  const zone = condition.verticalZone ?? "crown";
+  const annotations: string[] = [];
+  if (condition.surface) annotations.push(condition.surface);
+  if (zone !== "crown") annotations.push(zone);
+  return annotations.length > 0 ? `${label} (${annotations.join(", ")})` : label;
 }
 
 // ── Surface helpers (exported for testing) ────────────────────────────────────
@@ -152,7 +157,8 @@ export function surfaceCellsForTooth(toothNumber: string): SurfaceCell[] {
 
 // Conditions with an empty `surfaces` array (e.g. crowns, missing teeth) are
 // treated as whole-tooth and fill every cell. Higher-priority conditions win
-// per surface.
+// per surface. Only crown-zone conditions contribute — cervical/root caries
+// fill the cervical band / root box instead.
 export function surfaceFillColors(
   conditions: ToothCondition[],
   toothNumber: string,
@@ -168,7 +174,10 @@ export function surfaceFillColors(
     I: null,
   };
 
-  const sorted = [...conditions].sort((a, b) => {
+  const crownConditions = conditions.filter(
+    (c) => (c.verticalZone ?? "crown") === "crown",
+  );
+  const sorted = [...crownConditions].sort((a, b) => {
     const ai = CONDITION_PRIORITY.indexOf(a.conditionType);
     const bi = CONDITION_PRIORITY.indexOf(b.conditionType);
     return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
@@ -186,6 +195,29 @@ export function surfaceFillColors(
   }
 
   return out;
+}
+
+// For each non-crown vertical zone (cervical, root), pick the highest-priority
+// condition's color. Returns null when no condition targets that zone.
+export function zoneFillColors(
+  conditions: ToothCondition[],
+): Record<Exclude<VerticalZone, "crown">, string | null> {
+  function pick(zone: VerticalZone): string | null {
+    const matches = conditions.filter((c) => c.verticalZone === zone);
+    if (matches.length === 0) return null;
+    let bestIdx = Infinity;
+    let bestColor: string | null = null;
+    for (const c of matches) {
+      const idx = CONDITION_PRIORITY.indexOf(c.conditionType);
+      const effective = idx === -1 ? Infinity : idx;
+      if (effective < bestIdx) {
+        bestIdx = effective;
+        bestColor = CONDITION_COLORS[c.conditionType];
+      }
+    }
+    return bestColor;
+  }
+  return { cervical: pick("cervical"), root: pick("root") };
 }
 
 // ── ToothButton ───────────────────────────────────────────────────────────────
@@ -233,8 +265,10 @@ function ToothButton({
   }
 
   const fills = surfaceFillColors(conditions, toothNumber);
+  const zoneFills = zoneFillColors(conditions);
   const center = centerSurfaceCode(toothNumber);
   const emptyCell = "bg-gray-50";
+  const emptyZone = "bg-gray-100";
 
   const titleParts: string[] = [`Tooth ${displayLabel}`];
   if (conditions.length > 0) {
@@ -265,10 +299,11 @@ function ToothButton({
         </span>
       )}
 
-      {/* Tooth body — surface grid inside overflow-hidden; badges as siblings so they don't clip. */}
+      {/* Tooth body — surface grid + cervical band + root box. Badges hang off
+          the outer wrapper so they aren't clipped by the grid's overflow. */}
       <div className="relative">
         <div
-          className={`w-9 h-9 rounded-sm border border-gray-400 overflow-hidden ${statusOverlay}`}
+          className={`w-9 h-9 rounded-sm rounded-b-none border border-gray-400 overflow-hidden ${statusOverlay}`}
         >
           {isMissing ? (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-300 text-gray-700 text-[10px] font-bold">
@@ -313,6 +348,24 @@ function ToothButton({
             </div>
           )}
         </div>
+
+        {/* Cervical band — thin strip at the gumline. */}
+        {!isMissing && (
+          <div
+            data-testid={`cervical-${toothNumber}`}
+            className={`w-9 h-1.5 border-x border-gray-400 ${zoneFills.cervical ?? emptyZone}`}
+          />
+        )}
+
+        {/* Root box — narrower rectangle representing the root. */}
+        {!isMissing && (
+          <div className="flex justify-center">
+            <div
+              data-testid={`root-${toothNumber}`}
+              className={`w-6 h-2 rounded-b-sm border border-t-0 border-gray-400 ${zoneFills.root ?? emptyZone}`}
+            />
+          </div>
+        )}
 
         {hasMultiple && !isMissing && (
           <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
@@ -453,6 +506,9 @@ function ConditionPanel({
                 )}
                 {c.surfaces.length === 0 && c.surface && (
                   <span className="text-muted-foreground">surfaces: {c.surface}</span>
+                )}
+                {(c.verticalZone ?? "crown") !== "crown" && (
+                  <span className="text-muted-foreground">{c.verticalZone}</span>
                 )}
                 {c.material && <span className="text-muted-foreground">{c.material}</span>}
               </div>

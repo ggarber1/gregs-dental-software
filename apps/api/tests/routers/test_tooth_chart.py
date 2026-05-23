@@ -42,6 +42,7 @@ _CONDITION_ROW_DEFAULTS: dict[str, Any] = {
     "material": "zirconia",
     "notes": None,
     "status": "existing",
+    "vertical_zone": "crown",
     "recorded_at": _TODAY,
     "recorded_by": _PROVIDER_ID,
     "appointment_id": None,
@@ -364,6 +365,65 @@ async def test_add_condition_with_surfaces_roundtrips():
     assert response.status_code == 201
     body = response.json()
     assert body["surfaces"] == ["M", "O"]
+
+
+@pytest.mark.asyncio
+async def test_add_condition_with_vertical_zone_roundtrips():
+    """POSTing a condition with verticalZone='root' persists and returns it."""
+    app = _get_app()
+    patient = _make_patient_row()
+    session = _make_session(scalar_returns=[patient])
+    added_row = _make_condition_row(
+        condition_type="decay", tooth_number="3", vertical_zone="root"
+    )
+
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.tooth_chart.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        with patch(
+            "app.routers.tooth_chart.ToothConditionModel",
+            return_value=added_row,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as c:
+                response = await c.post(
+                    f"/api/v1/patients/{_PATIENT_ID}/tooth-chart/conditions",
+                    json={
+                        "toothNumber": "3",
+                        "conditionType": "decay",
+                        "verticalZone": "root",
+                        "recordedAt": "2026-05-04",
+                        "recordedBy": str(_PROVIDER_ID),
+                    },
+                    headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+                )
+    assert response.status_code == 201
+    assert response.json()["verticalZone"] == "root"
+
+
+@pytest.mark.asyncio
+async def test_add_condition_invalid_vertical_zone_returns_422():
+    """Pydantic rejects unknown vertical zone values before the router runs."""
+    app = _get_app()
+    with _auth_patches() as auth_headers:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            response = await c.post(
+                f"/api/v1/patients/{_PATIENT_ID}/tooth-chart/conditions",
+                json={
+                    "toothNumber": "3",
+                    "conditionType": "decay",
+                    "verticalZone": "subgingival",
+                    "recordedAt": "2026-05-04",
+                    "recordedBy": str(_PROVIDER_ID),
+                },
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

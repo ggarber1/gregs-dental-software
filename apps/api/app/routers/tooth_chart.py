@@ -24,6 +24,7 @@ from app.schemas.generated import (
     ToothCondition,
     ToothConditionStatus,
     UpdateToothCondition,
+    VerticalZone,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ def _row_to_schema(row: ToothConditionModel) -> ToothCondition:
         material=row.material,
         notes=row.notes,
         status=ToothConditionStatus(row.status),  # type: ignore[arg-type]
+        verticalZone=VerticalZone(row.vertical_zone),
         recordedAt=row.recorded_at,
         recordedBy=row.recorded_by,
         appointmentId=row.appointment_id,
@@ -164,6 +166,7 @@ async def add_tooth_condition(
             material=body.material,
             notes=body.notes,
             status=body.status or "existing",
+            vertical_zone=body.vertical_zone or "crown",
             recorded_at=body.recorded_at,
             recorded_by=body.recorded_by,
             appointment_id=body.appointment_id,
@@ -223,6 +226,8 @@ async def update_tooth_condition(
             update_data["material"] = body.material
         if body.notes is not None:
             update_data["notes"] = body.notes
+        if body.vertical_zone is not None:
+            update_data["vertical_zone"] = body.vertical_zone
 
         for key, value in update_data.items():
             setattr(row, key, value)
