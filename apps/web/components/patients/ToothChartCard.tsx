@@ -106,6 +106,29 @@ function toothLabel(toothNum: number, notation: NotationSystem): string {
   return notation === "fdi" ? (UNIVERSAL_TO_FDI[toothNum] ?? String(toothNum)) : String(toothNum);
 }
 
+// ── Hover-card helpers (exported for unit tests) ──────────────────────────────
+
+/**
+ * Decide whether the hover popover should render for a given tooth.
+ * Popover is suppressed when the tooth is the currently-selected one
+ * (the click-to-select detail panel takes over) or when no tooth is hovered.
+ */
+export function shouldShowHoverCard(
+  hoveredTooth: string | null,
+  selectedTooth: string | null,
+  toothNumber: string,
+): boolean {
+  if (hoveredTooth !== toothNumber) return false;
+  if (selectedTooth === toothNumber) return false;
+  return true;
+}
+
+/** Format a single condition line for the hover card: "Decay (MO)" or just "Crown". */
+export function formatHoverConditionLine(condition: ToothCondition): string {
+  const label = CONDITION_LABELS[condition.conditionType];
+  return condition.surface ? `${label} (${condition.surface})` : label;
+}
+
 // ── ToothButton ───────────────────────────────────────────────────────────────
 
 interface ToothButtonProps {
@@ -114,7 +137,11 @@ interface ToothButtonProps {
   notation: NotationSystem;
   isUpper: boolean;
   isSelected: boolean;
+  isHovered: boolean;
+  showHoverCard: boolean;
   onClick: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
 }
 
 function ToothButton({
@@ -123,7 +150,11 @@ function ToothButton({
   notation,
   isUpper,
   isSelected,
+  isHovered,
+  showHoverCard,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
 }: ToothButtonProps) {
   const numericTooth = parseInt(toothNumber, 10);
   const displayLabel = isNaN(numericTooth)
@@ -133,40 +164,99 @@ function ToothButton({
   const colorClass = getToothColorClass(conditions);
   const primaryType = primaryConditionType(conditions);
   const hasMultiple = conditions.length > 1;
+  const ariaLabel = `Tooth ${displayLabel}${
+    conditions.length > 0
+      ? `: ${conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", ")}`
+      : ""
+  }`;
 
   return (
-    <button
-      onClick={onClick}
-      title={`Tooth ${displayLabel}${conditions.length > 0 ? `: ${conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", ")}` : ""}`}
-      className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
-        ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
-      `}
-    >
-      {/* Tooth number — above for upper, below for lower */}
-      {isUpper && (
-        <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
-          {displayLabel}
-        </span>
-      )}
-
-      {/* Tooth body */}
-      <div
-        className={`w-7 h-8 rounded-sm flex items-center justify-center text-[8px] font-bold ${colorClass} border border-gray-300`}
+    <div className="relative">
+      <button
+        onClick={onClick}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onFocus={onMouseEnter}
+        onBlur={onMouseLeave}
+        aria-label={ariaLabel}
+        className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
+          ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
+        `}
       >
-        {primaryType === "missing" && "×"}
-        {hasMultiple && primaryType !== "missing" && (
-          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
-            {conditions.length}
+        {/* Tooth number — above for upper, below for lower */}
+        {isUpper && (
+          <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
+            {displayLabel}
           </span>
         )}
-      </div>
 
-      {!isUpper && (
-        <span className="text-[9px] text-muted-foreground leading-none pb-0.5">
-          {displayLabel}
-        </span>
+        {/* Tooth body */}
+        <div
+          className={`w-7 h-8 rounded-sm flex items-center justify-center text-[8px] font-bold ${colorClass} border border-gray-300`}
+        >
+          {primaryType === "missing" && "×"}
+          {hasMultiple && primaryType !== "missing" && (
+            <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
+              {conditions.length}
+            </span>
+          )}
+        </div>
+
+        {!isUpper && (
+          <span className="text-[9px] text-muted-foreground leading-none pb-0.5">
+            {displayLabel}
+          </span>
+        )}
+      </button>
+
+      {showHoverCard && isHovered && (
+        <ToothHoverCard
+          toothLabel={displayLabel}
+          conditions={conditions}
+          isUpper={isUpper}
+        />
       )}
-    </button>
+    </div>
+  );
+}
+
+// ── ToothHoverCard ────────────────────────────────────────────────────────────
+
+interface ToothHoverCardProps {
+  toothLabel: string;
+  conditions: ToothCondition[];
+  isUpper: boolean;
+}
+
+function ToothHoverCard({ toothLabel, conditions, isUpper }: ToothHoverCardProps) {
+  // Position above the tooth for upper arch (so it doesn't cover the lower row),
+  // and below for the lower arch.
+  const positionClass = isUpper
+    ? "bottom-full left-1/2 -translate-x-1/2 mb-1"
+    : "top-full left-1/2 -translate-x-1/2 mt-1";
+
+  return (
+    <div
+      role="tooltip"
+      data-testid="tooth-hover-card"
+      className={`absolute ${positionClass} z-50 w-44 rounded-md border bg-popover p-2 text-popover-foreground shadow-md print:hidden`}
+    >
+      <p className="text-xs font-semibold mb-1">Tooth {toothLabel}</p>
+      {conditions.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">No conditions recorded.</p>
+      ) : (
+        <ul className="space-y-1">
+          {conditions.map((c) => (
+            <li key={c.id} className="flex items-center gap-1.5 text-[11px]">
+              <span
+                className={`inline-block h-2 w-2 rounded-sm ${CONDITION_COLORS[c.conditionType].split(" ")[0]}`}
+              />
+              <span>{formatHoverConditionLine(c)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -273,6 +363,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
   const [isPrimary, setIsPrimary] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
   const [selectedTooth, setSelectedTooth] = useState<string | null>(null);
+  const [hoveredTooth, setHoveredTooth] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
 
   const { data, isLoading } = useToothChart(patientId, asOfDate || undefined);
@@ -364,6 +455,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                 onChange={(e) => {
                   setAsOfDate(e.target.value);
                   setSelectedTooth(null);
+                  setHoveredTooth(null);
                 }}
                 className="h-7 text-xs w-36"
                 title="View chart as of date"
@@ -409,8 +501,14 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                         notation={notation}
                         isUpper={true}
                         isSelected={selectedTooth === t}
+                        isHovered={hoveredTooth === t}
+                        showHoverCard={shouldShowHoverCard(hoveredTooth, selectedTooth, t)}
                         onClick={() =>
                           setSelectedTooth((prev) => (prev === t ? null : t))
+                        }
+                        onMouseEnter={() => setHoveredTooth(t)}
+                        onMouseLeave={() =>
+                          setHoveredTooth((prev) => (prev === t ? null : prev))
                         }
                       />
                     ))}
@@ -426,8 +524,14 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                         notation={notation}
                         isUpper={false}
                         isSelected={selectedTooth === t}
+                        isHovered={hoveredTooth === t}
+                        showHoverCard={shouldShowHoverCard(hoveredTooth, selectedTooth, t)}
                         onClick={() =>
                           setSelectedTooth((prev) => (prev === t ? null : t))
+                        }
+                        onMouseEnter={() => setHoveredTooth(t)}
+                        onMouseLeave={() =>
+                          setHoveredTooth((prev) => (prev === t ? null : prev))
                         }
                       />
                     ))}
