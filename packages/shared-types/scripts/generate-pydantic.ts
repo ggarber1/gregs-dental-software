@@ -107,6 +107,7 @@ import {
 import {
   TreatmentPlanStatusSchema,
   TreatmentPlanItemStatusSchema,
+  TreatmentPlanItemUrgencySchema,
   TreatmentPlanSchema,
   TreatmentPlanDetailSchema,
   TreatmentPlanItemSchema,
@@ -192,6 +193,7 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   // Treatment Plans
   TreatmentPlanStatus: TreatmentPlanStatusSchema,
   TreatmentPlanItemStatus: TreatmentPlanItemStatusSchema,
+  TreatmentPlanItemUrgency: TreatmentPlanItemUrgencySchema,
   TreatmentPlan: TreatmentPlanSchema,
   TreatmentPlanDetail: TreatmentPlanDetailSchema,
   TreatmentPlanItem: TreatmentPlanItemSchema,

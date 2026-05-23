@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import {
+  useQueries,
   useQuery,
   useMutation,
   useQueryClient,
@@ -24,6 +26,8 @@ export type TreatmentPlanItemStatus =
   | "scheduled"
   | "completed"
   | "refused";
+
+export type TreatmentPlanItemUrgency = "urgent" | "soon" | "elective";
 
 export interface TreatmentPlan {
   id: string;
@@ -53,6 +57,7 @@ export interface TreatmentPlanItem {
   insuranceEstCents: number | null;
   patientEstCents: number | null;
   status: TreatmentPlanItemStatus;
+  urgency: TreatmentPlanItemUrgency;
   priority: number;
   appointmentId: string | null;
   completedAppointmentId: string | null;
@@ -89,6 +94,7 @@ export interface CreateTreatmentPlanItemBody {
   feeCents: number;
   insuranceEstCents?: number;
   patientEstCents?: number;
+  urgency?: TreatmentPlanItemUrgency;
   priority?: number;
   notes?: string;
 }
@@ -113,6 +119,7 @@ export interface UpdateTreatmentPlanItemBody {
   patientEstCents?: number;
   appointmentId?: string;
   completedAppointmentId?: string;
+  urgency?: TreatmentPlanItemUrgency;
   priority?: number;
   notes?: string;
 }
@@ -315,4 +322,73 @@ export function useOpenTreatmentPlanQueue(): UseQueryResult<OpenPlanQueueItem[]>
     queryKey: treatmentPlanKeys.openQueue(),
     queryFn: getOpenTreatmentPlans,
   });
+}
+
+// ── Open treatment items by tooth ─────────────────────────────────────────────
+
+const OPEN_PLAN_STATUSES: ReadonlySet<TreatmentPlanStatus> = new Set<TreatmentPlanStatus>([
+  "proposed",
+  "accepted",
+  "in_progress",
+]);
+
+/**
+ * Pure helper — flatten the items from a list of plan details and group by
+ * tooth number. Items without a tooth number are skipped. Exported for tests.
+ */
+export function groupOpenItemsByTooth(
+  plans: TreatmentPlanDetail[],
+): Map<string, TreatmentPlanItem[]> {
+  const map = new Map<string, TreatmentPlanItem[]>();
+  for (const plan of plans) {
+    if (!OPEN_PLAN_STATUSES.has(plan.status)) continue;
+    for (const item of plan.items) {
+      if (!item.toothNumber) continue;
+      const existing = map.get(item.toothNumber);
+      if (existing) {
+        existing.push(item);
+      } else {
+        map.set(item.toothNumber, [item]);
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Fetches the patient's open (non-terminal) treatment plans, fans out to fetch
+ * each plan's items, and returns a Map keyed by tooth number. Returns an empty
+ * Map while loading or on error so callers can pass it directly into UI.
+ */
+export function useOpenPatientTreatmentItems(
+  patientId: string,
+): Map<string, TreatmentPlanItem[]> {
+  const { data: list } = useTreatmentPlans(patientId);
+
+  const openPlans = useMemo(
+    () => (list?.items ?? []).filter((p) => OPEN_PLAN_STATUSES.has(p.status)),
+    [list],
+  );
+
+  const detailResults = useQueries({
+    queries: openPlans.map((plan) => ({
+      queryKey: treatmentPlanKeys.detail(patientId, plan.id),
+      queryFn: () => getTreatmentPlan(patientId, plan.id),
+      enabled: Boolean(patientId),
+    })),
+  });
+
+  const details: TreatmentPlanDetail[] = [];
+  for (const r of detailResults) {
+    if (r.data) details.push(r.data);
+  }
+  // Depend on the loaded plan updatedAt values so the memo refreshes when any
+  // plan's items change without recomputing on every parent render.
+  const detailFingerprint = details.map((d) => `${d.id}:${d.updatedAt}`).join("|");
+
+  return useMemo(
+    () => groupOpenItemsByTooth(details),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [detailFingerprint],
+  );
 }

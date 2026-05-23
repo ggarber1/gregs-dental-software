@@ -18,6 +18,12 @@ export const TreatmentPlanItemStatusSchema = z.enum([
   "refused",
 ]);
 
+export const TreatmentPlanItemUrgencySchema = z.enum([
+  "urgent",
+  "soon",
+  "elective",
+]);
+
 export const TreatmentPlanItemSchema = z.object({
   id: UuidSchema,
   practiceId: UuidSchema,
@@ -31,6 +37,7 @@ export const TreatmentPlanItemSchema = z.object({
   insuranceEstCents: z.number().int().nonnegative().nullable(),
   patientEstCents: z.number().int().nonnegative().nullable(),
   status: TreatmentPlanItemStatusSchema,
+  urgency: TreatmentPlanItemUrgencySchema,
   priority: z.number().int().positive(),
   appointmentId: UuidSchema.nullable(),
   completedAppointmentId: UuidSchema.nullable(),
@@ -66,6 +73,7 @@ export const CreateTreatmentPlanItemSchema = z.object({
   feeCents: z.number().int().nonnegative(),
   insuranceEstCents: z.number().int().nonnegative().optional(),
   patientEstCents: z.number().int().nonnegative().optional(),
+  urgency: TreatmentPlanItemUrgencySchema.optional(),
   priority: z.number().int().positive().optional(),
   notes: z.string().optional(),
 });
@@ -90,6 +98,7 @@ export const UpdateTreatmentPlanItemSchema = z.object({
   patientEstCents: z.number().int().nonnegative().optional(),
   appointmentId: UuidSchema.optional(),
   completedAppointmentId: UuidSchema.optional(),
+  urgency: TreatmentPlanItemUrgencySchema.optional(),
   priority: z.number().int().positive().optional(),
   notes: z.string().optional(),
 });
@@ -112,6 +121,7 @@ export const OpenPlanQueueItemSchema = z.object({
 
 export type TreatmentPlanStatus = z.infer<typeof TreatmentPlanStatusSchema>;
 export type TreatmentPlanItemStatus = z.infer<typeof TreatmentPlanItemStatusSchema>;
+export type TreatmentPlanItemUrgency = z.infer<typeof TreatmentPlanItemUrgencySchema>;
 export type TreatmentPlanItem = z.infer<typeof TreatmentPlanItemSchema>;
 export type TreatmentPlan = z.infer<typeof TreatmentPlanSchema>;
 export type TreatmentPlanDetail = z.infer<typeof TreatmentPlanDetailSchema>;

@@ -52,6 +52,7 @@ class TreatmentPlanItem(Base, PHIMixin):
     insurance_est_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     patient_est_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="proposed")
+    urgency: Mapped[str] = mapped_column(Text, nullable=False, server_default="soon")
     priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     completed_appointment_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -63,6 +64,10 @@ class TreatmentPlanItem(Base, PHIMixin):
         CheckConstraint(
             "status IN ('proposed', 'accepted', 'scheduled', 'completed', 'refused')",
             name="ck_treatment_plan_items_status",
+        ),
+        CheckConstraint(
+            "urgency IN ('urgent', 'soon', 'elective')",
+            name="ck_treatment_plan_items_urgency",
         ),
         Index("ix_treatment_plan_items_plan_id", "treatment_plan_id"),
         Index("ix_treatment_plan_items_patient_status", "patient_id", "status"),

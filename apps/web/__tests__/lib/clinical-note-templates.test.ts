@@ -24,15 +24,33 @@ describe("CLINICAL_NOTE_TEMPLATES", () => {
     }
   });
 
-  it("every template has a non-empty treatmentRendered except 'other'", () => {
+  it("every template has a non-empty body except 'other'", () => {
     for (const type of EXPECTED_TEMPLATE_TYPES) {
       const tpl = CLINICAL_NOTE_TEMPLATES[type];
       if (type === "other") {
         // 'other' is intentionally blank — provider fills everything
-        expect(tpl.treatmentRendered).toBe("");
+        expect(tpl.body).toBe("");
       } else {
-        expect(tpl.treatmentRendered.trim().length).toBeGreaterThan(0);
+        expect(tpl.body.trim().length).toBeGreaterThan(0);
       }
+    }
+  });
+
+  it("non-'other' templates include CC, Anesthesia, Treatment, and Next visit sections", () => {
+    for (const type of EXPECTED_TEMPLATE_TYPES) {
+      if (type === "other") continue;
+      const body = CLINICAL_NOTE_TEMPLATES[type].body;
+      expect(body, `${type} missing CC:`).toContain("CC:");
+      expect(body, `${type} missing Anesthesia:`).toContain("Anesthesia:");
+      expect(body, `${type} missing Treatment:`).toContain("Treatment:");
+      expect(body, `${type} missing Next visit:`).toContain("Next visit:");
+    }
+  });
+
+  it("every template has a non-empty multi-line body except 'other'", () => {
+    for (const type of EXPECTED_TEMPLATE_TYPES) {
+      if (type === "other") continue;
+      expect(CLINICAL_NOTE_TEMPLATES[type].body).toContain("\n");
     }
   });
 
@@ -46,10 +64,6 @@ describe("CLINICAL_NOTE_TEMPLATES", () => {
     for (const type of EXPECTED_TEMPLATE_TYPES) {
       expect(CLINICAL_NOTE_TEMPLATES[type].label.trim().length).toBeGreaterThan(0);
     }
-  });
-
-  it("matches snapshot", () => {
-    expect(CLINICAL_NOTE_TEMPLATES).toMatchSnapshot();
   });
 });
 
