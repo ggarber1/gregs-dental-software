@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session_factory
@@ -64,6 +64,13 @@ _ITEM_TRANSITIONS: dict[str, frozenset[str]] = {
     "scheduled": frozenset({"completed", "refused"}),
     "completed": frozenset(),
     "refused": frozenset(),
+}
+
+# Sort order for urgency: urgent first, then soon, then elective.
+_URGENCY_SORT_ORDER: dict[str, int] = {
+    "urgent": 0,
+    "soon": 1,
+    "elective": 2,
 }
 
 
@@ -129,6 +136,7 @@ def _item_to_dict(row: TreatmentPlanItemModel) -> dict[str, Any]:
         insuranceEstCents=row.insurance_est_cents,  # type: ignore[arg-type]
         patientEstCents=row.patient_est_cents,  # type: ignore[arg-type]
         status=row.status,  # type: ignore[arg-type]
+        urgency=row.urgency,  # type: ignore[arg-type]
         priority=row.priority,
         appointmentId=row.appointment_id,
         completedAppointmentId=row.completed_appointment_id,
@@ -152,6 +160,7 @@ def _item_to_schema(row: TreatmentPlanItemModel) -> TreatmentPlanItem:
         insuranceEstCents=row.insurance_est_cents,  # type: ignore[arg-type]
         patientEstCents=row.patient_est_cents,  # type: ignore[arg-type]
         status=row.status,  # type: ignore[arg-type]
+        urgency=row.urgency,  # type: ignore[arg-type]
         priority=row.priority,
         appointmentId=row.appointment_id,
         completedAppointmentId=row.completed_appointment_id,
@@ -350,6 +359,7 @@ async def create_treatment_plan(
                 insurance_est_cents=item_body.insurance_est_cents,
                 patient_est_cents=item_body.patient_est_cents,
                 status="proposed",
+                urgency=item_body.urgency or "soon",
                 priority=item_body.priority or 1,
                 notes=item_body.notes,
             )
@@ -397,6 +407,14 @@ async def get_treatment_plan(
                 ).model_dump(by_alias=True),
             )
 
+        # Sort by urgency (urgent → soon → elective), then priority, then created_at.
+        urgency_rank = case(
+            *(
+                (TreatmentPlanItemModel.urgency == urgency, rank)
+                for urgency, rank in _URGENCY_SORT_ORDER.items()
+            ),
+            else_=len(_URGENCY_SORT_ORDER),
+        )
         items = (
             await session.scalars(
                 select(TreatmentPlanItemModel)
@@ -405,6 +423,7 @@ async def get_treatment_plan(
                     TreatmentPlanItemModel.deleted_at.is_(None),
                 )
                 .order_by(
+                    urgency_rank.asc(),
                     TreatmentPlanItemModel.priority.asc(),
                     TreatmentPlanItemModel.created_at.asc(),
                 )
@@ -540,6 +559,7 @@ async def add_treatment_plan_item(
             insurance_est_cents=body.insurance_est_cents,
             patient_est_cents=body.patient_est_cents,
             status="proposed",
+            urgency=body.urgency or "soon",
             priority=body.priority or 1,
             notes=body.notes,
         )
@@ -621,6 +641,8 @@ async def update_treatment_plan_item(
             update_data["notes"] = body.notes
         if body.priority is not None:
             update_data["priority"] = body.priority
+        if body.urgency is not None:
+            update_data["urgency"] = body.urgency
 
         for key, value in update_data.items():
             setattr(item, key, value)

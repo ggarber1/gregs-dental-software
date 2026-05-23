@@ -25,6 +25,8 @@ export type TreatmentPlanItemStatus =
   | "completed"
   | "refused";
 
+export type TreatmentPlanItemUrgency = "urgent" | "soon" | "elective";
+
 export interface TreatmentPlan {
   id: string;
   practiceId: string;
@@ -53,6 +55,7 @@ export interface TreatmentPlanItem {
   insuranceEstCents: number | null;
   patientEstCents: number | null;
   status: TreatmentPlanItemStatus;
+  urgency: TreatmentPlanItemUrgency;
   priority: number;
   appointmentId: string | null;
   completedAppointmentId: string | null;
@@ -89,6 +92,7 @@ export interface CreateTreatmentPlanItemBody {
   feeCents: number;
   insuranceEstCents?: number;
   patientEstCents?: number;
+  urgency?: TreatmentPlanItemUrgency;
   priority?: number;
   notes?: string;
 }
@@ -113,6 +117,7 @@ export interface UpdateTreatmentPlanItemBody {
   patientEstCents?: number;
   appointmentId?: string;
   completedAppointmentId?: string;
+  urgency?: TreatmentPlanItemUrgency;
   priority?: number;
   notes?: string;
 }

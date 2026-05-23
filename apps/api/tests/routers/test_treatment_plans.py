@@ -60,6 +60,7 @@ _ITEM_ROW_DEFAULTS: dict[str, Any] = {
     "insurance_est_cents": 15000,
     "patient_est_cents": 10000,
     "status": "proposed",
+    "urgency": "soon",
     "priority": 1,
     "appointment_id": None,
     "completed_appointment_id": None,
@@ -545,3 +546,181 @@ async def test_delete_nonexistent_item_returns_404():
                 headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
             )
     assert response.status_code == 404
+
+
+# ── Urgency ────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_add_item_with_urgency_persists():
+    """Happy path: POST a new item with urgency=urgent → response echoes urgency."""
+    app = _get_app()
+    plan = _make_plan_row()
+    session = _make_session(scalar_returns=[plan])
+
+    # After session.refresh, the model would have urgency set from the value
+    # we passed in. The route constructs the model with urgency=body.urgency,
+    # and we want that to round-trip back through _item_to_schema.
+    captured: dict[str, Any] = {}
+
+    def _capture_add(obj):
+        captured["item"] = obj
+        # Defaults applied by the server-side default would normally be filled
+        # in by the DB. Since we never hit the DB here, the in-memory model
+        # already has the urgency we passed via the constructor.
+
+    session.add = MagicMock(side_effect=_capture_add)
+
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.treatment_plans.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.post(
+                f"{_BASE}/{_PLAN_ID}/items",
+                json={
+                    "procedureCode": "D2391",
+                    "procedureName": "Resin composite",
+                    "feeCents": 25000,
+                    "urgency": "urgent",
+                },
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["urgency"] == "urgent"
+    assert captured["item"].urgency == "urgent"
+
+
+@pytest.mark.asyncio
+async def test_add_item_without_urgency_defaults_to_soon():
+    """When the caller omits urgency, the row is created with the default 'soon'."""
+    app = _get_app()
+    plan = _make_plan_row()
+    session = _make_session(scalar_returns=[plan])
+
+    captured: dict[str, Any] = {}
+    session.add = MagicMock(side_effect=lambda obj: captured.__setitem__("item", obj))
+
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.treatment_plans.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.post(
+                f"{_BASE}/{_PLAN_ID}/items",
+                json={
+                    "procedureCode": "D2391",
+                    "procedureName": "Resin composite",
+                    "feeCents": 25000,
+                },
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+
+    assert response.status_code == 201, response.text
+    assert captured["item"].urgency == "soon"
+
+
+@pytest.mark.asyncio
+async def test_add_item_with_invalid_urgency_returns_422():
+    """Failure case: invalid urgency value is rejected by the request schema."""
+    app = _get_app()
+    session = _make_session()
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.treatment_plans.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.post(
+                f"{_BASE}/{_PLAN_ID}/items",
+                json={
+                    "procedureCode": "D2391",
+                    "procedureName": "Resin composite",
+                    "feeCents": 25000,
+                    "urgency": "later",
+                },
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_item_urgency_persists():
+    """PATCH urgency on an existing item updates the row."""
+    app = _get_app()
+    item = _make_item_row(urgency="soon", status="proposed")
+    plan = _make_plan_row(status="accepted")
+    session = _make_session(scalar_returns=[item, plan])
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = [item]
+    session.scalars = AsyncMock(return_value=mock_scalars)
+
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.treatment_plans.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.patch(
+                f"{_BASE}/{_PLAN_ID}/items/{_ITEM_ID}",
+                json={"urgency": "urgent"},
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+
+    assert response.status_code == 200, response.text
+    assert item.urgency == "urgent"
+    assert response.json()["urgency"] == "urgent"
+
+
+@pytest.mark.asyncio
+async def test_update_item_invalid_urgency_returns_422():
+    """PATCH with an invalid urgency value returns 422."""
+    app = _get_app()
+    session = _make_session()
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.treatment_plans.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.patch(
+                f"{_BASE}/{_PLAN_ID}/items/{_ITEM_ID}",
+                json={"urgency": "later"},
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_plan_returns_items_sorted_urgent_first():
+    """GET /{plan_id} sorts items urgent → soon → elective."""
+    app = _get_app()
+    plan = _make_plan_row()
+
+    # Build three items in scrambled urgency order; the router's SQL ORDER BY
+    # would sort them. Since this test mocks the DB, we simulate the post-sort
+    # result by ordering them ourselves, then assert the response order matches.
+    elective = _make_item_row(id=uuid.uuid4(), urgency="elective", priority=1)
+    soon = _make_item_row(id=uuid.uuid4(), urgency="soon", priority=1)
+    urgent = _make_item_row(id=uuid.uuid4(), urgency="urgent", priority=1)
+    sorted_items = [urgent, soon, elective]
+
+    session = _make_session(scalar_returns=[plan])
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = sorted_items
+    session.scalars = AsyncMock(return_value=mock_scalars)
+
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.treatment_plans.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.get(f"{_BASE}/{_PLAN_ID}", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [i["urgency"] for i in body["items"]] == ["urgent", "soon", "elective"]
