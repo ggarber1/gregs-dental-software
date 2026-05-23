@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   useToothChart,
   useDeleteToothCondition,
@@ -13,7 +14,10 @@ import {
   type ConditionType,
   type NotationSystem,
 } from "@/lib/api/tooth-chart";
+import type { TreatmentPlanItem } from "@/lib/api/treatment-plans";
 import { ToothConditionForm } from "./ToothConditionForm";
+
+export { hasTreatmentPlannedItem } from "./toothChartHelpers";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -111,6 +115,7 @@ function toothLabel(toothNum: number, notation: NotationSystem): string {
 interface ToothButtonProps {
   toothNumber: string;
   conditions: ToothCondition[];
+  treatmentItems: TreatmentPlanItem[];
   notation: NotationSystem;
   isUpper: boolean;
   isSelected: boolean;
@@ -120,6 +125,7 @@ interface ToothButtonProps {
 function ToothButton({
   toothNumber,
   conditions,
+  treatmentItems,
   notation,
   isUpper,
   isSelected,
@@ -133,11 +139,21 @@ function ToothButton({
   const colorClass = getToothColorClass(conditions);
   const primaryType = primaryConditionType(conditions);
   const hasMultiple = conditions.length > 1;
+  const hasTreatmentPlan = treatmentItems.length > 0;
+
+  const titleParts: string[] = [`Tooth ${displayLabel}`];
+  if (conditions.length > 0) {
+    titleParts.push(conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", "));
+  }
+  if (hasTreatmentPlan) {
+    titleParts.push(`${treatmentItems.length} treatment-planned`);
+  }
 
   return (
     <button
       onClick={onClick}
-      title={`Tooth ${displayLabel}${conditions.length > 0 ? `: ${conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", ")}` : ""}`}
+      title={titleParts.join(" — ")}
+      data-tooth-number={toothNumber}
       className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
         ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
       `}
@@ -151,13 +167,21 @@ function ToothButton({
 
       {/* Tooth body */}
       <div
-        className={`w-7 h-8 rounded-sm flex items-center justify-center text-[8px] font-bold ${colorClass} border border-gray-300`}
+        className={`relative w-7 h-8 rounded-sm flex items-center justify-center text-[8px] font-bold ${colorClass} border border-gray-300`}
       >
         {primaryType === "missing" && "×"}
         {hasMultiple && primaryType !== "missing" && (
           <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
             {conditions.length}
           </span>
+        )}
+        {hasTreatmentPlan && (
+          <span
+            data-testid="treatment-plan-badge"
+            aria-label={`${treatmentItems.length} planned`}
+            title="Treatment planned"
+            className="absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 bg-orange-500 border border-white"
+          />
         )}
       </div>
 
@@ -175,6 +199,7 @@ function ToothButton({
 interface ConditionPanelProps {
   toothNumber: string;
   conditions: ToothCondition[];
+  treatmentItems: TreatmentPlanItem[];
   patientId: string;
   readOnly: boolean;
   onAddClick: () => void;
@@ -183,6 +208,7 @@ interface ConditionPanelProps {
 function ConditionPanel({
   toothNumber,
   conditions,
+  treatmentItems,
   patientId,
   readOnly,
   onAddClick,
@@ -233,6 +259,29 @@ function ConditionPanel({
           ))}
         </ul>
       )}
+
+      {treatmentItems.length > 0 && (
+        <div className="mt-3 border-t border-border pt-2">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Treatment Planned
+          </p>
+          <ul className="space-y-1">
+            {treatmentItems.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-center justify-between gap-2 text-xs"
+              >
+                <span className="font-medium">{item.procedureName}</span>
+                {item.urgency && (
+                  <Badge variant="outline" className="capitalize">
+                    {item.urgency}
+                  </Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -258,6 +307,10 @@ function ChartLegend() {
           <span className="text-[10px] text-muted-foreground">{label}</span>
         </div>
       ))}
+      <div className="flex items-center gap-1">
+        <span className="inline-block w-2.5 h-2.5 rotate-45 bg-orange-500" />
+        <span className="text-[10px] text-muted-foreground">Planned item</span>
+      </div>
     </div>
   );
 }
@@ -266,9 +319,13 @@ function ChartLegend() {
 
 interface ToothChartCardProps {
   patientId: string;
+  treatmentItemsByTooth?: Map<string, TreatmentPlanItem[]>;
 }
 
-export function ToothChartCard({ patientId }: ToothChartCardProps) {
+export function ToothChartCard({
+  patientId,
+  treatmentItemsByTooth,
+}: ToothChartCardProps) {
   const [notation, setNotation] = useState<NotationSystem>("universal");
   const [isPrimary, setIsPrimary] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
@@ -298,6 +355,9 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
 
   const selectedConditions = selectedTooth
     ? (conditionsByTooth.get(selectedTooth) ?? [])
+    : [];
+  const selectedTreatmentItems = selectedTooth
+    ? (treatmentItemsByTooth?.get(selectedTooth) ?? [])
     : [];
 
   return (
@@ -406,6 +466,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                         key={t}
                         toothNumber={t}
                         conditions={conditionsByTooth.get(t) ?? []}
+                        treatmentItems={treatmentItemsByTooth?.get(t) ?? []}
                         notation={notation}
                         isUpper={true}
                         isSelected={selectedTooth === t}
@@ -423,6 +484,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                         key={t}
                         toothNumber={t}
                         conditions={conditionsByTooth.get(t) ?? []}
+                        treatmentItems={treatmentItemsByTooth?.get(t) ?? []}
                         notation={notation}
                         isUpper={false}
                         isSelected={selectedTooth === t}
@@ -443,6 +505,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                   <ConditionPanel
                     toothNumber={selectedTooth}
                     conditions={selectedConditions}
+                    treatmentItems={selectedTreatmentItems}
                     patientId={patientId}
                     readOnly={readOnly}
                     onAddClick={() => setAddFormOpen(true)}
