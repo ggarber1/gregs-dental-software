@@ -24,6 +24,7 @@ from app.schemas.generated import (
     ToothCondition,
     ToothConditionStatus,
     UpdateToothCondition,
+    VerticalZone,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,9 +47,11 @@ def _row_to_schema(row: ToothConditionModel) -> ToothCondition:
         notationSystem=NotationSystem(row.notation_system),
         conditionType=ConditionType(row.condition_type),
         surface=row.surface,
+        surfaces=list(row.surfaces or []),  # type: ignore[arg-type]
         material=row.material,
         notes=row.notes,
         status=ToothConditionStatus(row.status),  # type: ignore[arg-type]
+        verticalZone=VerticalZone(row.vertical_zone),
         recordedAt=row.recorded_at,
         recordedBy=row.recorded_by,
         appointmentId=row.appointment_id,
@@ -159,9 +162,11 @@ async def add_tooth_condition(
             notation_system=body.notation_system or "universal",
             condition_type=body.condition_type,
             surface=body.surface,
+            surfaces=[str(s) for s in (body.surfaces or [])],
             material=body.material,
             notes=body.notes,
             status=body.status or "existing",
+            vertical_zone=body.vertical_zone or "crown",
             recorded_at=body.recorded_at,
             recorded_by=body.recorded_by,
             appointment_id=body.appointment_id,
@@ -215,10 +220,14 @@ async def update_tooth_condition(
             update_data["status"] = body.status
         if body.surface is not None:
             update_data["surface"] = body.surface
+        if body.surfaces is not None:
+            update_data["surfaces"] = [str(s) for s in body.surfaces]
         if body.material is not None:
             update_data["material"] = body.material
         if body.notes is not None:
             update_data["notes"] = body.notes
+        if body.vertical_zone is not None:
+            update_data["vertical_zone"] = body.vertical_zone
 
         for key, value in update_data.items():
             setattr(row, key, value)

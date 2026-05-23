@@ -26,6 +26,15 @@ export type ConditionType =
 export type NotationSystem = "universal" | "fdi";
 export type ToothConditionStatus = "existing" | "treatment_planned" | "completed_today";
 
+// Normalized tooth-surface codes shared with the API.
+//   B = buccal/facial, M = mesial, O = occlusal, D = distal, L = lingual,
+//   I = incisal (anterior teeth — used in place of O).
+export type ToothSurface = "B" | "M" | "O" | "D" | "L" | "I";
+
+// Vertical position. Crown (default) is everything coronal of the gumline;
+// cervical is the gingival third / Class V; root is below the gumline.
+export type VerticalZone = "crown" | "cervical" | "root";
+
 export interface ToothCondition {
   id: string;
   practiceId: string;
@@ -34,9 +43,11 @@ export interface ToothCondition {
   notationSystem: NotationSystem;
   conditionType: ConditionType;
   surface: string | null;
+  surfaces: ToothSurface[];
   material: string | null;
   notes: string | null;
   status: ToothConditionStatus;
+  verticalZone: VerticalZone;
   recordedAt: string;
   recordedBy: string;
   appointmentId: string | null;
@@ -53,9 +64,11 @@ export interface CreateToothConditionBody {
   notationSystem?: NotationSystem;
   conditionType: ConditionType;
   surface?: string;
+  surfaces?: ToothSurface[];
   material?: string;
   notes?: string;
   status?: ToothConditionStatus;
+  verticalZone?: VerticalZone;
   recordedAt: string;
   recordedBy: string;
   appointmentId?: string;
@@ -64,8 +77,10 @@ export interface CreateToothConditionBody {
 export interface UpdateToothConditionBody {
   status?: ToothConditionStatus;
   surface?: string;
+  surfaces?: ToothSurface[];
   material?: string;
   notes?: string;
+  verticalZone?: VerticalZone;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────

@@ -13,6 +13,8 @@ import {
   type ToothCondition,
   type ConditionType,
   type NotationSystem,
+  type ToothSurface,
+  type VerticalZone,
 } from "@/lib/api/tooth-chart";
 import type { TreatmentPlanItem } from "@/lib/api/treatment-plans";
 import { ToothConditionForm } from "./ToothConditionForm";
@@ -81,24 +83,6 @@ const CONDITION_LABELS: Record<ConditionType, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getToothColorClass(conditions: ToothCondition[]): string {
-  if (conditions.length === 0) return "bg-gray-50 text-gray-400";
-  // Status overrides take priority (status is per condition, check any)
-  if (conditions.some((c) => c.status === "completed_today")) {
-    return "bg-green-400 text-green-900";
-  }
-  if (conditions.some((c) => c.status === "treatment_planned")) {
-    return "bg-orange-200 text-orange-800";
-  }
-  // Fall back to condition type priority
-  for (const type of CONDITION_PRIORITY) {
-    if (conditions.some((c) => c.conditionType === type)) {
-      return CONDITION_COLORS[type];
-    }
-  }
-  return CONDITION_COLORS[conditions[0]?.conditionType ?? "other"];
-}
-
 function primaryConditionType(conditions: ToothCondition[]): ConditionType | null {
   if (conditions.length === 0) return null;
   for (const type of CONDITION_PRIORITY) {
@@ -111,6 +95,131 @@ function toothLabel(toothNum: number, notation: NotationSystem): string {
   return notation === "fdi" ? (UNIVERSAL_TO_FDI[toothNum] ?? String(toothNum)) : String(toothNum);
 }
 
+// ── Hover-card helpers (exported for unit tests) ──────────────────────────────
+
+// Suppressed when the tooth is the currently-selected one (the detail panel
+// takes over) or when no tooth is hovered.
+export function shouldShowHoverCard(
+  hoveredTooth: string | null,
+  selectedTooth: string | null,
+  toothNumber: string,
+): boolean {
+  if (hoveredTooth !== toothNumber) return false;
+  if (selectedTooth === toothNumber) return false;
+  return true;
+}
+
+export function formatHoverConditionLine(condition: ToothCondition): string {
+  const label = CONDITION_LABELS[condition.conditionType];
+  const zone = condition.verticalZone ?? "crown";
+  const annotations: string[] = [];
+  if (condition.surface) annotations.push(condition.surface);
+  if (zone !== "crown") annotations.push(zone);
+  return annotations.length > 0 ? `${label} (${annotations.join(", ")})` : label;
+}
+
+// ── Surface helpers (exported for testing) ────────────────────────────────────
+
+// Anterior teeth (incisors + canines) — universal numbering 6-11 (upper) and
+// 22-27 (lower). These present an incisal edge (I) instead of an occlusal
+// surface (O). Anything else is treated as a posterior.
+const ANTERIOR_UNIVERSAL: ReadonlySet<number> = new Set([
+  6, 7, 8, 9, 10, 11, 22, 23, 24, 25, 26, 27,
+]);
+
+export function isAnteriorTooth(toothNumber: string): boolean {
+  const n = parseInt(toothNumber, 10);
+  if (isNaN(n)) return false;
+  return ANTERIOR_UNIVERSAL.has(n);
+}
+
+export function centerSurfaceCode(toothNumber: string): "O" | "I" {
+  return isAnteriorTooth(toothNumber) ? "I" : "O";
+}
+
+// The five surface cells displayed inside each tooth button, in the order
+// they'll be rendered into the 3×3 grid (top, left, center, right, bottom).
+export interface SurfaceCell {
+  surface: ToothSurface;
+  label: string;
+}
+
+export function surfaceCellsForTooth(toothNumber: string): SurfaceCell[] {
+  const center = centerSurfaceCode(toothNumber);
+  return [
+    { surface: "B", label: "B" },
+    { surface: "M", label: "M" },
+    { surface: center, label: center },
+    { surface: "D", label: "D" },
+    { surface: "L", label: "L" },
+  ];
+}
+
+// Conditions with an empty `surfaces` array (e.g. crowns, missing teeth) are
+// treated as whole-tooth and fill every cell. Higher-priority conditions win
+// per surface. Only crown-zone conditions contribute — cervical/root caries
+// fill the cervical band / root box instead.
+export function surfaceFillColors(
+  conditions: ToothCondition[],
+  toothNumber: string,
+): Record<ToothSurface, string | null> {
+  const center = centerSurfaceCode(toothNumber);
+  const allSurfaces: ToothSurface[] = ["B", "M", center, "D", "L"];
+  const out: Record<ToothSurface, string | null> = {
+    B: null,
+    M: null,
+    O: null,
+    D: null,
+    L: null,
+    I: null,
+  };
+
+  const crownConditions = conditions.filter(
+    (c) => (c.verticalZone ?? "crown") === "crown",
+  );
+  const sorted = [...crownConditions].sort((a, b) => {
+    const ai = CONDITION_PRIORITY.indexOf(a.conditionType);
+    const bi = CONDITION_PRIORITY.indexOf(b.conditionType);
+    return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
+  });
+
+  for (const cond of sorted) {
+    const color = CONDITION_COLORS[cond.conditionType];
+    const targets =
+      cond.surfaces.length === 0
+        ? allSurfaces
+        : cond.surfaces.filter((s) => allSurfaces.includes(s));
+    for (const s of targets) {
+      if (out[s] === null) out[s] = color;
+    }
+  }
+
+  return out;
+}
+
+// For each non-crown vertical zone (cervical, root), pick the highest-priority
+// condition's color. Returns null when no condition targets that zone.
+export function zoneFillColors(
+  conditions: ToothCondition[],
+): Record<Exclude<VerticalZone, "crown">, string | null> {
+  function pick(zone: VerticalZone): string | null {
+    const matches = conditions.filter((c) => c.verticalZone === zone);
+    if (matches.length === 0) return null;
+    let bestIdx = Infinity;
+    let bestColor: string | null = null;
+    for (const c of matches) {
+      const idx = CONDITION_PRIORITY.indexOf(c.conditionType);
+      const effective = idx === -1 ? Infinity : idx;
+      if (effective < bestIdx) {
+        bestIdx = effective;
+        bestColor = CONDITION_COLORS[c.conditionType];
+      }
+    }
+    return bestColor;
+  }
+  return { cervical: pick("cervical"), root: pick("root") };
+}
+
 // ── ToothButton ───────────────────────────────────────────────────────────────
 
 interface ToothButtonProps {
@@ -121,6 +230,8 @@ interface ToothButtonProps {
   isUpper: boolean;
   isSelected: boolean;
   onClick: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
 }
 
 function ToothButton({
@@ -131,17 +242,33 @@ function ToothButton({
   isUpper,
   isSelected,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
 }: ToothButtonProps) {
   const numericTooth = parseInt(toothNumber, 10);
   const displayLabel = isNaN(numericTooth)
     ? toothNumber
     : toothLabel(numericTooth, notation);
 
-  const colorClass = getToothColorClass(conditions);
   const primaryType = primaryConditionType(conditions);
   const hasMultiple = conditions.length > 1;
+  const isMissing = primaryType === "missing";
   const hasTreatmentPlan = treatmentItems.length > 0;
   const planUrgency = highestUrgency(treatmentItems);
+
+  // Status overlay (full-tooth tint) for treatment_planned / completed_today
+  let statusOverlay = "";
+  if (conditions.some((c) => c.status === "completed_today")) {
+    statusOverlay = "bg-green-400/30";
+  } else if (conditions.some((c) => c.status === "treatment_planned")) {
+    statusOverlay = "bg-orange-200/40";
+  }
+
+  const fills = surfaceFillColors(conditions, toothNumber);
+  const zoneFills = zoneFillColors(conditions);
+  const center = centerSurfaceCode(toothNumber);
+  const emptyCell = "bg-gray-100";
+  const emptyZone = "bg-gray-200";
 
   const titleParts: string[] = [`Tooth ${displayLabel}`];
   if (conditions.length > 0) {
@@ -150,50 +277,177 @@ function ToothButton({
   if (hasTreatmentPlan && planUrgency) {
     titleParts.push(`${treatmentItems.length} treatment-planned (${planUrgency})`);
   }
+  const titleText = titleParts.join(" — ");
 
   return (
     <button
       onClick={onClick}
-      title={titleParts.join(" — ")}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onMouseEnter}
+      onBlur={onMouseLeave}
+      data-testid={`tooth-button-${toothNumber}`}
       data-tooth-number={toothNumber}
+      aria-label={titleText}
       className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
         ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
       `}
     >
-      {/* Tooth number — above for upper, below for lower */}
       {isUpper && (
-        <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
+        <span className="text-[11px] text-muted-foreground leading-none pt-0.5">
           {displayLabel}
         </span>
       )}
 
-      {/* Tooth body */}
-      <div
-        className={`relative w-7 h-8 rounded-sm flex items-center justify-center text-[8px] font-bold ${colorClass} border border-gray-300`}
-      >
-        {primaryType === "missing" && "×"}
-        {hasMultiple && primaryType !== "missing" && (
-          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
+      {/* Tooth body — crown grid + cervical band + tapered root. Badges hang
+          off the outer wrapper so they aren't clipped by the grid's overflow. */}
+      <div className="relative">
+        <div
+          className={`w-14 h-14 rounded-t-md rounded-b-none border border-gray-500 overflow-hidden ${statusOverlay}`}
+        >
+          {isMissing ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-300 text-gray-700 text-base font-bold">
+              ×
+            </div>
+          ) : (
+            <div className="grid h-full w-full grid-cols-3 grid-rows-3">
+              <div className={emptyCell} />
+              <div
+                data-testid={`surface-${toothNumber}-B`}
+                className={`${fills.B ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
+              >
+                B
+              </div>
+              <div className={emptyCell} />
+              <div
+                data-testid={`surface-${toothNumber}-M`}
+                className={`${fills.M ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
+              >
+                M
+              </div>
+              <div
+                data-testid={`surface-${toothNumber}-${center}`}
+                className={`${fills[center] ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
+              >
+                {center}
+              </div>
+              <div
+                data-testid={`surface-${toothNumber}-D`}
+                className={`${fills.D ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
+              >
+                D
+              </div>
+              <div className={emptyCell} />
+              <div
+                data-testid={`surface-${toothNumber}-L`}
+                className={`${fills.L ?? emptyCell} flex items-center justify-center text-[10px] font-bold leading-none`}
+              >
+                L
+              </div>
+              <div className={emptyCell} />
+            </div>
+          )}
+        </div>
+
+        {/* Cervical band — thin strip at the gumline. */}
+        {!isMissing && (
+          <div
+            data-testid={`cervical-${toothNumber}`}
+            className={`w-14 h-2.5 border-x border-gray-500 ${zoneFills.cervical ?? emptyZone}`}
+          />
+        )}
+
+        {/* Root box — narrower rounded rectangle, tapers visually. */}
+        {!isMissing && (
+          <div className="flex justify-center">
+            <div
+              data-testid={`root-${toothNumber}`}
+              className={`w-9 h-5 rounded-b-lg border border-t-0 border-gray-500 ${zoneFills.root ?? emptyZone}`}
+            />
+          </div>
+        )}
+
+        {hasMultiple && !isMissing && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground">
             {conditions.length}
           </span>
         )}
+
         {hasTreatmentPlan && planUrgency && (
           <span
             data-testid="treatment-plan-badge"
             data-urgency={planUrgency}
             aria-label={`${treatmentItems.length} planned (${planUrgency})`}
             title={`Treatment planned (${planUrgency})`}
-            className={`absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
+            className={`absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
           />
         )}
       </div>
 
       {!isUpper && (
-        <span className="text-[9px] text-muted-foreground leading-none pb-0.5">
+        <span className="text-[11px] text-muted-foreground leading-none pb-0.5">
           {displayLabel}
         </span>
       )}
     </button>
+  );
+}
+
+// ── ToothInspector ────────────────────────────────────────────────────────────
+
+// Inline panel under the chart that shows whatever tooth is currently hovered.
+// Rendered outside the chart's overflow-x-auto wrapper so it never gets clipped
+// (the earlier per-tooth floating popover was unreliable for that reason).
+interface ToothInspectorProps {
+  toothLabel: string | null;
+  conditions: ToothCondition[];
+  treatmentItems: TreatmentPlanItem[];
+}
+
+function ToothInspector({ toothLabel, conditions, treatmentItems }: ToothInspectorProps) {
+  const planUrgency = highestUrgency(treatmentItems);
+
+  return (
+    <div
+      role="region"
+      aria-label="Tooth inspector"
+      data-testid="tooth-inspector"
+      className="mt-2 min-h-[68px] rounded-md border bg-muted/30 p-2 print:hidden"
+    >
+      {!toothLabel ? (
+        <p className="text-[11px] text-muted-foreground">
+          Hover a tooth to see its details.
+        </p>
+      ) : (
+        <>
+          <p className="text-xs font-semibold mb-1">Tooth {toothLabel}</p>
+          {conditions.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">No conditions recorded.</p>
+          ) : (
+            <ul className="space-y-1">
+              {conditions.map((c) => (
+                <li key={c.id} className="flex items-center gap-1.5 text-[11px]">
+                  <span
+                    className={`inline-block h-2 w-2 rounded-sm ${CONDITION_COLORS[c.conditionType].split(" ")[0]}`}
+                  />
+                  <span>{formatHoverConditionLine(c)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {treatmentItems.length > 0 && planUrgency && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+              <span
+                className={`inline-block h-2 w-2 rotate-45 ${urgencyBadgeColor(planUrgency)}`}
+              />
+              <span>
+                {treatmentItems.length} planned ({planUrgency})
+              </span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -245,7 +499,17 @@ function ConditionPanel({
                 >
                   {CONDITION_LABELS[c.conditionType]}
                 </span>
-                {c.surface && <span className="text-muted-foreground">surfaces: {c.surface}</span>}
+                {c.surfaces.length > 0 && (
+                  <span className="text-muted-foreground">
+                    surfaces: {c.surfaces.join("")}
+                  </span>
+                )}
+                {c.surfaces.length === 0 && c.surface && (
+                  <span className="text-muted-foreground">surfaces: {c.surface}</span>
+                )}
+                {(c.verticalZone ?? "crown") !== "crown" && (
+                  <span className="text-muted-foreground">{c.verticalZone}</span>
+                )}
                 {c.material && <span className="text-muted-foreground">{c.material}</span>}
               </div>
               {!readOnly && (
@@ -341,6 +605,7 @@ export function ToothChartCard({
   const [isPrimary, setIsPrimary] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
   const [selectedTooth, setSelectedTooth] = useState<string | null>(null);
+  const [hoveredTooth, setHoveredTooth] = useState<string | null>(null);
   const [addFormOpen, setAddFormOpen] = useState(false);
 
   const { data, isLoading } = useToothChart(patientId, asOfDate || undefined);
@@ -435,6 +700,7 @@ export function ToothChartCard({
                 onChange={(e) => {
                   setAsOfDate(e.target.value);
                   setSelectedTooth(null);
+                  setHoveredTooth(null);
                 }}
                 className="h-7 text-xs w-36"
                 title="View chart as of date"
@@ -469,9 +735,9 @@ export function ToothChartCard({
             <>
               {/* Chart grid */}
               <div className="overflow-x-auto">
-                <div className="min-w-[560px]">
+                <div className="min-w-[900px]">
                   {/* Upper arch */}
-                  <div className="flex justify-center gap-1 pb-1 border-b border-dashed border-border">
+                  <div className="flex justify-center gap-1.5 pb-2 border-b border-dashed border-border">
                     {upperTeeth.map((t) => (
                       <ToothButton
                         key={t}
@@ -484,12 +750,16 @@ export function ToothChartCard({
                         onClick={() =>
                           setSelectedTooth((prev) => (prev === t ? null : t))
                         }
+                        onMouseEnter={() => setHoveredTooth(t)}
+                        onMouseLeave={() =>
+                          setHoveredTooth((prev) => (prev === t ? null : prev))
+                        }
                       />
                     ))}
                   </div>
 
                   {/* Lower arch */}
-                  <div className="flex justify-center gap-1 pt-1">
+                  <div className="flex justify-center gap-1.5 pt-2">
                     {lowerTeeth.map((t) => (
                       <ToothButton
                         key={t}
@@ -502,11 +772,27 @@ export function ToothChartCard({
                         onClick={() =>
                           setSelectedTooth((prev) => (prev === t ? null : t))
                         }
+                        onMouseEnter={() => setHoveredTooth(t)}
+                        onMouseLeave={() =>
+                          setHoveredTooth((prev) => (prev === t ? null : prev))
+                        }
                       />
                     ))}
                   </div>
                 </div>
               </div>
+
+              <ToothInspector
+                toothLabel={
+                  hoveredTooth && shouldShowHoverCard(hoveredTooth, selectedTooth, hoveredTooth)
+                    ? hoveredTooth
+                    : null
+                }
+                conditions={hoveredTooth ? (conditionsByTooth.get(hoveredTooth) ?? []) : []}
+                treatmentItems={
+                  hoveredTooth ? (treatmentItemsByTooth?.get(hoveredTooth) ?? []) : []
+                }
+              />
 
               <ChartLegend />
 

@@ -22,7 +22,10 @@ import {
   useAddToothCondition,
   type ConditionType,
   type ToothConditionStatus,
+  type ToothSurface,
+  type VerticalZone,
 } from "@/lib/api/tooth-chart";
+import { centerSurfaceCode, isAnteriorTooth } from "./ToothChartCard";
 
 const CONDITION_TYPE_LABELS: Record<ConditionType, string> = {
   existing_restoration: "Existing restoration",
@@ -44,6 +47,14 @@ const STATUS_LABELS: Record<ToothConditionStatus, string> = {
   completed_today: "Completed today",
 };
 
+const VERTICAL_ZONE_LABELS: Record<VerticalZone, string> = {
+  crown: "Crown",
+  cervical: "Cervical (gumline)",
+  root: "Root",
+};
+
+const VERTICAL_ZONE_ORDER: VerticalZone[] = ["crown", "cervical", "root"];
+
 // Condition types that have meaningful material choices
 const MATERIAL_CONDITION_TYPES: ConditionType[] = [
   "existing_restoration",
@@ -60,6 +71,106 @@ interface ToothConditionFormProps {
   onClose: () => void;
 }
 
+// Surfaces that don't apply to whole-tooth conditions like crowns or extractions.
+const WHOLE_TOOTH_CONDITION_TYPES: ConditionType[] = [
+  "missing",
+  "implant",
+  "crown",
+  "bridge_pontic",
+  "bridge_abutment",
+];
+
+const SURFACE_LABEL_LONG: Record<ToothSurface, string> = {
+  B: "Buccal",
+  M: "Mesial",
+  O: "Occlusal",
+  D: "Distal",
+  L: "Lingual",
+  I: "Incisal",
+};
+
+// Clickable 5-cell cross showing B/M/{O|I}/D/L. The center cell label is
+// "I" for anterior teeth (6-11, 22-27), otherwise "O".
+function SurfaceSelector({
+  toothNumber,
+  selected,
+  onToggle,
+}: {
+  toothNumber: string;
+  selected: ToothSurface[];
+  onToggle: (s: ToothSurface) => void;
+}) {
+  const center = centerSurfaceCode(toothNumber);
+  const cellBase =
+    "flex items-center justify-center text-xs font-semibold border border-gray-300 select-none";
+  const cellSize = "w-10 h-10";
+
+  function cellClass(s: ToothSurface) {
+    const isOn = selected.includes(s);
+    return `${cellBase} ${cellSize} ${
+      isOn
+        ? "bg-primary text-primary-foreground"
+        : "bg-background text-foreground hover:bg-muted"
+    }`;
+  }
+
+  return (
+    <div className="grid w-fit grid-cols-3 grid-rows-3 gap-0.5">
+      <div className={`${cellSize}`} />
+      <button
+        type="button"
+        data-testid="surface-selector-B"
+        aria-pressed={selected.includes("B")}
+        onClick={() => onToggle("B")}
+        className={cellClass("B")}
+      >
+        B
+      </button>
+      <div className={`${cellSize}`} />
+
+      <button
+        type="button"
+        data-testid="surface-selector-M"
+        aria-pressed={selected.includes("M")}
+        onClick={() => onToggle("M")}
+        className={cellClass("M")}
+      >
+        M
+      </button>
+      <button
+        type="button"
+        data-testid={`surface-selector-${center}`}
+        aria-pressed={selected.includes(center)}
+        onClick={() => onToggle(center)}
+        className={cellClass(center)}
+      >
+        {center}
+      </button>
+      <button
+        type="button"
+        data-testid="surface-selector-D"
+        aria-pressed={selected.includes("D")}
+        onClick={() => onToggle("D")}
+        className={cellClass("D")}
+      >
+        D
+      </button>
+
+      <div className={`${cellSize}`} />
+      <button
+        type="button"
+        data-testid="surface-selector-L"
+        aria-pressed={selected.includes("L")}
+        onClick={() => onToggle("L")}
+        className={cellClass("L")}
+      >
+        L
+      </button>
+      <div className={`${cellSize}`} />
+    </div>
+  );
+}
+
 export function ToothConditionForm({
   patientId,
   toothNumber,
@@ -67,7 +178,8 @@ export function ToothConditionForm({
   onClose,
 }: ToothConditionFormProps) {
   const [conditionType, setConditionType] = useState<ConditionType>("existing_restoration");
-  const [surface, setSurface] = useState("");
+  const [surfaces, setSurfaces] = useState<ToothSurface[]>([]);
+  const [verticalZone, setVerticalZone] = useState<VerticalZone>("crown");
   const [material, setMaterial] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<ToothConditionStatus>("existing");
@@ -78,6 +190,17 @@ export function ToothConditionForm({
   const { mutate, isPending } = useAddToothCondition(patientId);
 
   const showMaterial = MATERIAL_CONDITION_TYPES.includes(conditionType);
+  const isWholeTooth = WHOLE_TOOTH_CONDITION_TYPES.includes(conditionType);
+  const anterior = isAnteriorTooth(toothNumber);
+
+  function toggleSurface(s: ToothSurface) {
+    setSurfaces((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    );
+  }
+
+  // Cervical and root caries don't use per-crown-surface targeting.
+  const showSurfaces = !isWholeTooth && verticalZone === "crown";
 
   function handleSubmit() {
     if (!providerId.trim()) {
@@ -85,20 +208,23 @@ export function ToothConditionForm({
       return;
     }
     setError(null);
+    const effectiveSurfaces = showSurfaces ? surfaces : [];
     mutate(
       {
         toothNumber,
         conditionType,
         status,
+        verticalZone,
         recordedAt: new Date().toISOString().slice(0, 10),
         recordedBy: providerId.trim(),
-        ...(surface.trim() && { surface: surface.trim() }),
+        ...(effectiveSurfaces.length > 0 && { surfaces: effectiveSurfaces }),
         ...(showMaterial && material.trim() && { material: material.trim() }),
         ...(notes.trim() && { notes: notes.trim() }),
       },
       {
         onSuccess: () => {
-          setSurface("");
+          setSurfaces([]);
+          setVerticalZone("crown");
           setMaterial("");
           setNotes("");
           setConditionType("existing_restoration");
@@ -157,17 +283,47 @@ export function ToothConditionForm({
             </Select>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">
-              Surfaces (e.g. MOD, B, L)
-            </Label>
-            <Input
-              value={surface}
-              onChange={(e) => setSurface(e.target.value.toUpperCase())}
-              placeholder="Leave blank for whole-tooth"
-              maxLength={10}
-            />
-          </div>
+          {!isWholeTooth && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Vertical position</Label>
+              <div className="flex gap-1">
+                {VERTICAL_ZONE_ORDER.map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    data-testid={`vertical-zone-${z}`}
+                    aria-pressed={verticalZone === z}
+                    onClick={() => setVerticalZone(z)}
+                    className={`flex-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                      verticalZone === z
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {VERTICAL_ZONE_LABELS[z]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showSurfaces && (
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs text-muted-foreground">
+                Surfaces {anterior ? "(B / M / I / D / L)" : "(B / M / O / D / L)"}
+              </Label>
+              <SurfaceSelector
+                toothNumber={toothNumber}
+                selected={surfaces}
+                onToggle={toggleSurface}
+              />
+              {surfaces.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Selected: {surfaces.map((s) => SURFACE_LABEL_LONG[s]).join(", ")}
+                </p>
+              )}
+            </div>
+          )}
 
           {showMaterial && (
             <div className="flex flex-col gap-1">

@@ -1115,6 +1115,21 @@ class ToothConditionStatus(StrEnum):
     completed_today = 'completed_today'
 
 
+class ToothSurface(StrEnum):
+    b = 'B'
+    m = 'M'
+    o = 'O'
+    d = 'D'
+    l = 'L'
+    i = 'I'
+
+
+class VerticalZone(StrEnum):
+    crown = 'crown'
+    cervical = 'cervical'
+    root = 'root'
+
+
 class Status5(StrEnum):
     existing = 'existing'
     treatment_planned = 'treatment_planned'
@@ -1132,9 +1147,11 @@ class ToothCondition(BaseModel):
     notation_system: NotationSystem = Field(..., alias='notationSystem')
     condition_type: ConditionType = Field(..., alias='conditionType')
     surface: str | None
+    surfaces: list[ToothSurface]
     material: str | None
     notes: str | None
     status: Status5
+    vertical_zone: VerticalZone = Field(..., alias='verticalZone')
     recorded_at: date = Field(..., alias='recordedAt')
     recorded_by: UUID = Field(..., alias='recordedBy')
     appointment_id: UUID | None = Field(..., alias='appointmentId')
@@ -1150,9 +1167,11 @@ class CreateToothCondition(BaseModel):
     notation_system: NotationSystem | None = Field(None, alias='notationSystem')
     condition_type: ConditionType = Field(..., alias='conditionType')
     surface: str | None = None
+    surfaces: list[ToothSurface] | None = None
     material: str | None = None
     notes: str | None = None
     status: Status5 | None = None
+    vertical_zone: VerticalZone | None = Field(None, alias='verticalZone')
     recorded_at: date = Field(..., alias='recordedAt')
     recorded_by: UUID = Field(..., alias='recordedBy')
     appointment_id: UUID | None = Field(None, alias='appointmentId')
@@ -1164,8 +1183,10 @@ class UpdateToothCondition(BaseModel):
     )
     status: Status5 | None = None
     surface: str | None = None
+    surfaces: list[ToothSurface] | None = None
     material: str | None = None
     notes: str | None = None
+    vertical_zone: VerticalZone | None = Field(None, alias='verticalZone')
 
 
 class Condition2(BaseModel):
@@ -1179,9 +1200,11 @@ class Condition2(BaseModel):
     notation_system: NotationSystem = Field(..., alias='notationSystem')
     condition_type: ConditionType = Field(..., alias='conditionType')
     surface: str | None
+    surfaces: list[ToothSurface]
     material: str | None
     notes: str | None
     status: Status5
+    vertical_zone: VerticalZone = Field(..., alias='verticalZone')
     recorded_at: date = Field(..., alias='recordedAt')
     recorded_by: UUID = Field(..., alias='recordedBy')
     appointment_id: UUID | None = Field(..., alias='appointmentId')
