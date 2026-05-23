@@ -59,8 +59,6 @@ export interface TreatmentPlanItem {
   status: TreatmentPlanItemStatus;
   urgency: TreatmentPlanItemUrgency;
   priority: number;
-  // Optional: populated by Epic 1 backend once merged. Treat as string | undefined here.
-  urgency?: string;
   appointmentId: string | null;
   completedAppointmentId: string | null;
   notes: string | null;
