@@ -47,6 +47,7 @@ import {
   useSendIntakeForm,
   type IntakeFormSummary,
 } from "@/lib/api/intake";
+import { useOpenPatientTreatmentItems } from "@/lib/api/treatment-plans";
 
 function formatDob(dob: string): string {
   const [y, m, d] = dob.split("-");
@@ -768,6 +769,7 @@ export default function PatientDetailPage() {
 
   const searchParams = useSearchParams();
   const { data: patient, isLoading, isError, error } = usePatient(patientId);
+  const treatmentItemsByTooth = useOpenPatientTreatmentItems(patientId);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const initialTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart" | "treatment-plan">(
@@ -891,7 +893,10 @@ export default function PatientDetailPage() {
 
       {/* Tooth Chart tab */}
       {activeTab === "tooth-chart" && (
-        <ToothChartCard patientId={patientId} />
+        <ToothChartCard
+          patientId={patientId}
+          treatmentItemsByTooth={treatmentItemsByTooth}
+        />
       )}
 
       {/* Treatment Plan tab */}

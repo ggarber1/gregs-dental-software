@@ -8,7 +8,16 @@ import {
   surfaceCellsForTooth,
   surfaceFillColors,
 } from "@/components/patients/ToothChartCard";
+import {
+  hasTreatmentPlannedItem,
+  highestUrgency,
+  urgencyBadgeColor,
+} from "@/components/patients/toothChartHelpers";
 import type { ToothCondition } from "@/lib/api/tooth-chart";
+import type {
+  TreatmentPlanItem,
+  TreatmentPlanItemUrgency,
+} from "@/lib/api/treatment-plans";
 
 const mkCondition = (overrides: Partial<ToothCondition> = {}): ToothCondition => ({
   id: "c-1",
@@ -30,8 +39,34 @@ const mkCondition = (overrides: Partial<ToothCondition> = {}): ToothCondition =>
   ...overrides,
 });
 
+function makeItem(
+  toothNumber: string,
+  urgency: TreatmentPlanItemUrgency = "soon",
+): TreatmentPlanItem {
+  return {
+    id: `item-${toothNumber}-${urgency}`,
+    practiceId: "practice-1",
+    treatmentPlanId: "plan-1",
+    patientId: "patient-1",
+    toothNumber,
+    procedureCode: "D2750",
+    procedureName: "Crown",
+    surface: null,
+    feeCents: 100000,
+    insuranceEstCents: null,
+    patientEstCents: null,
+    status: "proposed",
+    urgency,
+    priority: 1,
+    appointmentId: null,
+    completedAppointmentId: null,
+    notes: null,
+    createdAt: "2026-05-04T12:00:00Z",
+    updatedAt: "2026-05-04T12:00:00Z",
+  };
+}
+
 describe("shouldShowHoverCard", () => {
-  // Happy path: a tooth is hovered and nothing is selected → show its card.
   it("shows the card when the tooth is hovered and no tooth is selected", () => {
     expect(shouldShowHoverCard("14", null, "14")).toBe(true);
   });
@@ -40,7 +75,6 @@ describe("shouldShowHoverCard", () => {
     expect(shouldShowHoverCard("14", "3", "14")).toBe(true);
   });
 
-  // Failure case: no hover.
   it("hides the card when no tooth is hovered", () => {
     expect(shouldShowHoverCard(null, null, "14")).toBe(false);
   });
@@ -49,14 +83,12 @@ describe("shouldShowHoverCard", () => {
     expect(shouldShowHoverCard("14", null, "3")).toBe(false);
   });
 
-  // Suppression: hovered tooth is also the selected tooth → detail panel takes over.
   it("suppresses the card when the hovered tooth is also the selected tooth", () => {
     expect(shouldShowHoverCard("14", "14", "14")).toBe(false);
   });
 });
 
 describe("formatHoverConditionLine", () => {
-  // Happy path: condition with a surface.
   it("renders the condition label with the surface in parentheses", () => {
     const line = formatHoverConditionLine(
       mkCondition({ conditionType: "decay", surface: "MO" }),
@@ -71,7 +103,6 @@ describe("formatHoverConditionLine", () => {
     expect(line).toBe("Restoration (B)");
   });
 
-  // Failure / edge case: condition with no surface recorded.
   it("omits the surface segment when surface is null", () => {
     const line = formatHoverConditionLine(
       mkCondition({ conditionType: "crown", surface: null }),
@@ -180,7 +211,6 @@ describe("surfaceFillColors", () => {
   });
 
   it("higher-priority condition wins per surface", () => {
-    // 'decay' wins over 'watch' on M.
     const watchColor = surfaceFillColors(
       [mkCondition({ id: "w", conditionType: "watch", surfaces: ["M"] })],
       "14",
@@ -200,5 +230,65 @@ describe("surfaceFillColors", () => {
 
     expect(combined).toBe(decayColor);
     expect(combined).not.toBe(watchColor);
+  });
+});
+
+describe("hasTreatmentPlannedItem", () => {
+  it("returns true when the tooth has at least one item", () => {
+    const map = new Map<string, TreatmentPlanItem[]>([["14", [makeItem("14")]]]);
+    expect(hasTreatmentPlannedItem(map, "14")).toBe(true);
+  });
+
+  it("returns false for teeth not present in the map", () => {
+    const map = new Map<string, TreatmentPlanItem[]>([["14", [makeItem("14")]]]);
+    expect(hasTreatmentPlannedItem(map, "30")).toBe(false);
+  });
+
+  it("returns false when the map is undefined", () => {
+    expect(hasTreatmentPlannedItem(undefined, "14")).toBe(false);
+  });
+
+  it("returns false when the tooth's entry is an empty array", () => {
+    const map = new Map<string, TreatmentPlanItem[]>([["14", []]]);
+    expect(hasTreatmentPlannedItem(map, "14")).toBe(false);
+  });
+});
+
+describe("highestUrgency", () => {
+  it("returns null for an empty list", () => {
+    expect(highestUrgency([])).toBeNull();
+  });
+
+  it("returns 'urgent' when any item is urgent (worst-status wins)", () => {
+    const items = [
+      makeItem("14", "elective"),
+      makeItem("14", "urgent"),
+      makeItem("14", "soon"),
+    ];
+    expect(highestUrgency(items)).toBe("urgent");
+  });
+
+  it("returns 'soon' when no urgent but at least one soon", () => {
+    expect(highestUrgency([makeItem("14", "elective"), makeItem("14", "soon")])).toBe("soon");
+  });
+
+  it("returns 'elective' when every item is elective", () => {
+    expect(highestUrgency([makeItem("14", "elective"), makeItem("14", "elective")])).toBe(
+      "elective",
+    );
+  });
+});
+
+describe("urgencyBadgeColor", () => {
+  it("maps urgent to red", () => {
+    expect(urgencyBadgeColor("urgent")).toBe("bg-red-600");
+  });
+
+  it("maps soon to orange (matches the original badge color)", () => {
+    expect(urgencyBadgeColor("soon")).toBe("bg-orange-500");
+  });
+
+  it("maps elective to gray", () => {
+    expect(urgencyBadgeColor("elective")).toBe("bg-gray-400");
   });
 });

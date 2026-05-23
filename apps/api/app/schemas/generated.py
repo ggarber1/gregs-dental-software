@@ -1226,6 +1226,12 @@ class TreatmentPlanItemStatus(StrEnum):
     refused = 'refused'
 
 
+class TreatmentPlanItemUrgency(StrEnum):
+    urgent = 'urgent'
+    soon = 'soon'
+    elective = 'elective'
+
+
 class Status9(StrEnum):
     proposed = 'proposed'
     accepted = 'accepted'
@@ -1269,6 +1275,12 @@ class Status11(StrEnum):
     refused = 'refused'
 
 
+class Urgency1(StrEnum):
+    urgent = 'urgent'
+    soon = 'soon'
+    elective = 'elective'
+
+
 class Item2(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1285,6 +1297,7 @@ class Item2(BaseModel):
     insurance_est_cents: InsuranceEstCents | None = Field(..., alias='insuranceEstCents')
     patient_est_cents: PatientEstCents | None = Field(..., alias='patientEstCents')
     status: Status11
+    urgency: Urgency1
     priority: int = Field(..., gt=0)
     appointment_id: UUID | None = Field(..., alias='appointmentId')
     completed_appointment_id: UUID | None = Field(..., alias='completedAppointmentId')
@@ -1328,6 +1341,7 @@ class TreatmentPlanItem(BaseModel):
     insurance_est_cents: InsuranceEstCents | None = Field(..., alias='insuranceEstCents')
     patient_est_cents: PatientEstCents | None = Field(..., alias='patientEstCents')
     status: Status11
+    urgency: Urgency1
     priority: int = Field(..., gt=0)
     appointment_id: UUID | None = Field(..., alias='appointmentId')
     completed_appointment_id: UUID | None = Field(..., alias='completedAppointmentId')
@@ -1347,6 +1361,7 @@ class Item3(BaseModel):
     fee_cents: int = Field(..., alias='feeCents', ge=0)
     insurance_est_cents: int | None = Field(None, alias='insuranceEstCents', ge=0)
     patient_est_cents: int | None = Field(None, alias='patientEstCents', ge=0)
+    urgency: Urgency1 | None = None
     priority: int | None = Field(None, gt=0)
     notes: str | None = None
 
@@ -1371,6 +1386,7 @@ class CreateTreatmentPlanItem(BaseModel):
     fee_cents: int = Field(..., alias='feeCents', ge=0)
     insurance_est_cents: int | None = Field(None, alias='insuranceEstCents', ge=0)
     patient_est_cents: int | None = Field(None, alias='patientEstCents', ge=0)
+    urgency: Urgency1 | None = None
     priority: int | None = Field(None, gt=0)
     notes: str | None = None
 
@@ -1412,6 +1428,7 @@ class UpdateTreatmentPlanItem(BaseModel):
     patient_est_cents: int | None = Field(None, alias='patientEstCents', ge=0)
     appointment_id: UUID | None = Field(None, alias='appointmentId')
     completed_appointment_id: UUID | None = Field(None, alias='completedAppointmentId')
+    urgency: Urgency1 | None = None
     priority: int | None = Field(None, gt=0)
     notes: str | None = None
 

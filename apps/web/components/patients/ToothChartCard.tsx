@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   useToothChart,
   useDeleteToothCondition,
@@ -14,7 +15,11 @@ import {
   type NotationSystem,
   type ToothSurface,
 } from "@/lib/api/tooth-chart";
+import type { TreatmentPlanItem } from "@/lib/api/treatment-plans";
 import { ToothConditionForm } from "./ToothConditionForm";
+import { highestUrgency, urgencyBadgeColor } from "./toothChartHelpers";
+
+export { hasTreatmentPlannedItem } from "./toothChartHelpers";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -188,6 +193,7 @@ export function surfaceFillColors(
 interface ToothButtonProps {
   toothNumber: string;
   conditions: ToothCondition[];
+  treatmentItems: TreatmentPlanItem[];
   notation: NotationSystem;
   isUpper: boolean;
   isSelected: boolean;
@@ -201,6 +207,7 @@ interface ToothButtonProps {
 function ToothButton({
   toothNumber,
   conditions,
+  treatmentItems,
   notation,
   isUpper,
   isSelected,
@@ -218,6 +225,8 @@ function ToothButton({
   const primaryType = primaryConditionType(conditions);
   const hasMultiple = conditions.length > 1;
   const isMissing = primaryType === "missing";
+  const hasTreatmentPlan = treatmentItems.length > 0;
+  const planUrgency = highestUrgency(treatmentItems);
 
   // Status overlay (full-tooth tint) for treatment_planned / completed_today
   let statusOverlay = "";
@@ -231,11 +240,14 @@ function ToothButton({
   const center = centerSurfaceCode(toothNumber);
   const emptyCell = "bg-gray-50";
 
-  const ariaLabel = `Tooth ${displayLabel}${
-    conditions.length > 0
-      ? `: ${conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", ")}`
-      : ""
-  }`;
+  const titleParts: string[] = [`Tooth ${displayLabel}`];
+  if (conditions.length > 0) {
+    titleParts.push(conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", "));
+  }
+  if (hasTreatmentPlan && planUrgency) {
+    titleParts.push(`${treatmentItems.length} treatment-planned (${planUrgency})`);
+  }
+  const titleText = titleParts.join(" — ");
 
   return (
     <div className="relative">
@@ -246,7 +258,8 @@ function ToothButton({
         onFocus={onMouseEnter}
         onBlur={onMouseLeave}
         data-testid={`tooth-button-${toothNumber}`}
-        aria-label={ariaLabel}
+        data-tooth-number={toothNumber}
+        aria-label={titleText}
         className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
           ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
         `}
@@ -308,6 +321,16 @@ function ToothButton({
             <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
               {conditions.length}
             </span>
+          )}
+
+          {hasTreatmentPlan && planUrgency && (
+            <span
+              data-testid="treatment-plan-badge"
+              data-urgency={planUrgency}
+              aria-label={`${treatmentItems.length} planned (${planUrgency})`}
+              title={`Treatment planned (${planUrgency})`}
+              className={`absolute -bottom-1 -left-1 h-2.5 w-2.5 rotate-45 border border-white ${urgencyBadgeColor(planUrgency)}`}
+            />
           )}
         </div>
 
@@ -374,6 +397,7 @@ function ToothHoverCard({ toothLabel, conditions, isUpper }: ToothHoverCardProps
 interface ConditionPanelProps {
   toothNumber: string;
   conditions: ToothCondition[];
+  treatmentItems: TreatmentPlanItem[];
   patientId: string;
   readOnly: boolean;
   onAddClick: () => void;
@@ -382,6 +406,7 @@ interface ConditionPanelProps {
 function ConditionPanel({
   toothNumber,
   conditions,
+  treatmentItems,
   patientId,
   readOnly,
   onAddClick,
@@ -439,6 +464,29 @@ function ConditionPanel({
           ))}
         </ul>
       )}
+
+      {treatmentItems.length > 0 && (
+        <div className="mt-3 border-t border-border pt-2">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Treatment Planned
+          </p>
+          <ul className="space-y-1">
+            {treatmentItems.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-center justify-between gap-2 text-xs"
+              >
+                <span className="font-medium">{item.procedureName}</span>
+                {item.urgency && (
+                  <Badge variant="outline" className="capitalize">
+                    {item.urgency}
+                  </Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -464,6 +512,18 @@ function ChartLegend() {
           <span className="text-[10px] text-muted-foreground">{label}</span>
         </div>
       ))}
+      <div className="flex items-center gap-1">
+        <span className="inline-block w-2.5 h-2.5 rotate-45 bg-red-600" />
+        <span className="text-[10px] text-muted-foreground">Urgent</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="inline-block w-2.5 h-2.5 rotate-45 bg-orange-500" />
+        <span className="text-[10px] text-muted-foreground">Soon</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="inline-block w-2.5 h-2.5 rotate-45 bg-gray-400" />
+        <span className="text-[10px] text-muted-foreground">Elective</span>
+      </div>
     </div>
   );
 }
@@ -472,9 +532,13 @@ function ChartLegend() {
 
 interface ToothChartCardProps {
   patientId: string;
+  treatmentItemsByTooth?: Map<string, TreatmentPlanItem[]>;
 }
 
-export function ToothChartCard({ patientId }: ToothChartCardProps) {
+export function ToothChartCard({
+  patientId,
+  treatmentItemsByTooth,
+}: ToothChartCardProps) {
   const [notation, setNotation] = useState<NotationSystem>("universal");
   const [isPrimary, setIsPrimary] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
@@ -505,6 +569,9 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
 
   const selectedConditions = selectedTooth
     ? (conditionsByTooth.get(selectedTooth) ?? [])
+    : [];
+  const selectedTreatmentItems = selectedTooth
+    ? (treatmentItemsByTooth?.get(selectedTooth) ?? [])
     : [];
 
   return (
@@ -614,6 +681,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                         key={t}
                         toothNumber={t}
                         conditions={conditionsByTooth.get(t) ?? []}
+                        treatmentItems={treatmentItemsByTooth?.get(t) ?? []}
                         notation={notation}
                         isUpper={true}
                         isSelected={selectedTooth === t}
@@ -637,6 +705,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                         key={t}
                         toothNumber={t}
                         conditions={conditionsByTooth.get(t) ?? []}
+                        treatmentItems={treatmentItemsByTooth?.get(t) ?? []}
                         notation={notation}
                         isUpper={false}
                         isSelected={selectedTooth === t}
@@ -663,6 +732,7 @@ export function ToothChartCard({ patientId }: ToothChartCardProps) {
                   <ConditionPanel
                     toothNumber={selectedTooth}
                     conditions={selectedConditions}
+                    treatmentItems={selectedTreatmentItems}
                     patientId={patientId}
                     readOnly={readOnly}
                     onAddClick={() => setAddFormOpen(true)}

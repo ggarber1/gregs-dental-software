@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PenLine } from "lucide-react";
+import { ChevronDown, ChevronRight, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,7 +28,6 @@ import {
   type ClinicalNote,
   type CreateClinicalNoteBody,
   type UpdateClinicalNoteBody,
-  type PatientTolerance,
   type TemplateType,
 } from "@/lib/api/clinical-notes";
 import { useProviders } from "@/lib/api/scheduling";
@@ -51,17 +50,77 @@ interface ClinicalNoteEditorProps {
   };
 }
 
-interface NoteFields {
+export interface NoteFields {
   providerId: string;
   visitDate: string;
   templateType: TemplateType | "";
-  chiefComplaint: string;
-  anesthesia: string;
-  patientTolerance: PatientTolerance | "";
-  complications: string;
   treatmentRendered: string;
-  nextVisitPlan: string;
-  notes: string;
+}
+
+/** Read-only snapshot of the deprecated multi-field structure, surfaced on
+ * existing notes whose data predates the single-textbox redesign. */
+export interface LegacyFields {
+  chiefComplaint: string | null;
+  anesthesia: string | null;
+  patientTolerance: string | null;
+  complications: string | null;
+  nextVisitPlan: string | null;
+  notes: string | null;
+}
+
+export function legacyFieldsFromNote(note: ClinicalNote): LegacyFields {
+  return {
+    chiefComplaint: note.chiefComplaint,
+    anesthesia: note.anesthesia,
+    patientTolerance: note.patientTolerance,
+    complications: note.complications,
+    nextVisitPlan: note.nextVisitPlan,
+    notes: note.notes,
+  };
+}
+
+export function hasLegacyFields(note: ClinicalNote | undefined): boolean {
+  if (!note) return false;
+  const f = legacyFieldsFromNote(note);
+  return Boolean(
+    (f.chiefComplaint && f.chiefComplaint.trim()) ||
+      (f.anesthesia && f.anesthesia.trim()) ||
+      (f.patientTolerance && f.patientTolerance.trim()) ||
+      (f.complications && f.complications.trim()) ||
+      (f.nextVisitPlan && f.nextVisitPlan.trim()) ||
+      (f.notes && f.notes.trim()),
+  );
+}
+
+export type ValidationResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export function validateFields(fields: NoteFields): ValidationResult {
+  if (!fields.treatmentRendered.trim()) {
+    return { ok: false, error: "Treatment rendered is required." };
+  }
+  if (!fields.visitDate) {
+    return { ok: false, error: "Visit date is required." };
+  }
+  if (!fields.providerId.trim()) {
+    return { ok: false, error: "Provider is required." };
+  }
+  return { ok: true };
+}
+
+export function buildCreateBody(
+  fields: NoteFields,
+  appointmentId?: string,
+): CreateClinicalNoteBody {
+  const body: CreateClinicalNoteBody = {
+    providerId: fields.providerId,
+    visitDate: fields.visitDate,
+    treatmentRendered: fields.treatmentRendered,
+  };
+  if (appointmentId) body.appointmentId = appointmentId;
+  if (fields.templateType) body.templateType = fields.templateType;
+  return body;
 }
 
 function fieldsFromNote(note: ClinicalNote): NoteFields {
@@ -69,13 +128,7 @@ function fieldsFromNote(note: ClinicalNote): NoteFields {
     providerId: note.providerId,
     visitDate: note.visitDate,
     templateType: note.templateType ?? "",
-    chiefComplaint: note.chiefComplaint ?? "",
-    anesthesia: note.anesthesia ?? "",
-    patientTolerance: note.patientTolerance ?? "",
-    complications: note.complications ?? "",
     treatmentRendered: note.treatmentRendered,
-    nextVisitPlan: note.nextVisitPlan ?? "",
-    notes: note.notes ?? "",
   };
 }
 
@@ -84,13 +137,7 @@ function defaultFields(prefill?: ClinicalNoteEditorProps["prefill"]): NoteFields
     providerId: prefill?.providerId ?? "",
     visitDate: prefill?.visitDate ?? new Date().toISOString().slice(0, 10),
     templateType: "",
-    chiefComplaint: "",
-    anesthesia: "",
-    patientTolerance: "",
-    complications: "",
     treatmentRendered: "",
-    nextVisitPlan: "",
-    notes: "",
   };
 }
 
@@ -110,6 +157,7 @@ export function ClinicalNoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [showSignConfirm, setShowSignConfirm] = useState(false);
   const [isSavingAndSigning, setIsSavingAndSigning] = useState(false);
+  const [legacyOpen, setLegacyOpen] = useState(false);
 
   const { data: providers } = useProviders();
   const { mutate: createNote, isPending: isCreating } = useCreateClinicalNote(patientId);
@@ -123,50 +171,25 @@ export function ClinicalNoteEditor({
   );
 
   const isSaving = isCreating || isUpdating || isSavingAndSigning;
+  const showLegacySection = hasLegacyFields(existingNote);
 
   function applyTemplate(type: TemplateType) {
     const tpl = CLINICAL_NOTE_TEMPLATES[type];
     setFields((prev) => ({
       ...prev,
       templateType: type,
-      chiefComplaint: tpl.chiefComplaint,
-      anesthesia: tpl.anesthesia,
-      treatmentRendered: tpl.treatmentRendered,
+      treatmentRendered: tpl.body,
     }));
   }
 
   function validate(): boolean {
-    if (!fields.treatmentRendered.trim()) {
-      setError("Treatment rendered is required.");
-      return false;
-    }
-    if (!fields.visitDate) {
-      setError("Visit date is required.");
-      return false;
-    }
-    if (!fields.providerId.trim()) {
-      setError("Provider is required.");
+    const result = validateFields(fields);
+    if (!result.ok) {
+      setError(result.error);
       return false;
     }
     setError(null);
     return true;
-  }
-
-  function buildCreateBody(): CreateClinicalNoteBody {
-    const body: CreateClinicalNoteBody = {
-      providerId: fields.providerId,
-      visitDate: fields.visitDate,
-      treatmentRendered: fields.treatmentRendered,
-    };
-    if (prefill?.appointmentId) body.appointmentId = prefill.appointmentId;
-    if (fields.chiefComplaint) body.chiefComplaint = fields.chiefComplaint;
-    if (fields.anesthesia) body.anesthesia = fields.anesthesia;
-    if (fields.patientTolerance) body.patientTolerance = fields.patientTolerance;
-    if (fields.complications) body.complications = fields.complications;
-    if (fields.nextVisitPlan) body.nextVisitPlan = fields.nextVisitPlan;
-    if (fields.notes) body.notes = fields.notes;
-    if (fields.templateType) body.templateType = fields.templateType;
-    return body;
   }
 
   function handleSave() {
@@ -176,12 +199,6 @@ export function ClinicalNoteEditor({
       const updateBody: UpdateClinicalNoteBody = {
         treatmentRendered: fields.treatmentRendered,
       };
-      if (fields.chiefComplaint) updateBody.chiefComplaint = fields.chiefComplaint;
-      if (fields.anesthesia) updateBody.anesthesia = fields.anesthesia;
-      if (fields.patientTolerance) updateBody.patientTolerance = fields.patientTolerance;
-      if (fields.complications) updateBody.complications = fields.complications;
-      if (fields.nextVisitPlan) updateBody.nextVisitPlan = fields.nextVisitPlan;
-      if (fields.notes) updateBody.notes = fields.notes;
       if (fields.templateType) updateBody.templateType = fields.templateType;
 
       updateNote(updateBody, {
@@ -189,7 +206,7 @@ export function ClinicalNoteEditor({
         onError: () => setError("Failed to save. Please try again."),
       });
     } else {
-      createNote(buildCreateBody(), {
+      createNote(buildCreateBody(fields, prefill?.appointmentId), {
         onSuccess: onClose,
         onError: () => setError("Failed to save. Please try again."),
       });
@@ -201,7 +218,10 @@ export function ClinicalNoteEditor({
     setIsSavingAndSigning(true);
     try {
       const note = await new Promise<ClinicalNote>((resolve, reject) => {
-        createNote(buildCreateBody(), { onSuccess: resolve, onError: reject });
+        createNote(buildCreateBody(fields, prefill?.appointmentId), {
+          onSuccess: resolve,
+          onError: reject,
+        });
       });
       await signClinicalNote(patientId, note.id);
       onClose();
@@ -219,7 +239,7 @@ export function ClinicalNoteEditor({
     });
   }
 
-  function set(key: keyof NoteFields, value: string) {
+  function set<K extends keyof NoteFields>(key: K, value: NoteFields[K]) {
     setFields((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -297,84 +317,24 @@ export function ClinicalNoteEditor({
                 </Field>
               </div>
 
-              <Field label="Chief complaint">
-                <Input
-                  value={fields.chiefComplaint}
-                  onChange={(e) => set("chiefComplaint", e.target.value)}
-                  placeholder="Patient's primary complaint"
-                  disabled={readOnly}
-                />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Anesthesia">
-                  <Input
-                    value={fields.anesthesia}
-                    onChange={(e) => set("anesthesia", e.target.value)}
-                    placeholder="e.g. Lidocaine 2% 1:100k, 1.7mL"
-                    disabled={readOnly}
-                  />
-                </Field>
-                <Field label="Patient tolerance">
-                  <Select
-                    value={fields.patientTolerance}
-                    onValueChange={(v) => set("patientTolerance", v)}
-                    disabled={readOnly}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="excellent">Excellent</SelectItem>
-                      <SelectItem value="good">Good</SelectItem>
-                      <SelectItem value="fair">Fair</SelectItem>
-                      <SelectItem value="poor">Poor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-
-              <Field label="Complications">
-                <Input
-                  value={fields.complications}
-                  onChange={(e) => set("complications", e.target.value)}
-                  placeholder="None, or describe"
-                  disabled={readOnly}
-                />
-              </Field>
-
-              <Field label="Treatment rendered *">
+              <Field label="Note *">
                 <Textarea
                   value={fields.treatmentRendered}
                   onChange={(e) => set("treatmentRendered", e.target.value)}
-                  rows={5}
-                  placeholder="Describe all procedures performed…"
+                  rows={12}
+                  placeholder="Describe the visit. Pick a template above to insert a starting block."
                   disabled={readOnly}
-                  className="resize-y"
+                  className="resize-y font-mono text-sm"
                 />
               </Field>
 
-              <Field label="Next visit plan">
-                <Textarea
-                  value={fields.nextVisitPlan}
-                  onChange={(e) => set("nextVisitPlan", e.target.value)}
-                  rows={2}
-                  placeholder="Plan for next appointment"
-                  disabled={readOnly}
-                  className="resize-y"
+              {showLegacySection && existingNote && (
+                <LegacyFieldsSection
+                  fields={legacyFieldsFromNote(existingNote)}
+                  open={legacyOpen}
+                  onToggle={() => setLegacyOpen((p) => !p)}
                 />
-              </Field>
-
-              <Field label="Additional notes">
-                <Textarea
-                  value={fields.notes}
-                  onChange={(e) => set("notes", e.target.value)}
-                  rows={2}
-                  placeholder="Free-form notes"
-                  disabled={readOnly}
-                  className="resize-y"
-                />
-              </Field>
+              )}
 
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
@@ -438,6 +398,62 @@ export function ClinicalNoteEditor({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function LegacyFieldsSection({
+  fields,
+  open,
+  onToggle,
+}: {
+  fields: LegacyFields;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="rounded-md border border-dashed border-border bg-muted/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-accent/30"
+      >
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+        Legacy fields (from older note format, read-only)
+      </button>
+      {open && (
+        <dl className="grid gap-2 px-3 pb-3 pt-1 text-sm">
+          {fields.chiefComplaint && (
+            <LegacyRow label="Chief complaint" value={fields.chiefComplaint} />
+          )}
+          {fields.anesthesia && (
+            <LegacyRow label="Anesthesia" value={fields.anesthesia} />
+          )}
+          {fields.patientTolerance && (
+            <LegacyRow label="Patient tolerance" value={fields.patientTolerance} />
+          )}
+          {fields.complications && (
+            <LegacyRow label="Complications" value={fields.complications} />
+          )}
+          {fields.nextVisitPlan && (
+            <LegacyRow label="Next visit plan" value={fields.nextVisitPlan} />
+          )}
+          {fields.notes && <LegacyRow label="Additional notes" value={fields.notes} />}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function LegacyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 whitespace-pre-wrap">{value}</dd>
+    </div>
   );
 }
 

@@ -18,8 +18,10 @@ import {
   useDeleteTreatmentPlanItem,
   type TreatmentPlan,
   type TreatmentPlanStatus,
+  type TreatmentPlanItemUrgency,
   type CreateTreatmentPlanItemBody,
 } from "@/lib/api/treatment-plans";
+import { cn } from "@/lib/utils";
 
 interface TreatmentPlanTabProps {
   patientId: string;
@@ -44,6 +46,87 @@ const STATUS_BADGE: Record<
 };
 
 const ACTIVE_STATUSES: TreatmentPlanStatus[] = ["proposed", "accepted", "in_progress"];
+
+const URGENCY_ORDER: Record<TreatmentPlanItemUrgency, number> = {
+  urgent: 0,
+  soon: 1,
+  elective: 2,
+};
+
+const URGENCY_OPTIONS: { value: TreatmentPlanItemUrgency; label: string }[] = [
+  { value: "urgent", label: "Urgent" },
+  { value: "soon", label: "Soon" },
+  { value: "elective", label: "Elective" },
+];
+
+// Tailwind classes for the urgency badge — red / amber / gray.
+const URGENCY_BADGE_CLASS: Record<TreatmentPlanItemUrgency, string> = {
+  urgent: "border-transparent bg-red-100 text-red-800 hover:bg-red-200",
+  soon: "border-transparent bg-amber-100 text-amber-800 hover:bg-amber-200",
+  elective: "border-transparent bg-gray-100 text-gray-700 hover:bg-gray-200",
+};
+
+const URGENCY_LABEL: Record<TreatmentPlanItemUrgency, string> = {
+  urgent: "Urgent",
+  soon: "Soon",
+  elective: "Elective",
+};
+
+// Tailwind classes for the active/inactive states of the urgency toggle buttons.
+const URGENCY_TOGGLE_ACTIVE: Record<TreatmentPlanItemUrgency, string> = {
+  urgent: "bg-red-600 text-white border-red-600 hover:bg-red-600",
+  soon: "bg-amber-500 text-white border-amber-500 hover:bg-amber-500",
+  elective: "bg-gray-500 text-white border-gray-500 hover:bg-gray-500",
+};
+
+function UrgencyBadge({ urgency }: { urgency: TreatmentPlanItemUrgency }) {
+  return (
+    <Badge
+      data-testid={`urgency-badge-${urgency}`}
+      className={cn("text-xs", URGENCY_BADGE_CLASS[urgency])}
+    >
+      {URGENCY_LABEL[urgency]}
+    </Badge>
+  );
+}
+
+function UrgencyToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: TreatmentPlanItemUrgency;
+  onChange: (next: TreatmentPlanItemUrgency) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="inline-flex rounded-md border border-border" role="group">
+      {URGENCY_OPTIONS.map((opt, idx) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            disabled={disabled}
+            aria-pressed={active}
+            className={cn(
+              "h-8 px-3 text-xs font-medium transition-colors border-r border-border last:border-r-0",
+              idx === 0 && "rounded-l-md",
+              idx === URGENCY_OPTIONS.length - 1 && "rounded-r-md",
+              active
+                ? URGENCY_TOGGLE_ACTIVE[opt.value]
+                : "bg-background text-muted-foreground hover:bg-muted",
+              disabled && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── Plan detail expand panel ───────────────────────────────────────────────────
 
@@ -94,6 +177,13 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
 
   if (!data) return null;
 
+  // Sort items by urgency (urgent → soon → elective). Re-sorted client-side
+  // so that local mutations (e.g., changing an item's urgency) reflect
+  // immediately before the server-side re-fetch.
+  const sortedItems = [...data.items].sort(
+    (a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency],
+  );
+
   return (
     <div className="mt-3 space-y-3 print:mt-0">
       {/* Items table */}
@@ -109,19 +199,20 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
               <th className="px-3 py-2 text-right">Fee</th>
               <th className="px-3 py-2 text-right">Ins. Est.</th>
               <th className="px-3 py-2 text-right">Pt. Est.</th>
+              <th className="px-3 py-2">Urgency</th>
               <th className="px-3 py-2 print:hidden">Status</th>
               <th className="px-3 py-2 print:hidden" />
             </tr>
           </thead>
           <tbody>
-            {data.items.length === 0 && (
+            {sortedItems.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-4 text-center text-muted-foreground">
+                <td colSpan={11} className="px-3 py-4 text-center text-muted-foreground">
                   No items yet.
                 </td>
               </tr>
             )}
-            {data.items.map((item) => (
+            {sortedItems.map((item) => (
               <tr key={item.id} className="border-b border-border last:border-0">
                 <td className="px-3 py-2 print:hidden">
                   {item.status === "accepted" && (
@@ -144,6 +235,36 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
                 </td>
                 <td className="px-3 py-2 text-right text-muted-foreground">
                   {item.patientEstCents != null ? formatCents(item.patientEstCents) : "—"}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="hidden print:block">
+                    <UrgencyBadge urgency={item.urgency} />
+                  </div>
+                  <div className="relative inline-block print:hidden">
+                    {/* Display: a colored Badge. Wraps a transparent native
+                        <select> so the user can change urgency in place. */}
+                    <UrgencyBadge urgency={item.urgency} />
+                    <select
+                      aria-label={`Urgency for ${item.procedureName}`}
+                      value={item.urgency}
+                      onChange={(e) =>
+                        updateItem.mutate({
+                          itemId: item.id,
+                          body: {
+                            urgency: e.target.value as TreatmentPlanItemUrgency,
+                          },
+                        })
+                      }
+                      disabled={updateItem.isPending}
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                    >
+                      {URGENCY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </td>
                 <td className="px-3 py-2 print:hidden">
                   <Badge variant="outline" className="text-xs">
@@ -183,23 +304,24 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
               </tr>
             ))}
           </tbody>
-          {data.items.length > 0 && (
+          {sortedItems.length > 0 && (
             <tfoot>
               <tr className="border-t border-border bg-muted/20 text-sm font-medium">
                 <td colSpan={4} className="px-3 py-2 text-right">Total</td>
                 <td className="px-3 py-2 text-right">
-                  {formatCents(data.items.reduce((s, i) => s + i.feeCents, 0))}
+                  {formatCents(sortedItems.reduce((s, i) => s + i.feeCents, 0))}
                 </td>
                 <td className="px-3 py-2 text-right text-muted-foreground">
                   {formatCents(
-                    data.items.reduce((s, i) => s + (i.insuranceEstCents ?? 0), 0),
+                    sortedItems.reduce((s, i) => s + (i.insuranceEstCents ?? 0), 0),
                   )}
                 </td>
                 <td className="px-3 py-2 text-right text-muted-foreground">
                   {formatCents(
-                    data.items.reduce((s, i) => s + (i.patientEstCents ?? 0), 0),
+                    sortedItems.reduce((s, i) => s + (i.patientEstCents ?? 0), 0),
                   )}
                 </td>
+                <td />
                 <td colSpan={2} className="print:hidden" />
               </tr>
             </tfoot>
@@ -307,6 +429,13 @@ function PlanDetail({ patientId, planId }: { patientId: string; planId: string }
                     patientEstCents: Math.round(parseFloat(e.target.value) * 100),
                   }))
                 }
+              />
+            </div>
+            <div className="col-span-2 space-y-1 sm:col-span-4">
+              <Label className="text-xs">Urgency</Label>
+              <UrgencyToggle
+                value={newItem.urgency ?? "soon"}
+                onChange={(u) => setNewItem((p) => ({ ...p, urgency: u }))}
               />
             </div>
           </div>
@@ -444,6 +573,7 @@ interface DraftItem {
   procedureCode: string;
   procedureName: string;
   feeCents: string;
+  urgency: TreatmentPlanItemUrgency;
 }
 
 const EMPTY_DRAFT_ITEM: Omit<DraftItem, "key"> = {
@@ -451,6 +581,7 @@ const EMPTY_DRAFT_ITEM: Omit<DraftItem, "key"> = {
   procedureCode: "",
   procedureName: "",
   feeCents: "",
+  urgency: "soon",
 };
 
 function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => void }) {
@@ -468,7 +599,11 @@ function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => v
     setItems((prev) => prev.filter((i) => i.key !== key));
   }
 
-  function setItemField(key: number, field: keyof Omit<DraftItem, "key">, value: string) {
+  function setItemField<K extends keyof Omit<DraftItem, "key">>(
+    key: number,
+    field: K,
+    value: DraftItem[K],
+  ) {
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, [field]: value } : i)));
   }
 
@@ -483,6 +618,7 @@ function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => v
         procedureCode: i.procedureCode.trim(),
         procedureName: i.procedureName.trim(),
         feeCents: Math.round(parseFloat(i.feeCents) * 100),
+        urgency: i.urgency,
         priority: idx + 1,
       })),
     });
@@ -506,7 +642,10 @@ function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => v
       <div className="mb-2 text-xs font-medium text-muted-foreground">Procedures</div>
       <div className="space-y-2">
         {items.map((item) => (
-          <div key={item.key} className="grid grid-cols-[3rem_6rem_1fr_5rem_1.5rem] gap-2 items-center">
+          <div
+            key={item.key}
+            className="grid grid-cols-[3rem_6rem_1fr_5rem_auto_1.5rem] gap-2 items-center"
+          >
             <Input
               className="h-8 text-sm"
               placeholder="Tooth"
@@ -533,6 +672,10 @@ function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => v
               placeholder="Fee *"
               value={item.feeCents}
               onChange={(e) => setItemField(item.key, "feeCents", e.target.value)}
+            />
+            <UrgencyToggle
+              value={item.urgency}
+              onChange={(u) => setItemField(item.key, "urgency", u)}
             />
             <button
               type="button"
