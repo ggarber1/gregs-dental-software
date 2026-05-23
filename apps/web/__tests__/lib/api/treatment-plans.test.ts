@@ -23,6 +23,7 @@ function makeItem(overrides: Partial<TreatmentPlanItem>): TreatmentPlanItem {
     insuranceEstCents: null,
     patientEstCents: null,
     status: "proposed",
+    urgency: "soon",
     priority: 1,
     appointmentId: null,
     completedAppointmentId: null,

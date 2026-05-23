@@ -565,9 +565,18 @@ async def test_add_item_with_urgency_persists():
 
     def _capture_add(obj):
         captured["item"] = obj
-        # Defaults applied by the server-side default would normally be filled
-        # in by the DB. Since we never hit the DB here, the in-memory model
-        # already has the urgency we passed via the constructor.
+        # Server-side DEFAULTs (timestamps, id, priority) would normally be set
+        # by the DB on flush+refresh. Mock that here so _item_to_schema can
+        # serialize the response.
+        obj.id = _ITEM_ID
+        obj.created_at = _NOW
+        obj.updated_at = _NOW
+        if getattr(obj, "priority", None) is None:
+            obj.priority = 1
+        if getattr(obj, "insurance_est_cents", None) is None:
+            obj.insurance_est_cents = None
+        if getattr(obj, "patient_est_cents", None) is None:
+            obj.patient_est_cents = None
 
     session.add = MagicMock(side_effect=_capture_add)
 
@@ -601,7 +610,20 @@ async def test_add_item_without_urgency_defaults_to_soon():
     session = _make_session(scalar_returns=[plan])
 
     captured: dict[str, Any] = {}
-    session.add = MagicMock(side_effect=lambda obj: captured.__setitem__("item", obj))
+
+    def _capture_add(obj):
+        captured["item"] = obj
+        obj.id = _ITEM_ID
+        obj.created_at = _NOW
+        obj.updated_at = _NOW
+        if getattr(obj, "priority", None) is None:
+            obj.priority = 1
+        if getattr(obj, "insurance_est_cents", None) is None:
+            obj.insurance_est_cents = None
+        if getattr(obj, "patient_est_cents", None) is None:
+            obj.patient_est_cents = None
+
+    session.add = MagicMock(side_effect=_capture_add)
 
     with (
         _auth_patches() as auth_headers,
