@@ -26,6 +26,11 @@ export type ConditionType =
 export type NotationSystem = "universal" | "fdi";
 export type ToothConditionStatus = "existing" | "treatment_planned" | "completed_today";
 
+// Normalized tooth-surface codes shared with the API.
+//   B = buccal/facial, M = mesial, O = occlusal, D = distal, L = lingual,
+//   I = incisal (anterior teeth — used in place of O).
+export type ToothSurface = "B" | "M" | "O" | "D" | "L" | "I";
+
 export interface ToothCondition {
   id: string;
   practiceId: string;
@@ -34,6 +39,7 @@ export interface ToothCondition {
   notationSystem: NotationSystem;
   conditionType: ConditionType;
   surface: string | null;
+  surfaces: ToothSurface[];
   material: string | null;
   notes: string | null;
   status: ToothConditionStatus;
@@ -53,6 +59,7 @@ export interface CreateToothConditionBody {
   notationSystem?: NotationSystem;
   conditionType: ConditionType;
   surface?: string;
+  surfaces?: ToothSurface[];
   material?: string;
   notes?: string;
   status?: ToothConditionStatus;
@@ -64,6 +71,7 @@ export interface CreateToothConditionBody {
 export interface UpdateToothConditionBody {
   status?: ToothConditionStatus;
   surface?: string;
+  surfaces?: ToothSurface[];
   material?: string;
   notes?: string;
 }

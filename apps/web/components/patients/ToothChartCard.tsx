@@ -12,6 +12,7 @@ import {
   type ToothCondition,
   type ConditionType,
   type NotationSystem,
+  type ToothSurface,
 } from "@/lib/api/tooth-chart";
 import { ToothConditionForm } from "./ToothConditionForm";
 
@@ -76,24 +77,6 @@ const CONDITION_LABELS: Record<ConditionType, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getToothColorClass(conditions: ToothCondition[]): string {
-  if (conditions.length === 0) return "bg-gray-50 text-gray-400";
-  // Status overrides take priority (status is per condition, check any)
-  if (conditions.some((c) => c.status === "completed_today")) {
-    return "bg-green-400 text-green-900";
-  }
-  if (conditions.some((c) => c.status === "treatment_planned")) {
-    return "bg-orange-200 text-orange-800";
-  }
-  // Fall back to condition type priority
-  for (const type of CONDITION_PRIORITY) {
-    if (conditions.some((c) => c.conditionType === type)) {
-      return CONDITION_COLORS[type];
-    }
-  }
-  return CONDITION_COLORS[conditions[0]?.conditionType ?? "other"];
-}
-
 function primaryConditionType(conditions: ToothCondition[]): ConditionType | null {
   if (conditions.length === 0) return null;
   for (const type of CONDITION_PRIORITY) {
@@ -108,11 +91,8 @@ function toothLabel(toothNum: number, notation: NotationSystem): string {
 
 // ── Hover-card helpers (exported for unit tests) ──────────────────────────────
 
-/**
- * Decide whether the hover popover should render for a given tooth.
- * Popover is suppressed when the tooth is the currently-selected one
- * (the click-to-select detail panel takes over) or when no tooth is hovered.
- */
+// Suppressed when the tooth is the currently-selected one (the detail panel
+// takes over) or when no tooth is hovered.
 export function shouldShowHoverCard(
   hoveredTooth: string | null,
   selectedTooth: string | null,
@@ -123,10 +103,84 @@ export function shouldShowHoverCard(
   return true;
 }
 
-/** Format a single condition line for the hover card: "Decay (MO)" or just "Crown". */
 export function formatHoverConditionLine(condition: ToothCondition): string {
   const label = CONDITION_LABELS[condition.conditionType];
   return condition.surface ? `${label} (${condition.surface})` : label;
+}
+
+// ── Surface helpers (exported for testing) ────────────────────────────────────
+
+// Anterior teeth (incisors + canines) — universal numbering 6-11 (upper) and
+// 22-27 (lower). These present an incisal edge (I) instead of an occlusal
+// surface (O). Anything else is treated as a posterior.
+const ANTERIOR_UNIVERSAL: ReadonlySet<number> = new Set([
+  6, 7, 8, 9, 10, 11, 22, 23, 24, 25, 26, 27,
+]);
+
+export function isAnteriorTooth(toothNumber: string): boolean {
+  const n = parseInt(toothNumber, 10);
+  if (isNaN(n)) return false;
+  return ANTERIOR_UNIVERSAL.has(n);
+}
+
+export function centerSurfaceCode(toothNumber: string): "O" | "I" {
+  return isAnteriorTooth(toothNumber) ? "I" : "O";
+}
+
+// The five surface cells displayed inside each tooth button, in the order
+// they'll be rendered into the 3×3 grid (top, left, center, right, bottom).
+export interface SurfaceCell {
+  surface: ToothSurface;
+  label: string;
+}
+
+export function surfaceCellsForTooth(toothNumber: string): SurfaceCell[] {
+  const center = centerSurfaceCode(toothNumber);
+  return [
+    { surface: "B", label: "B" },
+    { surface: "M", label: "M" },
+    { surface: center, label: center },
+    { surface: "D", label: "D" },
+    { surface: "L", label: "L" },
+  ];
+}
+
+// Conditions with an empty `surfaces` array (e.g. crowns, missing teeth) are
+// treated as whole-tooth and fill every cell. Higher-priority conditions win
+// per surface.
+export function surfaceFillColors(
+  conditions: ToothCondition[],
+  toothNumber: string,
+): Record<ToothSurface, string | null> {
+  const center = centerSurfaceCode(toothNumber);
+  const allSurfaces: ToothSurface[] = ["B", "M", center, "D", "L"];
+  const out: Record<ToothSurface, string | null> = {
+    B: null,
+    M: null,
+    O: null,
+    D: null,
+    L: null,
+    I: null,
+  };
+
+  const sorted = [...conditions].sort((a, b) => {
+    const ai = CONDITION_PRIORITY.indexOf(a.conditionType);
+    const bi = CONDITION_PRIORITY.indexOf(b.conditionType);
+    return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
+  });
+
+  for (const cond of sorted) {
+    const color = CONDITION_COLORS[cond.conditionType];
+    const targets =
+      cond.surfaces.length === 0
+        ? allSurfaces
+        : cond.surfaces.filter((s) => allSurfaces.includes(s));
+    for (const s of targets) {
+      if (out[s] === null) out[s] = color;
+    }
+  }
+
+  return out;
 }
 
 // ── ToothButton ───────────────────────────────────────────────────────────────
@@ -161,9 +215,22 @@ function ToothButton({
     ? toothNumber
     : toothLabel(numericTooth, notation);
 
-  const colorClass = getToothColorClass(conditions);
   const primaryType = primaryConditionType(conditions);
   const hasMultiple = conditions.length > 1;
+  const isMissing = primaryType === "missing";
+
+  // Status overlay (full-tooth tint) for treatment_planned / completed_today
+  let statusOverlay = "";
+  if (conditions.some((c) => c.status === "completed_today")) {
+    statusOverlay = "bg-green-400/30";
+  } else if (conditions.some((c) => c.status === "treatment_planned")) {
+    statusOverlay = "bg-orange-200/40";
+  }
+
+  const fills = surfaceFillColors(conditions, toothNumber);
+  const center = centerSurfaceCode(toothNumber);
+  const emptyCell = "bg-gray-50";
+
   const ariaLabel = `Tooth ${displayLabel}${
     conditions.length > 0
       ? `: ${conditions.map((c) => CONDITION_LABELS[c.conditionType]).join(", ")}`
@@ -178,24 +245,66 @@ function ToothButton({
         onMouseLeave={onMouseLeave}
         onFocus={onMouseEnter}
         onBlur={onMouseLeave}
+        data-testid={`tooth-button-${toothNumber}`}
         aria-label={ariaLabel}
         className={`relative flex flex-col items-center gap-0.5 rounded border transition-all focus:outline-none focus:ring-2 focus:ring-primary
           ${isSelected ? "ring-2 ring-primary" : "hover:opacity-80"}
         `}
       >
-        {/* Tooth number — above for upper, below for lower */}
         {isUpper && (
           <span className="text-[9px] text-muted-foreground leading-none pt-0.5">
             {displayLabel}
           </span>
         )}
 
-        {/* Tooth body */}
+        {/* Tooth body — 3×3 surface grid (BMODL cross) */}
         <div
-          className={`w-7 h-8 rounded-sm flex items-center justify-center text-[8px] font-bold ${colorClass} border border-gray-300`}
+          className={`relative w-9 h-9 rounded-sm border border-gray-400 overflow-hidden ${statusOverlay}`}
         >
-          {primaryType === "missing" && "×"}
-          {hasMultiple && primaryType !== "missing" && (
+          {isMissing ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-300 text-gray-700 text-[10px] font-bold">
+              ×
+            </div>
+          ) : (
+            <div className="grid h-full w-full grid-cols-3 grid-rows-3">
+              <div className={emptyCell} />
+              <div
+                data-testid={`surface-${toothNumber}-B`}
+                className={`${fills.B ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+              >
+                B
+              </div>
+              <div className={emptyCell} />
+              <div
+                data-testid={`surface-${toothNumber}-M`}
+                className={`${fills.M ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+              >
+                M
+              </div>
+              <div
+                data-testid={`surface-${toothNumber}-${center}`}
+                className={`${fills[center] ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+              >
+                {center}
+              </div>
+              <div
+                data-testid={`surface-${toothNumber}-D`}
+                className={`${fills.D ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+              >
+                D
+              </div>
+              <div className={emptyCell} />
+              <div
+                data-testid={`surface-${toothNumber}-L`}
+                className={`${fills.L ?? emptyCell} flex items-center justify-center text-[6px] font-bold leading-none`}
+              >
+                L
+              </div>
+              <div className={emptyCell} />
+            </div>
+          )}
+
+          {hasMultiple && !isMissing && (
             <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] text-primary-foreground">
               {conditions.length}
             </span>
@@ -306,7 +415,14 @@ function ConditionPanel({
                 >
                   {CONDITION_LABELS[c.conditionType]}
                 </span>
-                {c.surface && <span className="text-muted-foreground">surfaces: {c.surface}</span>}
+                {c.surfaces.length > 0 && (
+                  <span className="text-muted-foreground">
+                    surfaces: {c.surfaces.join("")}
+                  </span>
+                )}
+                {c.surfaces.length === 0 && c.surface && (
+                  <span className="text-muted-foreground">surfaces: {c.surface}</span>
+                )}
                 {c.material && <span className="text-muted-foreground">{c.material}</span>}
               </div>
               {!readOnly && (

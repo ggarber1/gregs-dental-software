@@ -46,6 +46,7 @@ const CONDITION: ToothCondition = {
   notationSystem: "universal",
   conditionType: "crown",
   surface: null,
+  surfaces: [],
   material: "zirconia",
   notes: null,
   status: "existing",

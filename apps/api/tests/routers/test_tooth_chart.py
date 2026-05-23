@@ -38,6 +38,7 @@ _CONDITION_ROW_DEFAULTS: dict[str, Any] = {
     "notation_system": "universal",
     "condition_type": "crown",
     "surface": None,
+    "surfaces": [],
     "material": "zirconia",
     "notes": None,
     "status": "existing",
@@ -325,6 +326,66 @@ async def test_add_condition_returns_201():
                     headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
                 )
     assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_add_condition_with_surfaces_roundtrips():
+    """POSTing a condition with surfaces=[M,O] persists and returns the same list."""
+    app = _get_app()
+    patient = _make_patient_row()
+    session = _make_session(scalar_returns=[patient])
+    added_row = _make_condition_row(
+        surfaces=["M", "O"], condition_type="decay", tooth_number="3"
+    )
+
+    with (
+        _auth_patches() as auth_headers,
+        patch("app.routers.tooth_chart.get_session_factory") as mock_sf,
+    ):
+        mock_sf.return_value.return_value = session
+        with patch(
+            "app.routers.tooth_chart.ToothConditionModel",
+            return_value=added_row,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as c:
+                response = await c.post(
+                    f"/api/v1/patients/{_PATIENT_ID}/tooth-chart/conditions",
+                    json={
+                        "toothNumber": "3",
+                        "conditionType": "decay",
+                        "surfaces": ["M", "O"],
+                        "recordedAt": "2026-05-04",
+                        "recordedBy": str(_PROVIDER_ID),
+                    },
+                    headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+                )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["surfaces"] == ["M", "O"]
+
+
+@pytest.mark.asyncio
+async def test_add_condition_invalid_surface_returns_422():
+    """Pydantic rejects unknown surface codes before the router runs."""
+    app = _get_app()
+    with _auth_patches() as auth_headers:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            response = await c.post(
+                f"/api/v1/patients/{_PATIENT_ID}/tooth-chart/conditions",
+                json={
+                    "toothNumber": "3",
+                    "conditionType": "decay",
+                    "surfaces": ["X"],
+                    "recordedAt": "2026-05-04",
+                    "recordedBy": str(_PROVIDER_ID),
+                },
+                headers={**auth_headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

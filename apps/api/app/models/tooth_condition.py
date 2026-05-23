@@ -3,8 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import CheckConstraint, Date, Index, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import CheckConstraint, Date, Index, Text, text
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, PHIMixin
@@ -20,7 +20,16 @@ class ToothCondition(Base, PHIMixin):
     notation_system: Mapped[str] = mapped_column(Text, nullable=False, server_default="universal")
 
     condition_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Legacy free-text notation (e.g. "MOD") — kept for back-compat with rows
+    # written before per-surface normalization.
     surface: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Normalized per-surface flags: any subset of B, M, O, D, L, I.
+    surfaces: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        nullable=False,
+        server_default=text("'{}'::text[]"),
+        default=list,
+    )
     material: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="existing")

@@ -1115,6 +1115,15 @@ class ToothConditionStatus(StrEnum):
     completed_today = 'completed_today'
 
 
+class ToothSurface(StrEnum):
+    b = 'B'
+    m = 'M'
+    o = 'O'
+    d = 'D'
+    l = 'L'
+    i = 'I'
+
+
 class Status5(StrEnum):
     existing = 'existing'
     treatment_planned = 'treatment_planned'
@@ -1132,6 +1141,7 @@ class ToothCondition(BaseModel):
     notation_system: NotationSystem = Field(..., alias='notationSystem')
     condition_type: ConditionType = Field(..., alias='conditionType')
     surface: str | None
+    surfaces: list[ToothSurface]
     material: str | None
     notes: str | None
     status: Status5
@@ -1150,6 +1160,7 @@ class CreateToothCondition(BaseModel):
     notation_system: NotationSystem | None = Field(None, alias='notationSystem')
     condition_type: ConditionType = Field(..., alias='conditionType')
     surface: str | None = None
+    surfaces: list[ToothSurface] | None = None
     material: str | None = None
     notes: str | None = None
     status: Status5 | None = None
@@ -1164,6 +1175,7 @@ class UpdateToothCondition(BaseModel):
     )
     status: Status5 | None = None
     surface: str | None = None
+    surfaces: list[ToothSurface] | None = None
     material: str | None = None
     notes: str | None = None
 
@@ -1179,6 +1191,7 @@ class Condition2(BaseModel):
     notation_system: NotationSystem = Field(..., alias='notationSystem')
     condition_type: ConditionType = Field(..., alias='conditionType')
     surface: str | None
+    surfaces: list[ToothSurface]
     material: str | None
     notes: str | None
     status: Status5
