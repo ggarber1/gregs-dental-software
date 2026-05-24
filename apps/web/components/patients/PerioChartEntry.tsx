@@ -1,0 +1,592 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { useProviders } from "@/lib/api/scheduling";
+import {
+  useCreatePerioChart,
+  type PerioSite,
+  type PerioChartDetail,
+  type PerioReadingCreate,
+} from "@/lib/api/perio-charts";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const UPPER_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+const LOWER_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+
+const BUCCAL: PerioSite[] = ["db", "b", "mb"];
+const LINGUAL: PerioSite[] = ["dl", "l", "ml"];
+
+const FURCATION_TEETH = new Set([1, 2, 3, 5, 12, 14, 15, 16, 17, 18, 19, 30, 31, 32]);
+
+const TAB_ORDER: Array<[number, PerioSite]> = [
+  ...UPPER_TEETH.flatMap(t => BUCCAL.map(s => [t, s] as [number, PerioSite])),
+  ...UPPER_TEETH.flatMap(t => LINGUAL.map(s => [t, s] as [number, PerioSite])),
+  ...LOWER_TEETH.flatMap(t => LINGUAL.map(s => [t, s] as [number, PerioSite])),
+  ...LOWER_TEETH.flatMap(t => BUCCAL.map(s => [t, s] as [number, PerioSite])),
+];
+
+const TAB_NEXT = new Map<string, [number, PerioSite]>(
+  TAB_ORDER.slice(0, -1).map(([t, s], i) => [`${t}:${s}`, TAB_ORDER[i + 1]!]),
+);
+const TAB_PREV = new Map<string, [number, PerioSite]>(
+  TAB_ORDER.slice(1).map(([t, s], i) => [`${t}:${s}`, TAB_ORDER[i]!]),
+);
+
+// ── Layout helpers ────────────────────────────────────────────────────────────
+
+// Each tooth column is 3 × w-10 (120 px) + 1 px separator = 121 px.
+// The label gutter is w-24 (96 px). Each chunk container adds p-3 + border = 26 px.
+// So: teeth_per_row = floor((containerWidth - 121) / 121).
+function chunkTeeth(teeth: number[], containerWidth: number): number[][] {
+  const perRow = Math.max(1, Math.min(teeth.length, Math.floor((containerWidth - 121) / 121)));
+  const out: number[][] = [];
+  for (let i = 0; i < teeth.length; i += perRow) out.push(teeth.slice(i, i + perRow));
+  return out;
+}
+
+// ── Grid sizing ───────────────────────────────────────────────────────────────
+
+const CELL_W = "w-10";
+const INPUT_CLS = "w-10 h-8 rounded border text-center text-sm px-0 [appearance:textfield]";
+const ROW_H = "min-h-9";
+const LABEL_CLS =
+  "w-24 shrink-0 text-xs text-muted-foreground text-right pr-3 flex items-center justify-end";
+
+// ── Local state types ─────────────────────────────────────────────────────────
+
+interface SiteState {
+  depth: string;
+  bleeding: boolean;
+  suppuration: boolean;
+  recession: boolean;
+}
+
+interface ToothExtras {
+  mobility: boolean;
+  furcation: boolean;
+}
+
+function siteKey(tooth: number, site: PerioSite): string {
+  return `${tooth}:${site}`;
+}
+
+function emptySite(): SiteState {
+  return { depth: "", bleeding: false, suppuration: false, recession: false };
+}
+
+function emptyExtras(): ToothExtras {
+  return { mobility: false, furcation: false };
+}
+
+// ── Color helper ──────────────────────────────────────────────────────────────
+
+function depthClass(d: number): string {
+  if (d >= 6) return "border-red-400 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300";
+  if (d >= 4) return "border-yellow-400 bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300";
+  return "border-input bg-background";
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+interface PerioChartEntryProps {
+  patientId: string;
+  initialChart?: PerioChartDetail;
+  readOnly?: boolean;
+  onSaved: () => void;
+  onClose: () => void;
+}
+
+export function PerioChartEntry({
+  patientId,
+  initialChart,
+  readOnly = false,
+  onSaved,
+  onClose,
+}: PerioChartEntryProps) {
+  const today = new Date().toISOString().split("T")[0]!;
+
+  const [sites, setSites] = useState<Record<string, SiteState>>(() => {
+    if (!initialChart) return {};
+    const init: Record<string, SiteState> = {};
+    for (const r of initialChart.readings) {
+      init[`${r.toothNumber}:${r.site}`] = {
+        depth: String(r.probingDepthMm),
+        bleeding: r.bleeding,
+        suppuration: r.suppuration,
+        recession: r.recessionMm > 0,
+      };
+    }
+    return init;
+  });
+
+  const [toothExtras, setToothExtras] = useState<Record<string, ToothExtras>>(() => {
+    if (!initialChart) return {};
+    const init: Record<string, ToothExtras> = {};
+    const seen = new Set<string>();
+    for (const r of initialChart.readings) {
+      if (!seen.has(r.toothNumber)) {
+        seen.add(r.toothNumber);
+        init[r.toothNumber] = {
+          mobility: r.mobility !== null && r.mobility > 0,
+          furcation: r.furcation !== null,
+        };
+      }
+    }
+    return init;
+  });
+
+  const [providerId, setProviderId] = useState(initialChart?.providerId ?? "");
+  const [chartDate, setChartDate] = useState(initialChart?.chartDate ?? today);
+  const [notes, setNotes] = useState(initialChart?.notes ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: providers } = useProviders();
+  const { mutate: createChart, isPending } = useCreatePerioChart(patientId);
+
+  const depthRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(960);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerWidth(w);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  function getSite(tooth: number, site: PerioSite): SiteState {
+    return sites[siteKey(tooth, site)] ?? emptySite();
+  }
+
+  function getExtras(tooth: number): ToothExtras {
+    return toothExtras[String(tooth)] ?? emptyExtras();
+  }
+
+  function updateSite(tooth: number, site: PerioSite, patch: Partial<SiteState>) {
+    const k = siteKey(tooth, site);
+    setSites(prev => ({ ...prev, [k]: { ...(prev[k] ?? emptySite()), ...patch } }));
+  }
+
+  function updateExtras(tooth: number, patch: Partial<ToothExtras>) {
+    const k = String(tooth);
+    setToothExtras(prev => ({ ...prev, [k]: { ...(prev[k] ?? emptyExtras()), ...patch } }));
+  }
+
+  function advanceFocus(tooth: number, site: PerioSite, forward: boolean) {
+    const map = forward ? TAB_NEXT : TAB_PREV;
+    const next = map.get(siteKey(tooth, site));
+    if (next) depthRefs.current.get(siteKey(...next))?.focus();
+  }
+
+  function handleDepthKeyDown(tooth: number, site: PerioSite) {
+    return (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
+        if (TAB_NEXT.has(siteKey(tooth, site))) {
+          e.preventDefault();
+          advanceFocus(tooth, site, true);
+        }
+      } else if (e.key === "Tab" && e.shiftKey) {
+        if (TAB_PREV.has(siteKey(tooth, site))) {
+          e.preventDefault();
+          advanceFocus(tooth, site, false);
+        }
+      }
+    };
+  }
+
+  function handleSubmit() {
+    if (!providerId) {
+      setError("Select a provider.");
+      return;
+    }
+    const readings: PerioReadingCreate[] = [];
+    const extras = toothExtras;
+
+    for (const [tooth, site] of TAB_ORDER) {
+      const s = sites[siteKey(tooth, site)];
+      const depth = parseInt(s?.depth ?? "");
+      if (isNaN(depth) && !s?.bleeding && !s?.suppuration && !s?.recession) continue;
+
+      const ext = extras[String(tooth)] ?? emptyExtras();
+      readings.push({
+        toothNumber: String(tooth),
+        site,
+        probingDepthMm: isNaN(depth) ? 0 : depth,
+        recessionMm: s?.recession ? 1 : 0,
+        bleeding: s?.bleeding ?? false,
+        suppuration: s?.suppuration ?? false,
+        furcation:
+          site === "b" && FURCATION_TEETH.has(tooth) && ext.furcation ? "I" : null,
+        mobility: ext.mobility ? 1 : null,
+      });
+    }
+
+    createChart(
+      { providerId, chartDate, ...(notes ? { notes } : {}), readings },
+      {
+        onSuccess: () => { setError(null); onSaved(); },
+        onError: () => setError("Failed to save chart. Please try again."),
+      },
+    );
+  }
+
+  // ── Cell renderers ──────────────────────────────────────────────────────────
+
+  function DepthInput({ tooth, site }: { tooth: number; site: PerioSite }) {
+    const s = getSite(tooth, site);
+    const d = parseInt(s.depth) || 0;
+    const k = siteKey(tooth, site);
+    return (
+      <input
+        ref={el => { depthRefs.current.set(k, el); }}
+        type="number"
+        min={0}
+        max={20}
+        value={s.depth}
+        disabled={readOnly}
+        aria-label={`Tooth ${tooth} ${site} probing depth`}
+        onChange={e => updateSite(tooth, site, { depth: e.target.value })}
+        onKeyDown={handleDepthKeyDown(tooth, site)}
+        className={cn(INPUT_CLS, depthClass(d), readOnly && "cursor-default opacity-80")}
+      />
+    );
+  }
+
+  function FlagsCell({ tooth, site }: { tooth: number; site: PerioSite }) {
+    const s = getSite(tooth, site);
+    return (
+      <div className="flex flex-col items-center justify-center gap-0.5">
+        <label className="flex items-center gap-1 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={s.bleeding}
+            disabled={readOnly}
+            aria-label={`Tooth ${tooth} ${site} bleeding`}
+            onChange={e => updateSite(tooth, site, { bleeding: e.target.checked })}
+            className="h-3.5 w-3.5 accent-red-500"
+          />
+          <span className={cn("text-[10px] leading-none font-medium", s.bleeding ? "text-red-600" : "text-muted-foreground")}>B</span>
+        </label>
+        <label className="flex items-center gap-1 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={s.suppuration}
+            disabled={readOnly}
+            aria-label={`Tooth ${tooth} ${site} suppuration`}
+            onChange={e => updateSite(tooth, site, { suppuration: e.target.checked })}
+            className="h-3.5 w-3.5 accent-orange-500"
+          />
+          <span className={cn("text-[10px] leading-none font-medium", s.suppuration ? "text-orange-600" : "text-muted-foreground")}>S</span>
+        </label>
+        <label className="flex items-center gap-1 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={s.recession}
+            disabled={readOnly}
+            aria-label={`Tooth ${tooth} ${site} recession`}
+            onChange={e => updateSite(tooth, site, { recession: e.target.checked })}
+            className="h-3.5 w-3.5 accent-blue-500"
+          />
+          <span className={cn("text-[10px] leading-none font-medium", s.recession ? "text-blue-600" : "text-muted-foreground")}>R</span>
+        </label>
+      </div>
+    );
+  }
+
+  // ── Arch grid renderer ──────────────────────────────────────────────────────
+
+  function renderHalf(teeth: number[], isLower: boolean) {
+    const topSites = isLower ? LINGUAL : BUCCAL;
+    const bottomSites = isLower ? BUCCAL : LINGUAL;
+
+    const toothBg = (idx: number) => (idx % 2 === 1 ? "bg-muted/40" : "");
+    const toothGroup = (idx: number) => cn("flex", toothBg(idx));
+    const siteCell = (...extra: string[]) =>
+      cn(CELL_W, "border-r border-border/40 last:border-r-0", ...extra);
+
+    // Renders an explicit 1px separator div between each tooth column.
+    // Using a dedicated element avoids the box-model drift that border-r causes
+    // on flex items without an explicit width.
+    const sep = (tooth: number) => (
+      <div key={`sep-${tooth}`} className="w-px self-stretch bg-border" />
+    );
+
+    function Row({ label, children }: { label: string; children: React.ReactNode }) {
+      return (
+        <div className={cn("flex items-center", ROW_H)}>
+          <div className={LABEL_CLS}>{label}</div>
+          <div className="flex">{children}</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-w-max">
+        {/* Tooth numbers */}
+        <div className="flex items-center h-8 border-b-2 border-border">
+          <div className={LABEL_CLS} />
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={cn(toothGroup(idx), "relative")}>
+              <div className={CELL_W} />
+              <div className={CELL_W} />
+              <div className={CELL_W} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-foreground">{tooth}</span>
+              </div>
+            </div>,
+          ])}
+        </div>
+
+        {/* Site labels (top) */}
+        <div className="flex items-center h-6 border-b border-border bg-muted/10">
+          <div className={LABEL_CLS} />
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={toothGroup(idx)}>
+              {topSites.map(site => (
+                <div key={site} className={siteCell("flex items-center justify-center")}>
+                  <span className="text-[10px] text-muted-foreground">{site}</span>
+                </div>
+              ))}
+            </div>,
+          ])}
+        </div>
+
+        {/* Top probing depths */}
+        <Row label={isLower ? "Depth (L)" : "Depth (B)"}>
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={toothGroup(idx)}>
+              {topSites.map(site => (
+                <div key={site} className={siteCell()}>
+                  <DepthInput tooth={tooth} site={site} />
+                </div>
+              ))}
+            </div>,
+          ])}
+        </Row>
+
+        {/* Top flags: bleeding / suppuration / recession */}
+        <Row label="B / S / R">
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={toothGroup(idx)}>
+              {topSites.map(site => (
+                <div key={site} className={siteCell()}>
+                  <FlagsCell tooth={tooth} site={site} />
+                </div>
+              ))}
+            </div>,
+          ])}
+        </Row>
+
+        {/* Tooth-level flags: mobility + furcation */}
+        <div className="flex items-center h-10 border-y-2 border-border bg-muted/50">
+          <div className={LABEL_CLS}>Mob / Furc</div>
+          {teeth.flatMap((tooth, idx) => {
+            const ext = getExtras(tooth);
+            return [
+              idx > 0 ? sep(tooth) : null,
+              <div key={tooth} className={cn(toothGroup(idx), "relative")}>
+                <div className={CELL_W} />
+                <div className={CELL_W} />
+                <div className={CELL_W} />
+                <div className="absolute inset-0 flex items-center justify-center gap-3">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={ext.mobility}
+                      disabled={readOnly}
+                      aria-label={`Tooth ${tooth} mobility`}
+                      onChange={e => updateExtras(tooth, { mobility: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-purple-500"
+                    />
+                    <span className={cn("text-[10px] font-medium", ext.mobility ? "text-purple-600" : "text-muted-foreground")}>Mob</span>
+                  </label>
+                  {FURCATION_TEETH.has(tooth) && (
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={ext.furcation}
+                        disabled={readOnly}
+                        aria-label={`Tooth ${tooth} furcation`}
+                        onChange={e => updateExtras(tooth, { furcation: e.target.checked })}
+                        className="h-3.5 w-3.5 accent-amber-500"
+                      />
+                      <span className={cn("text-[10px] font-medium", ext.furcation ? "text-amber-600" : "text-muted-foreground")}>Furc</span>
+                    </label>
+                  )}
+                </div>
+              </div>,
+            ];
+          })}
+        </div>
+
+        {/* Bottom flags: bleeding / suppuration / recession */}
+        <Row label="B / S / R">
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={toothGroup(idx)}>
+              {bottomSites.map(site => (
+                <div key={site} className={siteCell()}>
+                  <FlagsCell tooth={tooth} site={site} />
+                </div>
+              ))}
+            </div>,
+          ])}
+        </Row>
+
+        {/* Site labels (bottom) */}
+        <div className="flex items-center h-6 border-t border-border bg-muted/10">
+          <div className={LABEL_CLS} />
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={toothGroup(idx)}>
+              {bottomSites.map(site => (
+                <div key={site} className={siteCell("flex items-center justify-center")}>
+                  <span className="text-[10px] text-muted-foreground">{site}</span>
+                </div>
+              ))}
+            </div>,
+          ])}
+        </div>
+
+        {/* Bottom probing depths */}
+        <Row label={isLower ? "Depth (B)" : "Depth (L)"}>
+          {teeth.flatMap((tooth, idx) => [
+            idx > 0 ? sep(tooth) : null,
+            <div key={tooth} className={toothGroup(idx)}>
+              {bottomSites.map(site => (
+                <div key={site} className={siteCell()}>
+                  <DepthInput tooth={tooth} site={site} />
+                </div>
+              ))}
+            </div>,
+          ])}
+        </Row>
+      </div>
+    );
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  return (
+    <div ref={containerRef} className="flex flex-col gap-6">
+      {/* Chart metadata */}
+      {!readOnly && (
+        <div className="flex flex-wrap gap-4 border-b border-border pb-4">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Date</Label>
+            <Input
+              type="date"
+              value={chartDate}
+              onChange={e => setChartDate(e.target.value)}
+              className="h-9 w-40"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Provider</Label>
+            <Select value={providerId} onValueChange={setProviderId}>
+              <SelectTrigger className="h-9 w-52">
+                <SelectValue placeholder="Select provider…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(providers ?? []).map(p => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.fullName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Notes</Label>
+            <Input
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Optional chart notes"
+              className="h-9 w-64"
+            />
+          </div>
+        </div>
+      )}
+
+      {readOnly && initialChart && (
+        <div className="flex gap-4 border-b border-border pb-2 text-sm text-muted-foreground">
+          <span>Date: <strong className="text-foreground">{initialChart.chartDate}</strong></span>
+          {initialChart.notes && (
+            <span>Notes: <strong className="text-foreground">{initialChart.notes}</strong></span>
+          )}
+        </div>
+      )}
+
+      {/* Color legend */}
+      <div className="flex items-center gap-5 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <div className="h-3.5 w-3.5 rounded bg-yellow-100 border border-yellow-400" />
+          <span>≥4mm</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3.5 w-3.5 rounded bg-red-100 border border-red-400" />
+          <span>≥6mm</span>
+        </div>
+        <span>B = bleeding · S = suppuration · R = recession · Mob = mobility · Furc = furcation</span>
+      </div>
+
+      {/* Upper arch */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Upper arch
+        </p>
+        {chunkTeeth(UPPER_TEETH, containerWidth).map((chunk, i) => (
+          <div key={i} className="rounded-md border border-border overflow-x-auto">
+            <div className="p-3">{renderHalf(chunk, false)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lower arch */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Lower arch
+        </p>
+        {chunkTeeth(LOWER_TEETH, containerWidth).map((chunk, i) => (
+          <div key={i} className="rounded-md border border-border overflow-x-auto">
+            <div className="p-3">{renderHalf(chunk, true)}</div>
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {/* Footer actions */}
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <Button variant="outline" onClick={onClose} disabled={isPending}>
+          {readOnly ? "Close" : "Cancel"}
+        </Button>
+        {!readOnly && (
+          <Button onClick={handleSubmit} disabled={isPending}>
+            {isPending ? "Saving…" : "Save chart"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}

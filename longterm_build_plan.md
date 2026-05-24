@@ -39,12 +39,26 @@ Replace the paper chart. The last thing keeping a practice on Eaglesoft.
 - ✅ Clinical Notes (per-visit, templates, sign-and-lock)
 - ✅ Digital Tooth Chart (SVG, condition tracking, history mode)
 - ✅ Treatment Planning (multi-item plans, open-plan queue)
-- ✅ Perio Charting (6-point probing, comparison view, keyboard entry)
+- 🔲 Perio Charting (6-point probing, comparison view, keyboard entry): Gonna merge but needs review
 - 🔲 Offline Resilience Phase 1 (PWA app shell, read-only offline mode)
 - 🔲 Practice Fee Schedule (CDT code catalog per practice — blocked on practice providing their procedure list)
 - 🔲 Imaging Software Integration (local bridge agent launches imaging software with correct patient pre-selected — plan: `imaging_bridge_plan.md`)
 
 **Gating concern:** Dad needs to review the clinical note form structure before ambient notes (4.1) can be built on top of it. Schedule this review.
+
+Post Review
+
+- Dictating for treatment plan
+  - Treatment plan is showed on tooth chart
+- Treatment plan should have tooth number procedure needed to be done (from list of procedures) and some notes
+- Treatment plan should also have level of urgency, which one should be worked on first
+- Tooth chart is very simple right now
+  - look at example ones
+  - There are 3d ones these days
+  - I guess there are different levels to a tooth the dentists care about?
+  - Also would be cool if dentist didnt have to click on a tooth to get all of the information
+- Notes should just be a single textbox that user can have templates for
+  
 
 ---
 
@@ -68,8 +82,8 @@ The features that create switching costs through embedded workflow value. Sequen
 ### 4.1 Ambient Clinical Notes
 - Post-procedure dictation → structured clinical note draft
 - Dentist reviews and confirms — not fully autonomous
-- **Stack:** Whisper (self-hosted EC2, transcription) + Claude Haiku (structured extraction via tool use, prompt caching)
-- **HIPAA:** Audio in-memory only, never persisted; Anthropic BAA required before production
+- **Stack:** Whisper (self-hosted EC2, transcription) + Claude Haiku via AWS Bedrock (structured extraction via tool use, prompt caching)
+- **HIPAA:** Audio in-memory only, never persisted; covered under AWS BAA (Bedrock is HIPAA-eligible) — no separate Anthropic BAA needed. Revisit only if Bedrock's model/feature lag becomes a quality bottleneck.
 - **Plan:** `ambient_notes_plan.md`
 - **Status:** 🔲 Blocked — waiting on dad's clinical note form review (see Phase 2 gate)
 
@@ -91,10 +105,27 @@ The features that create switching costs through embedded workflow value. Sequen
 - **Gate:** Do not start until we have verified training data volume and the rule-based model has been live long enough to validate its buckets
 
 ### 4.3 Waiting List Auto-Fill
-- Staff-managed waitlist per practice (patient, preferred procedure type, time window)
-- When a cancellation comes in → auto-text top matching waitlist patients for that slot
-- Future: patient self-service from scheduling flow
+- Staff-managed waitlist per practice (patient, preferred time window; appointment type is not required to match)
+- When a cancellation comes in → auto-text the top waitlist patient for that slot; if they decline or don't respond within the offer window, move to the next candidate sequentially
+- **Lead time gate:** Skip auto-fill for slots where the appointment starts within 2 hours of the cancellation — not enough time for patients to respond and travel
+- **Race condition:** Slot acceptance is an atomic compare-and-swap on the waitlist entry status — only the first ACCEPT wins; concurrent acceptances receive a "slot already taken" reply and are re-offered the next available slot
+- **Sequential, not simultaneous:** Only one patient holds an active offer at a time; this avoids overbooking and is fairer to patients lower in the queue
+- **Hardcoded defaults (all configurable long-term — see 4.3.1):** offer expiry = 2 hrs, lead time gate = 2 hrs
+- Future: patient self-service enrollment from scheduling or patient portal flow
 - **Dependency:** None — can be built independently of 4.2
+
+#### 4.3.1 Practice Automation Configuration Panel
+All automation parameters that are currently hardcoded defaults should eventually be surfaced as per-practice settings in a dedicated configuration UI. This is not a Phase 4 blocker — ship with sensible defaults first — but the data model should store them as JSONB fields on the practice so they can be tuned without a code deploy.
+
+Parameters to make configurable (priority order):
+- **Waitlist offer expiry** (default 2 hrs) — how long a patient has to respond before the offer passes to the next person
+- **Waitlist lead time gate** (default 2 hrs) — minimum time between cancellation and appointment start before auto-fill is attempted
+- **Reminder hours** (already configurable as `reminder_hours` JSONB) — keep as-is, good pattern to follow for the above
+- **Recall campaign cadence** (4.5) — weeks before due date to send first touch, number of touches, spacing between touches
+- **Treatment plan follow-up** (4.6) — number of touches, days between touches, urgency tier thresholds
+- **No-show risk thresholds** (4.2A) — the bucket boundaries that separate low/medium/high risk (currently hardcoded in scorer)
+
+**Implementation pattern:** Store all of these under `practice.automation_config` (JSONB, default `{}`). Each feature reads its value from that dict with a fallback to a module-level constant. When the config UI is built, it reads/writes this dict. No migration needed per new parameter — just add keys to the dict.
 
 ### 4.4 AI Insurance Verification Enhancement
 - Cross-reference 271 eligibility response against historical ERA data for the same carrier
@@ -105,7 +136,6 @@ The features that create switching costs through embedded workflow value. Sequen
 ### 4.5 Recall Automation
 - Automated recall campaign: patients due for 6-month cleaning get SMS/email 4 weeks out
 - Reactivation campaign: patients not seen in 12+ months
-- Smart scheduling: suggest open slots based on patient's historical preferred times
 - **Dad's input:** Make cadence conservative and configurable — he doesn't want to be pushy
 
 ### 4.6 Treatment Plan Follow-Up Automation

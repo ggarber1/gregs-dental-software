@@ -13,6 +13,7 @@ import { ClinicalNoteList } from "@/components/patients/ClinicalNoteList";
 import { ToothChartCard } from "@/components/patients/ToothChartCard";
 import { TreatmentPlanCard } from "@/components/patients/TreatmentPlanCard";
 import { TreatmentPlanTab } from "@/components/patients/TreatmentPlanTab";
+import { PerioChartTab } from "@/components/patients/PerioChartTab";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -772,7 +773,7 @@ export default function PatientDetailPage() {
   const treatmentItemsByTooth = useOpenPatientTreatmentItems(patientId);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const initialTab = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart" | "treatment-plan">(
+  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart" | "treatment-plan" | "perio">(
     initialTab === "treatment-plan" ? "treatment-plan" : "overview",
   );
 
@@ -846,7 +847,7 @@ export default function PatientDetailPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 border-b border-border">
-        {(["overview", "notes", "tooth-chart", "treatment-plan"] as const).map((tab) => (
+        {(["overview", "notes", "tooth-chart", "treatment-plan", "perio"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -860,6 +861,8 @@ export default function PatientDetailPage() {
               ? "Tooth Chart"
               : tab === "treatment-plan"
               ? "Treatment Plan"
+              : tab === "perio"
+              ? "Perio"
               : tab}
           </button>
         ))}
@@ -902,6 +905,11 @@ export default function PatientDetailPage() {
       {/* Treatment Plan tab */}
       {activeTab === "treatment-plan" && (
         <TreatmentPlanTab patientId={patientId} />
+      )}
+
+      {/* Perio tab */}
+      {activeTab === "perio" && (
+        <PerioChartTab patientId={patientId} />
       )}
     </div>
   );
