@@ -719,18 +719,17 @@ async def test_nightly_worker_scores_and_deduplicates_reminder(
     await db_session.commit()
 
     # Create an upcoming appointment: unconfirmed + 50% no-show history → high risk
-    # Monday 8am UTC: +40 history + +25 unconfirmed + +10 Monday + +10 early = 85 → high
-    next_monday_8am = _next_weekday(now + timedelta(days=2), weekday=0).replace(
-        hour=8, minute=0, second=0, microsecond=0
-    )
+    # 3 days out at 8am UTC (always within the 7-day window regardless of day-of-week):
+    # +40 history + +25 unconfirmed + +10 early = 75 → high (threshold 50)
+    appt_time = (now + timedelta(days=3)).replace(hour=8, minute=0, second=0, microsecond=0)
     appt = Appointment(
         id=uuid.uuid4(),
         practice_id=practice.id,
         patient_id=patient.id,
         provider_id=provider.id,
         operatory_id=operatory.id,
-        start_time=next_monday_8am,
-        end_time=next_monday_8am + timedelta(minutes=45),
+        start_time=appt_time,
+        end_time=appt_time + timedelta(minutes=45),
         status="scheduled",
     )
     db_session.add(appt)
