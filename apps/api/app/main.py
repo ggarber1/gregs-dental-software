@@ -17,6 +17,7 @@ from app.middleware.auth import CognitoAuthMiddleware
 from app.middleware.idempotency import IdempotencyMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.routers import (
+    ambient_notes,
     appointment_types,
     appointments,
     clinical_notes,
@@ -123,6 +124,7 @@ def create_app() -> FastAPI:
     app.include_router(patients.router)
     app.include_router(medical_history.router)
     app.include_router(clinical_notes.router)
+    app.include_router(ambient_notes.router)
     app.include_router(tooth_chart.router)
     app.include_router(perio_charts.router)
     app.include_router(treatment_plans.router)

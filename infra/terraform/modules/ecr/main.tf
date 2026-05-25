@@ -59,6 +59,52 @@ resource "aws_ecr_lifecycle_policy" "api" {
   })
 }
 
+resource "aws_ecr_repository" "whisper" {
+  name                 = "dental/whisper"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "KMS"
+  }
+
+  tags = merge(var.tags, { Name = "dental/whisper" })
+}
+
+resource "aws_ecr_lifecycle_policy" "whisper" {
+  repository = aws_ecr_repository.whisper.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Remove untagged images after 1 day"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last 5 tagged images"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["v", "sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 5
+        }
+        action = { type = "expire" }
+      },
+    ]
+  })
+}
+
 resource "aws_ecr_lifecycle_policy" "web" {
   repository = aws_ecr_repository.web.name
 

@@ -55,6 +55,27 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  # ── Whisper transcription service ────────────────────────────────────────────
+  whisper:
+    build:
+      context: ./apps/whisper
+      dockerfile: Dockerfile
+    environment:
+      WHISPER_MODEL: tiny.en
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+    ports:
+      - "8080:8080"
+    volumes:
+      - whisper_model_cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
   # ── FastAPI ─────────────────────────────────────────────────────────────────
   api:
     build:
@@ -70,6 +91,7 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: us-east-1
       API_ENV: development
+      WHISPER_ENDPOINT_URL: http://whisper:8080
     ports:
       - "8000:8000"
     volumes:
@@ -82,6 +104,8 @@ services:
       redis:
         condition: service_healthy
       localstack:
+        condition: service_healthy
+      whisper:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -113,3 +137,4 @@ volumes:
   postgres_data:
   redis_data:
   localstack_data:
+  whisper_model_cache:

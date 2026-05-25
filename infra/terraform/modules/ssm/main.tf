@@ -135,6 +135,17 @@ resource "aws_ssm_parameter" "encryption_key" {
   }
 }
 
+resource "aws_ssm_parameter" "whisper_endpoint_url" {
+  name  = "${local.path}/whisper/endpoint_url"
+  type  = "String"
+  value = "placeholder — set to http://<whisper-private-ip>:8080 after first apply (see terraform output whisper_private_ip)"
+  tags  = var.tags
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "web_url" {
   name  = "${local.path}/app/web_url"
   type  = "String"
