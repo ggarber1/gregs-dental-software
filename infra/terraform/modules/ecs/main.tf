@@ -129,6 +129,12 @@ resource "aws_iam_role_policy" "api_task" {
         Resource = var.kms_key_arn
       },
       {
+        # Ambient notes: Claude Haiku via Bedrock for post-procedure note extraction
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel"]
+        Resource = "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+      },
+      {
         Effect = "Allow"
         Action = [
           "ssmmessages:CreateControlChannel",
@@ -207,6 +213,10 @@ resource "aws_ecs_task_definition" "api" {
       {
         name      = "TWILIO_FROM_NUMBER"
         valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/twilio/phone_number"
+      },
+      {
+        name      = "WHISPER_ENDPOINT_URL"
+        valueFrom = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/whisper/endpoint_url"
       },
     ]
 

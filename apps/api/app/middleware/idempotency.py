@@ -14,9 +14,15 @@ _TTL_SECONDS = 86_400  # 24 hours
 
 # Public routes that use their own idempotency mechanism or are called by external
 # services (e.g. Twilio) that cannot send Idempotency-Key headers.
+# The ambient-note-draft endpoint is a transient compute call (transcription +
+# extraction) — it creates no server-side state and idempotency replay is not safe
+# because audio uploads cannot be re-replayed from cache.
 _PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/intake/form/",
     "/api/v1/webhooks/",
+)
+_IDEMPOTENCY_EXEMPT_SUFFIXES: tuple[str, ...] = (
+    "/ambient-note-draft",
 )
 
 
@@ -45,6 +51,10 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
         # Public intake endpoints use single-use tokens as their idempotency mechanism.
         if any(request.url.path.startswith(p) for p in _PUBLIC_PREFIXES):
+            return await call_next(request)
+
+        # Transient compute endpoints where idempotency replay is not meaningful.
+        if any(request.url.path.endswith(s) for s in _IDEMPOTENCY_EXEMPT_SUFFIXES):
             return await call_next(request)
 
         idempotency_key = request.headers.get("Idempotency-Key")

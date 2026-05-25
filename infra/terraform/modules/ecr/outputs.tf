@@ -13,3 +13,11 @@ output "api_repo_arn" {
 output "web_repo_arn" {
   value = aws_ecr_repository.web.arn
 }
+
+output "whisper_repo_url" {
+  value = aws_ecr_repository.whisper.repository_url
+}
+
+output "whisper_repo_arn" {
+  value = aws_ecr_repository.whisper.arn
+}

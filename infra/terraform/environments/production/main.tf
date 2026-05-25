@@ -110,6 +110,17 @@ module "elasticache" {
   tags = local.common_tags
 }
 
+module "whisper" {
+  source               = "../../modules/whisper"
+  env                  = local.env
+  vpc_id               = module.vpc.vpc_id
+  private_subnet_id    = module.vpc.private_subnet_ids[0]
+  api_task_sg_id       = module.security_groups.api_task_sg_id
+  ecr_whisper_repo_url = module.ecr.whisper_repo_url
+  ecr_whisper_repo_arn = module.ecr.whisper_repo_arn
+  tags                 = local.common_tags
+}
+
 module "ecs" {
   source               = "../../modules/ecs"
   env                  = local.env

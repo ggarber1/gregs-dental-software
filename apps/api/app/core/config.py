@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     ses_from_address: str = Field(default="")
     ses_configuration_set: str = Field(default="")
 
+    # ── Ambient Notes / Whisper ───────────────────────────────────────────────
+    # Leave blank in development unless running the Whisper service locally
+    whisper_endpoint_url: str = Field(default="")
+
+    # ── Bedrock ───────────────────────────────────────────────────────────────
+    bedrock_region: str = Field(default="us-east-1")
+    bedrock_model_id: str = Field(default="anthropic.claude-haiku-4-5-20251001-v1:0")
+
     @property
     def is_development(self) -> bool:
         return self.api_env == "development"

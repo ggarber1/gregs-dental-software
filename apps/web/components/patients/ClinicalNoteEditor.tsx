@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AmbientNoteRecorder } from "@/components/patients/AmbientNoteRecorder";
 import { ChevronDown, ChevronRight, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -158,6 +159,7 @@ export function ClinicalNoteEditor({
   const [showSignConfirm, setShowSignConfirm] = useState(false);
   const [isSavingAndSigning, setIsSavingAndSigning] = useState(false);
   const [legacyOpen, setLegacyOpen] = useState(false);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
 
   const { data: providers } = useProviders();
   const { mutate: createNote, isPending: isCreating } = useCreateClinicalNote(patientId);
@@ -180,6 +182,12 @@ export function ClinicalNoteEditor({
       templateType: type,
       treatmentRendered: tpl.body,
     }));
+  }
+
+  function handleDraft(draft: string, detectedTemplate: string | null) {
+    set("treatmentRendered", draft);
+    if (detectedTemplate) set("templateType", detectedTemplate as TemplateType);
+    setShowDraftBanner(true);
   }
 
   function validate(): boolean {
@@ -269,22 +277,42 @@ export function ClinicalNoteEditor({
               {!readOnly && (
                 <div>
                   <Label className="mb-1 block text-xs text-muted-foreground">Template</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {TEMPLATE_TYPE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => applyTemplate(opt.value)}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          fields.templateType === opt.value
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background hover:bg-accent"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap gap-1.5">
+                      {TEMPLATE_TYPE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => applyTemplate(opt.value)}
+                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            fields.templateType === opt.value
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background hover:bg-accent"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <AmbientNoteRecorder
+                      patientId={patientId}
+                      {...(fields.templateType ? { templateHint: fields.templateType } : {})}
+                      onDraft={handleDraft}
+                    />
                   </div>
+                </div>
+              )}
+
+              {showDraftBanner && (
+                <div className="flex items-center justify-between rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+                  <span>AI draft — review and edit before saving.</span>
+                  <button
+                    type="button"
+                    className="ml-2 text-xs underline"
+                    onClick={() => setShowDraftBanner(false)}
+                  >
+                    Dismiss
+                  </button>
                 </div>
               )}
 
@@ -320,7 +348,7 @@ export function ClinicalNoteEditor({
               <Field label="Note *">
                 <Textarea
                   value={fields.treatmentRendered}
-                  onChange={(e) => set("treatmentRendered", e.target.value)}
+                  onChange={(e) => { set("treatmentRendered", e.target.value); setShowDraftBanner(false); }}
                   rows={12}
                   placeholder="Describe the visit. Pick a template above to insert a starting block."
                   disabled={readOnly}
