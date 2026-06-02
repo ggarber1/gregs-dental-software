@@ -19,7 +19,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_security_group" "whisper" {
   name        = "dental-${var.env}-whisper"
-  description = "Whisper EC2 — inbound from API ECS task on 8080, outbound all"
+  description = "Whisper EC2 - inbound from API ECS task on 8080, outbound all"
   vpc_id      = var.vpc_id
 
   ingress {
