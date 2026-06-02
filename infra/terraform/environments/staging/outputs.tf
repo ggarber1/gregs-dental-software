@@ -8,6 +8,11 @@ output "nat_instance_id" {
   value       = module.nat_instance.instance_id
 }
 
+output "whisper_instance_id" {
+  description = "Whisper EC2 instance ID — used by make staging-up/staging-down"
+  value       = module.whisper.instance_id
+}
+
 output "whisper_private_ip" {
   description = "Whisper EC2 private IP — after apply, run: aws ssm put-parameter --name /dental/staging/whisper/endpoint_url --value \"http://$(terraform output -raw whisper_private_ip):8080\" --type String --overwrite"
   value       = module.whisper.private_ip

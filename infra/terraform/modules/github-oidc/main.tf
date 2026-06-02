@@ -71,7 +71,7 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = "ecr:GetAuthorizationToken"
         Resource = "*"
       },
-      # ECR image push/pull for api and web repos
+      # ECR image push/pull for api, web, and whisper repos
       {
         Effect = "Allow"
         Action = [
@@ -86,6 +86,7 @@ resource "aws_iam_role_policy" "github_actions" {
         Resource = [
           "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/dental/api",
           "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/dental/web",
+          "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/dental/whisper",
         ]
       },
       # ECS task definition registration — RegisterTaskDefinition is account-wide
@@ -138,10 +139,30 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = ["ssm:GetParameter", "ssm:GetParameters"]
         Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/dental/${var.env}/*"
       },
-      # EC2 — look up subnet and security group IDs by tag at deploy time
+      # EC2 — look up subnet, security group, and Whisper instance IDs by tag at deploy time
       {
         Effect   = "Allow"
-        Action   = ["ec2:DescribeSubnets", "ec2:DescribeSecurityGroups"]
+        Action   = ["ec2:DescribeSubnets", "ec2:DescribeSecurityGroups", "ec2:DescribeInstances"]
+        Resource = "*"
+      },
+      # SSM Run Command — restart the Whisper service on the EC2 after a new image is pushed
+      {
+        Effect = "Allow"
+        Action = ["ssm:SendCommand"]
+        Resource = [
+          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript",
+        ]
+        Condition = {
+          StringEquals = {
+            "ec2:ResourceTag/Name" = "dental-${var.env}-whisper"
+          }
+        }
+      },
+      # SSM Run Command — poll command status (no resource-level scoping available)
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetCommandInvocation"]
         Resource = "*"
       },
     ]

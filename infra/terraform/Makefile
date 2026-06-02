@@ -114,17 +114,19 @@ staging-verify:
 # staging-up: provision VPC endpoints + ElastiCache, start RDS + NAT instance, bring ECS to desired=1
 # Run from the repo root.
 staging-up:
-	@echo "==> [1/6] Provisioning VPC endpoints (~2 min)..."
+	@echo "==> [1/7] Provisioning VPC endpoints (~2 min)..."
 	cd $(STAGING_DIR) && terraform apply -target=module.vpc_endpoints -auto-approve
-	@echo "==> [2/6] Provisioning ElastiCache (~5 min)..."
+	@echo "==> [2/7] Provisioning ElastiCache (~5 min)..."
 	cd $(STAGING_DIR) && terraform apply -target=module.elasticache -auto-approve
-	@echo "==> [3/6] Starting RDS..."
+	@echo "==> [3/7] Starting RDS..."
 	-aws rds start-db-instance --db-instance-identifier dental-staging
-	@echo "==> [4/6] Starting NAT instance..."
+	@echo "==> [4/7] Starting NAT instance..."
 	-aws ec2 start-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw nat_instance_id)
-	@echo "==> [5/6] Waiting for RDS to be available (~2 min)..."
+	@echo "==> [5/7] Starting Whisper EC2..."
+	-aws ec2 start-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw whisper_instance_id)
+	@echo "==> [6/7] Waiting for RDS to be available (~2 min)..."
 	aws rds wait db-instance-available --db-instance-identifier dental-staging
-	@echo "==> [6/6] Starting ECS services..."
+	@echo "==> [7/7] Starting ECS services..."
 	aws ecs update-service --cluster dental-staging --service dental-staging-api --desired-count 1
 	aws ecs update-service --cluster dental-staging --service dental-staging-web --desired-count 1
 	@echo ""
@@ -134,16 +136,18 @@ staging-up:
 # staging-down: stop ECS, stop RDS, stop NAT instance, destroy ElastiCache + VPC endpoints
 # Run from the repo root.
 staging-down:
-	@echo "==> [1/5] Stopping ECS services..."
+	@echo "==> [1/6] Stopping ECS services..."
 	-aws ecs update-service --cluster dental-staging --service dental-staging-api --desired-count 0
 	-aws ecs update-service --cluster dental-staging --service dental-staging-web --desired-count 0
-	@echo "==> [2/5] Stopping RDS..."
+	@echo "==> [2/6] Stopping Whisper EC2..."
+	-aws ec2 stop-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw whisper_instance_id)
+	@echo "==> [3/6] Stopping RDS..."
 	-aws rds stop-db-instance --db-instance-identifier dental-staging
-	@echo "==> [3/5] Stopping NAT instance..."
+	@echo "==> [4/6] Stopping NAT instance..."
 	-aws ec2 stop-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw nat_instance_id)
-	@echo "==> [4/5] Destroying ElastiCache (~3 min)..."
+	@echo "==> [5/6] Destroying ElastiCache (~3 min)..."
 	cd $(STAGING_DIR) && terraform destroy -target=module.elasticache -auto-approve
-	@echo "==> [5/5] Destroying VPC endpoints (~2 min)..."
+	@echo "==> [6/6] Destroying VPC endpoints (~2 min)..."
 	cd $(STAGING_DIR) && terraform destroy -target=module.vpc_endpoints -auto-approve
 	@echo ""
 	@echo "==> Staging is down. Cost while idle: ~\$$2/mo (RDS storage only)."

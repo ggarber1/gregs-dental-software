@@ -43,8 +43,10 @@ jobs:
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
           echo "api=${REGISTRY}/dental/api:sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "web=${REGISTRY}/dental/web:sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "whisper=${REGISTRY}/dental/whisper:sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "api_latest=${REGISTRY}/dental/api:staging-latest" >> "$GITHUB_OUTPUT"
           echo "web_latest=${REGISTRY}/dental/web:staging-latest" >> "$GITHUB_OUTPUT"
+          echo "whisper_latest=${REGISTRY}/dental/whisper:staging-latest" >> "$GITHUB_OUTPUT"
 
       - name: Read build-time config from SSM
         id: build_config
@@ -70,6 +72,15 @@ jobs:
             apps/api
           docker push "${{ steps.images.outputs.api }}"
           docker push "${{ steps.images.outputs.api_latest }}"
+
+      - name: Build and push Whisper image
+        run: |
+          docker build \
+            -t "${{ steps.images.outputs.whisper }}" \
+            -t "${{ steps.images.outputs.whisper_latest }}" \
+            apps/whisper
+          docker push "${{ steps.images.outputs.whisper }}"
+          docker push "${{ steps.images.outputs.whisper_latest }}"
 
       - name: Build and push Web image
         run: |
@@ -188,6 +199,46 @@ jobs:
             --cluster "${{ env.CLUSTER }}" \
             --service "${{ env.WEB_SERVICE }}" \
             --task-definition "${{ steps.web-task-def.outputs.arn }}"
+
+      - name: Look up Whisper instance ID
+        id: whisper
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Name,Values=dental-staging-whisper" \
+              "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text)
+          echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restart Whisper service
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "${{ steps.whisper.outputs.instance_id }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["systemctl restart whisper"]' \
+            --comment "Deploy sha-${{ steps.images.outputs.sha }}" \
+            --query 'Command.CommandId' \
+            --output text)
+
+          echo "SSM command ID: ${CMD_ID}"
+
+          aws ssm wait command-executed \
+            --command-id "${CMD_ID}" \
+            --instance-id "${{ steps.whisper.outputs.instance_id }}"
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "${CMD_ID}" \
+            --instance-id "${{ steps.whisper.outputs.instance_id }}" \
+            --query 'StatusDetails' \
+            --output text)
+
+          if [ "${STATUS}" != "Success" ]; then
+            echo "Whisper restart failed: ${STATUS}"
+            exit 1
+          fi
+
+          echo "Whisper service restarted"
 
       - name: Wait for services to stabilize
         run: |
