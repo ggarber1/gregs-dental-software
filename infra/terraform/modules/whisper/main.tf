@@ -27,7 +27,7 @@ resource "aws_security_group" "whisper" {
     to_port         = 8080
     protocol        = "tcp"
     security_groups = [var.api_task_sg_id]
-    description     = "API ECS task → Whisper"
+    description     = "API ECS task to Whisper"
   }
 
   egress {
