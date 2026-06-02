@@ -1,14 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Install Docker, AWS CLI, and SSM Agent
+# Install Docker and AWS CLI
+# Note: Ubuntu 22.04 AMI ships with amazon-ssm-agent pre-installed via snap
 apt-get update -q
 apt-get install -y -q docker.io awscli curl
-wget -q -O /tmp/amazon-ssm-agent.deb \
-  https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
-dpkg -i /tmp/amazon-ssm-agent.deb
-systemctl enable amazon-ssm-agent
-systemctl start amazon-ssm-agent
 
 systemctl enable docker
 systemctl start docker
