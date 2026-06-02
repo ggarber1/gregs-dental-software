@@ -63,6 +63,30 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
   tags = merge(var.tags, { Name = "dental-${var.env}-ecr-dkr-endpoint" })
 }
 
+# SSM Messages — required for SSM Run Command and Session Manager (distinct from ssm endpoint)
+resource "aws_vpc_endpoint" "ssmmessages" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssmmessages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = var.private_subnet_ids
+  security_group_ids  = [aws_security_group.endpoints.id]
+  private_dns_enabled = true
+
+  tags = merge(var.tags, { Name = "dental-${var.env}-ssmmessages-endpoint" })
+}
+
+# EC2 Messages — required for SSM Run Command
+resource "aws_vpc_endpoint" "ec2messages" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ec2messages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = var.private_subnet_ids
+  security_group_ids  = [aws_security_group.endpoints.id]
+  private_dns_enabled = true
+
+  tags = merge(var.tags, { Name = "dental-${var.env}-ec2messages-endpoint" })
+}
+
 # CloudWatch Logs — required for ECS log driver to stream container logs
 resource "aws_vpc_endpoint" "logs" {
   vpc_id              = var.vpc_id
