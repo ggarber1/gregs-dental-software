@@ -129,6 +129,7 @@ module "vpc_endpoints" {
     module.security_groups.api_task_sg_id,
     module.security_groups.web_task_sg_id,
     module.security_groups.worker_sg_id,
+    module.whisper.whisper_sg_id,
   ]
   tags = local.common_tags
 }
