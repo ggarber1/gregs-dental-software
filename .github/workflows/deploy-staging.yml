@@ -78,9 +78,11 @@ jobs:
           docker build \
             -t "${{ steps.images.outputs.whisper }}" \
             -t "${{ steps.images.outputs.whisper_latest }}" \
+            -t "${{ steps.ecr-login.outputs.registry }}/dental/whisper:latest" \
             apps/whisper
           docker push "${{ steps.images.outputs.whisper }}"
           docker push "${{ steps.images.outputs.whisper_latest }}"
+          docker push "${{ steps.ecr-login.outputs.registry }}/dental/whisper:latest"
 
       - name: Build and push Web image
         run: |
