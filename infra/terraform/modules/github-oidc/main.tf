@@ -145,19 +145,22 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = ["ec2:DescribeSubnets", "ec2:DescribeSecurityGroups", "ec2:DescribeInstances"]
         Resource = "*"
       },
-      # SSM Run Command — restart the Whisper service on the EC2 after a new image is pushed
+      # SSM Run Command — allow targeting the Whisper instance only (tag-scoped)
       {
-        Effect = "Allow"
-        Action = ["ssm:SendCommand"]
-        Resource = [
-          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
-          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript",
-        ]
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"
         Condition = {
           StringEquals = {
             "ec2:ResourceTag/Name" = "dental-${var.env}-whisper"
           }
         }
+      },
+      # SSM Run Command — allow the shell script document (no tag condition; document has no EC2 tags)
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript"
       },
       # SSM Run Command — poll command status (no resource-level scoping available)
       {
