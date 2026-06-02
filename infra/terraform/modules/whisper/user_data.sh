@@ -1,9 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# Install Docker and AWS CLI
+# Install Docker, AWS CLI, and SSM Agent
 apt-get update -q
-apt-get install -y -q docker.io awscli curl
+apt-get install -y -q docker.io awscli curl snapd
+snap install amazon-ssm-agent --classic
+systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
 
 systemctl enable docker
 systemctl start docker
