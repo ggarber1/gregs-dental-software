@@ -10,3 +10,4 @@ export * from "./schemas/clinical-notes.js";
 export * from "./schemas/tooth-chart.js";
 export * from "./schemas/treatment-plans.js";
 export * from "./schemas/perio-charts.js";
+export * from "./schemas/procedures.js";
