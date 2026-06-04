@@ -70,3 +70,18 @@ export const AppointmentProcedureListResponseSchema = z.object({
   items: z.array(AppointmentProcedureSchema),
   totals: ProcedureTotalsSchema,
 });
+
+export type CdtCategory = z.infer<typeof CdtCategorySchema>;
+export type EstimateSource = z.infer<typeof EstimateSourceSchema>;
+export type CdtCode = z.infer<typeof CdtCodeSchema>;
+export type AppointmentProcedure = z.infer<typeof AppointmentProcedureSchema>;
+export type CreateAppointmentProcedure = z.infer<
+  typeof CreateAppointmentProcedureSchema
+>;
+export type UpdateAppointmentProcedure = z.infer<
+  typeof UpdateAppointmentProcedureSchema
+>;
+export type ProcedureTotals = z.infer<typeof ProcedureTotalsSchema>;
+export type AppointmentProcedureListResponse = z.infer<
+  typeof AppointmentProcedureListResponseSchema
+>;
