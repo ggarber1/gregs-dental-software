@@ -86,8 +86,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_patient_portal_accounts_practice_status", table_name="patient_portal_accounts")
-    op.drop_index("ix_patient_portal_accounts_practice_patient", table_name="patient_portal_accounts")
+    op.drop_index(
+        "ix_patient_portal_accounts_practice_status",
+        table_name="patient_portal_accounts",
+    )
+    op.drop_index(
+        "ix_patient_portal_accounts_practice_patient",
+        table_name="patient_portal_accounts",
+    )
     op.drop_index("ix_patient_portal_accounts_cognito_sub", table_name="patient_portal_accounts")
     op.drop_index("ix_patient_portal_accounts_invite_token", table_name="patient_portal_accounts")
     op.drop_table("patient_portal_accounts")

@@ -111,9 +111,7 @@ def _is_public(path: str) -> bool:
         return True
     if any(path.startswith(prefix) for prefix in _PUBLIC_PREFIXES):
         # Invite completion requires patient auth even though prefix is public.
-        if path.endswith("/complete"):
-            return False
-        return True
+        return not path.endswith("/complete")
     return False
 
 
@@ -152,15 +150,20 @@ async def _resolve_practice_membership(
 
 async def _resolve_active_patient_account(cognito_sub: str) -> PatientPortalAccount | None:
     async with get_session_factory()() as session:
-        return await session.scalar(
+        account = await session.scalar(
             select(PatientPortalAccount).where(
                 PatientPortalAccount.cognito_sub == cognito_sub,
                 PatientPortalAccount.status == "active",
             )
         )
+        return account
 
 
-async def _resolve_patient_from_invite_token(token: str, cognito_sub: str, email: str) -> AuthenticatedPatient | None:
+async def _resolve_patient_from_invite_token(
+    token: str,
+    cognito_sub: str,
+    email: str,
+) -> AuthenticatedPatient | None:
     """Allow invite completion before the account is marked active."""
     async with get_session_factory()() as session:
         account = await session.scalar(

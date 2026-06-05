@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 
 from app.core.config import get_settings
 from app.core.db import get_session_factory
+from app.middleware.auth import AuthenticatedPatient
 from app.models.patient import Patient as PatientModel
 from app.models.patient_portal_account import PatientPortalAccount
 from app.models.practice import Practice
@@ -54,7 +55,7 @@ def _status_response(
     if account is None:
         return PortalAccountStatusResponse(
             patientId=patient_id,
-            status="none",
+            status="none",  # type: ignore[arg-type]
             email=None,
             invitedAt=None,
             enrolledAt=None,
@@ -77,12 +78,17 @@ def _status_response(
     )
 
 
-def _require_patient_scope(request: Request) -> PatientPortalAccount:
+def _require_patient_scope(request: Request) -> AuthenticatedPatient:
     patient = getattr(request.state, "patient", None)
-    if patient is None:
+    if not isinstance(patient, AuthenticatedPatient):
         raise HTTPException(
             status_code=401,
-            detail={"error": {"code": "UNAUTHORIZED", "message": "Patient authentication required"}},
+            detail={
+                "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Patient authentication required",
+                }
+            },
         )
     return patient
 
@@ -100,7 +106,10 @@ async def get_portal_invite_public(token: str) -> PortalInviteTokenInfo:
             raise HTTPException(
                 status_code=404,
                 detail={
-                    "error": {"code": "PORTAL_INVITE_NOT_FOUND", "message": "Portal invite not found"}
+                    "error": {
+                        "code": "PORTAL_INVITE_NOT_FOUND",
+                        "message": "Portal invite not found",
+                    }
                 },
             )
 
@@ -164,7 +173,10 @@ async def complete_portal_invite(token: str, request: Request) -> None:
             raise HTTPException(
                 status_code=404,
                 detail={
-                    "error": {"code": "PORTAL_INVITE_NOT_FOUND", "message": "Portal invite not found"}
+                    "error": {
+                        "code": "PORTAL_INVITE_NOT_FOUND",
+                        "message": "Portal invite not found",
+                    }
                 },
             )
 
@@ -214,7 +226,9 @@ async def complete_portal_invite(token: str, request: Request) -> None:
                 detail={
                     "error": {
                         "code": "PORTAL_ACCOUNT_EXISTS",
-                        "message": "This account is already linked to another patient portal profile",
+                        "message": (
+                            "This account is already linked to another patient portal profile"
+                        ),
                     }
                 },
             )
@@ -279,7 +293,7 @@ async def send_portal_invite(body: SendPortalInvite, request: Request) -> SendPo
         if account is not None and account.status == "active":
             return SendPortalInviteResponse(
                 portalAccountId=account.id,
-                status="active",
+                status="active",  # type: ignore[arg-type]
                 expiresAt=None,
                 inviteUrl=None,
             )
@@ -315,7 +329,6 @@ async def send_portal_invite(body: SendPortalInvite, request: Request) -> SendPo
 
         practice = await session.scalar(select(Practice).where(Practice.id == practice_id))
 
-    settings = get_settings()
     practice_name = practice.name if practice else "Your dental practice"
     invite_url = _portal_invite_url(token)
     subject = f"{practice_name} — your patient portal access"
@@ -341,17 +354,21 @@ async def send_portal_invite(body: SendPortalInvite, request: Request) -> SendPo
         )
     except Exception:
         logger.warning(
-            "Email delivery failed for portal invite %s (patient %s) — invite created; invite_url=%s",
+            "Email delivery failed for portal invite %s (patient %s) — "
+            "invite created; invite_url=%s",
             account.id,
             body.patient_id,
             invite_url,
             exc_info=True,
         )
 
+    response_expires_at = (
+        account.invite_expires_at.replace(tzinfo=UTC) if account.invite_expires_at else None
+    )
     return SendPortalInviteResponse(
         portalAccountId=account.id,
-        status="active" if account.status == "active" else "invited",
-        expiresAt=account.invite_expires_at.replace(tzinfo=UTC) if account.invite_expires_at else None,
+        status="active" if account.status == "active" else "invited",  # type: ignore[arg-type]
+        expiresAt=response_expires_at,
         inviteUrl=AnyUrl(invite_url) if account.invite_token else None,
     )
 
