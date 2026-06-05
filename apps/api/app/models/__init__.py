@@ -10,6 +10,7 @@ from app.models.medical_history_version import MedicalHistoryVersion as MedicalH
 from app.models.operatory import Operatory as Operatory
 from app.models.patient import Patient as Patient
 from app.models.patient_insurance import PatientInsurance as PatientInsurance
+from app.models.patient_portal_account import PatientPortalAccount as PatientPortalAccount
 from app.models.practice import Practice as Practice
 from app.models.provider import Provider as Provider
 from app.models.user import PracticeUser as PracticeUser

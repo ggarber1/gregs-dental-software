@@ -1608,3 +1608,55 @@ class PerioChartComparison(BaseModel):
     chart_a: dict[str, Any] = Field(..., alias='chartA')
     chart_b: dict[str, Any] = Field(..., alias='chartB')
     deltas: list[dict[str, Any]]
+
+
+class PortalAccountStatus(StrEnum):
+    none = 'none'
+    invited = 'invited'
+    active = 'active'
+    revoked = 'revoked'
+
+
+class PortalInviteTokenInfo(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    practice_name: str = Field(..., alias='practiceName')
+    patient_first_name: str = Field(..., alias='patientFirstName')
+    email: EmailStr
+
+
+class SendPortalInvite(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    patient_id: UUID = Field(..., alias='patientId')
+
+
+class PortalInviteStatus(StrEnum):
+    invited = 'invited'
+    active = 'active'
+
+
+class SendPortalInviteResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    portal_account_id: UUID = Field(..., alias='portalAccountId')
+    status: PortalInviteStatus
+    expires_at: AwareDatetime | None = Field(None, alias='expiresAt')
+    invite_url: AnyUrl | None = Field(None, alias='inviteUrl')
+
+
+class PortalAccountStatusResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    patient_id: UUID = Field(..., alias='patientId')
+    status: PortalAccountStatus
+    email: EmailStr | None = None
+    invited_at: AwareDatetime | None = Field(None, alias='invitedAt')
+    enrolled_at: AwareDatetime | None = Field(None, alias='enrolledAt')
+    invite_expires_at: AwareDatetime | None = Field(None, alias='inviteExpiresAt')
+
+
+class PortalProfile(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    patient_id: UUID = Field(..., alias='patientId')
+    practice_id: UUID = Field(..., alias='practiceId')
+    practice_name: str = Field(..., alias='practiceName')
+    first_name: str = Field(..., alias='firstName')
+    last_name: str = Field(..., alias='lastName')
+    email: EmailStr | None = None

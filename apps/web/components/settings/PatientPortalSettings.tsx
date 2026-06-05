@@ -28,12 +28,11 @@ export function PatientPortalSettings() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base font-semibold">Patient Portal</CardTitle>
-          <Badge variant="outline">Preview</Badge>
+          <Badge variant="outline">5.2A</Badge>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Configure and distribute your patient-facing portal URL. Patient enrollment and invite
-            workflows are in progress.
+            Share this URL with patients. Staff can send secure invite links from each patient chart.
           </p>
 
           <div className="rounded-md border p-3">

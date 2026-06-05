@@ -173,6 +173,15 @@ Grow beyond solo practices; expand TAM.
 - **Stack:** React Native (reuse web components)
 
 ### 5.2 Patient Portal
+
+**Original notes:**
+- Patient-facing web app (separate subdomain)
+- View appointments, treatment plans, past visit summaries
+- Pay outstanding balances online
+- Update medical history and insurance before visit
+- Download records and X-rays
+
+**Updated plan:**
 - Patient-facing web app (separate subdomain)
 - Security baseline (required before launch):
   - Dedicated patient auth path and role claims (no staff-role token reuse)

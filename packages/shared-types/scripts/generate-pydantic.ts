@@ -45,6 +45,13 @@ import {
   IntakeFormDetailSchema,
 } from "../src/schemas/intake.js";
 import {
+  PortalInviteTokenInfoSchema,
+  SendPortalInviteSchema,
+  SendPortalInviteResponseSchema,
+  PortalAccountStatusResponseSchema,
+  PortalProfileSchema,
+} from "../src/schemas/patient-portal.js";
+import {
   InsuranceSchema,
   CreateInsuranceSchema,
   UpdateInsuranceSchema,
@@ -142,6 +149,11 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   SendIntakeFormResponse: SendIntakeFormResponseSchema,
   IntakeFormSummary: IntakeFormSummarySchema,
   IntakeFormDetail: IntakeFormDetailSchema,
+  PortalInviteTokenInfo: PortalInviteTokenInfoSchema,
+  SendPortalInvite: SendPortalInviteSchema,
+  SendPortalInviteResponse: SendPortalInviteResponseSchema,
+  PortalAccountStatusResponse: PortalAccountStatusResponseSchema,
+  PortalProfile: PortalProfileSchema,
   Insurance: InsuranceSchema,
   CreateInsurance: CreateInsuranceSchema,
   UpdateInsurance: UpdateInsuranceSchema,

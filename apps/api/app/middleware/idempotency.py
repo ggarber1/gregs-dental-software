@@ -20,6 +20,7 @@ _TTL_SECONDS = 86_400  # 24 hours
 _PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/intake/form/",
     "/api/v1/webhooks/",
+    "/api/portal/invite/",
 )
 _IDEMPOTENCY_EXEMPT_SUFFIXES: tuple[str, ...] = (
     "/ambient-note-draft",

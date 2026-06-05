@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     cognito_client_id: str = Field(default="")
     cognito_region: str = Field(default="us-east-1")
 
+    # Separate patient portal Cognito pool — never reuse staff tokens/roles.
+    cognito_patient_pool_id: str = Field(default="")
+    cognito_patient_client_id: str = Field(default="")
+    cognito_patient_region: str = Field(default="us-east-1")
+
     # ── Encryption ────────────────────────────────────────────────────────────
     # 32-byte base64-encoded key for AES-256 application-layer encryption (PHI)
     app_encryption_key: str = Field(default="")
@@ -49,6 +54,7 @@ class Settings(BaseSettings):
     # ── App URL ───────────────────────────────────────────────────────────────
     # Public URL of the web frontend — used to build intake form links in SMS
     app_url: str = Field(default="http://localhost:3000")
+    patient_portal_url: str = Field(default="http://localhost:3000/portal")
 
     # ── Twilio ────────────────────────────────────────────────────────────────
     # Leave blank in development — SMS will be logged, not sent
@@ -76,6 +82,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.api_env == "production"
+
+    @property
+    def has_patient_auth(self) -> bool:
+        return bool(self.cognito_patient_pool_id and self.cognito_patient_client_id)
 
     @field_validator("api_cors_origins", mode="before")
     @classmethod
