@@ -67,8 +67,8 @@ def _proc_to_schema(row: ProcedureModel) -> AppointmentProcedure:
         patientEstCents=row.patient_est_cents,  # type: ignore[arg-type]
         estimateSource=row.estimate_source,  # type: ignore[arg-type]
         notes=row.notes,
-        createdAt=row.created_at,
-        updatedAt=row.updated_at,
+        createdAt=row.created_at.replace(tzinfo=UTC),
+        updatedAt=row.updated_at.replace(tzinfo=UTC),
     )
 
 
@@ -77,17 +77,6 @@ def _totals(rows: list[ProcedureModel]) -> ProcedureTotals:
         feeCentsTotal=sum(r.fee_cents for r in rows),
         insuranceEstCentsTotal=sum(r.insurance_est_cents or 0 for r in rows),
         patientEstCentsTotal=sum(r.patient_est_cents or 0 for r in rows),
-    )
-
-
-async def _phi_audit_procedure(
-    session: AsyncSession, row_id: uuid.UUID, user_sub: str | None
-) -> None:
-    await session.execute(
-        update(ProcedureModel)
-        .where(ProcedureModel.id == row_id)
-        .values(last_accessed_by=user_sub, last_accessed_at=datetime.now(UTC))
-        .execution_options(synchronize_session=False)
     )
 
 
@@ -181,9 +170,13 @@ async def list_procedures(
                 .order_by(ProcedureModel.created_at.asc())
             )
         ).all()
-        for r in rows:
-            await _phi_audit_procedure(session, r.id, user_sub)
         if rows:
+            await session.execute(
+                update(ProcedureModel)
+                .where(ProcedureModel.id.in_([r.id for r in rows]))
+                .values(last_accessed_by=user_sub, last_accessed_at=datetime.now(UTC))
+                .execution_options(synchronize_session=False)
+            )
             await session.commit()
     return AppointmentProcedureListResponse(
         items=[_proc_to_schema(r).model_dump(by_alias=True) for r in rows],  # type: ignore[misc]
@@ -280,6 +273,14 @@ async def update_procedure(
         ):
             if attr in data:
                 setattr(row, attr, data[attr])
+        if row.cdt_code_id is None and not row.procedure_code:
+            raise HTTPException(
+                status_code=422,
+                detail=_err(
+                    "PROCEDURE_CODE_REQUIRED",
+                    "Either cdtCodeId or procedureCode must be present",
+                ),
+            )
         row.last_accessed_by = user_sub
         row.last_accessed_at = datetime.now(UTC)
         row.updated_at = datetime.now(UTC)

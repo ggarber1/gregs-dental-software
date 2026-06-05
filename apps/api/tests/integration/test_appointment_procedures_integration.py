@@ -209,6 +209,23 @@ async def test_patch_404_wrong_id(client, auth_headers, proc_appointment):
     assert r.status_code == 404
 
 
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_patch_cannot_null_last_code(client, auth_headers, proc_appointment):
+    url = f"/api/v1/appointments/{proc_appointment.id}/procedures"
+    created = await client.post(
+        url,
+        json={"procedureCode": "D2391", "procedureName": "Composite", "feeCents": 20000},
+        headers=mut(auth_headers),
+    )
+    pid = created.json()["id"]
+    # Row has no cdtCodeId; nulling procedureCode would violate the code-present invariant.
+    r = await client.patch(
+        f"{url}/{pid}", json={"procedureCode": None}, headers=mut(auth_headers)
+    )
+    assert r.status_code == 422, r.text
+
+
 # ── Sub-task E: cross-practice authz + appointment-delete cascade ──────────────
 
 
@@ -250,6 +267,60 @@ async def test_cannot_touch_other_practice_appointment(client, auth_headers, db_
         headers=mut(auth_headers),
     )
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_cannot_patch_or_delete_other_practice_procedure(
+    client, auth_headers, db_session
+):
+    from app.models.appointment import Appointment
+    from app.models.appointment_procedure import AppointmentProcedure
+    from app.models.patient import Patient
+    from app.models.practice import Practice
+
+    other = Practice(id=uuid.uuid4(), name="Rival Dental", timezone="UTC")
+    db_session.add(other)
+    await db_session.flush()
+    op = Patient(
+        id=uuid.uuid4(),
+        practice_id=other.id,
+        first_name="Other",
+        last_name="Pt",
+        date_of_birth=date(1980, 2, 2),
+    )
+    db_session.add(op)
+    await db_session.flush()
+    start = datetime.now(UTC) + timedelta(days=3)
+    appt = Appointment(
+        id=uuid.uuid4(),
+        practice_id=other.id,
+        patient_id=op.id,
+        start_time=start,
+        end_time=start + timedelta(minutes=30),
+        status="scheduled",
+    )
+    db_session.add(appt)
+    await db_session.flush()
+    proc = AppointmentProcedure(
+        id=uuid.uuid4(),
+        practice_id=other.id,
+        appointment_id=appt.id,
+        patient_id=op.id,
+        procedure_code="D1110",
+        procedure_name="Prophy",
+        fee_cents=1000,
+    )
+    db_session.add(proc)
+    await db_session.commit()
+    # auth_headers is scoped to the first `practice`, not `other`.
+    url = f"/api/v1/appointments/{appt.id}/procedures/{proc.id}"
+    patch_resp = await client.patch(
+        url, json={"feeCents": 2000}, headers=mut(auth_headers)
+    )
+    assert patch_resp.status_code == 404, patch_resp.text
+    delete_resp = await client.delete(url, headers=mut(auth_headers))
+    assert delete_resp.status_code == 404, delete_resp.text
 
 
 @pytest.mark.asyncio
