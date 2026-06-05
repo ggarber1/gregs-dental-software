@@ -138,6 +138,7 @@ def create_app() -> FastAPI:
     app.include_router(appointments.router)
     app.include_router(appointment_procedures.cdt_router)
     app.include_router(appointment_procedures.router)
+    app.include_router(appointment_procedures.patient_router)
     app.include_router(practice.router)
     app.include_router(providers.router)
     app.include_router(operatories.router)

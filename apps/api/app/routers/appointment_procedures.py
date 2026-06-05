@@ -32,6 +32,10 @@ router = APIRouter(
     tags=["appointment-procedures"],
 )
 cdt_router = APIRouter(prefix="/api/v1/cdt-codes", tags=["appointment-procedures"])
+patient_router = APIRouter(
+    prefix="/api/v1/patients/{patient_id}/procedures",
+    tags=["appointment-procedures"],
+)
 
 _CDT_SEARCH_LIMIT = 25
 
@@ -168,6 +172,38 @@ async def list_procedures(
                     ProcedureModel.deleted_at.is_(None),
                 )
                 .order_by(ProcedureModel.created_at.asc())
+            )
+        ).all()
+        if rows:
+            await session.execute(
+                update(ProcedureModel)
+                .where(ProcedureModel.id.in_([r.id for r in rows]))
+                .values(last_accessed_by=user_sub, last_accessed_at=datetime.now(UTC))
+                .execution_options(synchronize_session=False)
+            )
+            await session.commit()
+    return AppointmentProcedureListResponse(
+        items=[_proc_to_schema(r).model_dump(by_alias=True) for r in rows],  # type: ignore[misc]
+        totals=_totals(list(rows)).model_dump(by_alias=True),  # type: ignore[arg-type]
+    )
+
+
+@patient_router.get("", response_model=AppointmentProcedureListResponse)
+async def list_patient_procedures(
+    patient_id: uuid.UUID, request: Request
+) -> AppointmentProcedureListResponse:
+    practice_id = _require_practice_scope(request)
+    user_sub = getattr(request.state.user, "sub", None)
+    async with get_session_factory()() as session:
+        rows = (
+            await session.scalars(
+                select(ProcedureModel)
+                .where(
+                    ProcedureModel.patient_id == patient_id,
+                    ProcedureModel.practice_id == practice_id,
+                    ProcedureModel.deleted_at.is_(None),
+                )
+                .order_by(ProcedureModel.created_at.desc())
             )
         ).all()
         if rows:

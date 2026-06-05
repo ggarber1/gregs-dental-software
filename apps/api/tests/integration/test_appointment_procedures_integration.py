@@ -360,3 +360,20 @@ async def test_deleting_appointment_cascades_procedures(
         .where(AppointmentProcedure.appointment_id == proc_appointment.id)
     )
     assert remaining == 0
+
+
+# ── Sub-task F: patient-scoped procedure history (3.5) ─────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_patient_procedure_history_lists_across_appointments(
+    client, auth_headers, proc_appointment, proc_patient
+):
+    url = f"/api/v1/appointments/{proc_appointment.id}/procedures"
+    await client.post(url, json={"procedureCode": "D1110", "procedureName": "Prophy", "feeCents": 12000}, headers=mut(auth_headers))
+    hist = await client.get(f"/api/v1/patients/{proc_patient.id}/procedures", headers=auth_headers)
+    assert hist.status_code == 200, hist.text
+    codes = [row["procedureCode"] for row in hist.json()["items"]]
+    assert "D1110" in codes
+    assert hist.json()["totals"]["feeCentsTotal"] == 12000
