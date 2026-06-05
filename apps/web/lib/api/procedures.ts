@@ -90,6 +90,14 @@ export async function listAppointmentProcedures(
   );
 }
 
+export async function listPatientProcedures(
+  patientId: string,
+): Promise<AppointmentProcedureListResponse> {
+  return apiClient.get<AppointmentProcedureListResponse>(
+    `/api/v1/patients/${patientId}/procedures`,
+  );
+}
+
 export async function createAppointmentProcedure(
   appointmentId: string,
   body: CreateAppointmentProcedureBody,
@@ -145,6 +153,16 @@ export function useAppointmentProcedures(
     queryKey: procedureKeys.list(appointmentId),
     queryFn: () => listAppointmentProcedures(appointmentId),
     enabled: Boolean(appointmentId),
+  });
+}
+
+export function usePatientProcedures(
+  patientId: string,
+): UseQueryResult<AppointmentProcedureListResponse> {
+  return useQuery({
+    queryKey: ["patientProcedures", patientId],
+    queryFn: () => listPatientProcedures(patientId),
+    enabled: Boolean(patientId),
   });
 }
 
