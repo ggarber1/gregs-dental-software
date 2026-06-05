@@ -40,7 +40,12 @@ _SEED_CDT_CODES: list[tuple[str, str, str, int | None]] = [
     ("D2750", "Crown - porcelain fused to high noble metal", "major", None),
     ("D3220", "Therapeutic pulpotomy", "basic", None),
     ("D4341", "Periodontal scaling and root planing - four+ teeth per quadrant", "basic", None),
-    ("D4342", "Periodontal scaling and root planing - one to three teeth per quadrant", "basic", None),
+    (
+        "D4342",
+        "Periodontal scaling and root planing - one to three teeth per quadrant",
+        "basic",
+        None,
+    ),
 ]
 
 
