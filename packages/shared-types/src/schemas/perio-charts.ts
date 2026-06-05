@@ -39,6 +39,10 @@ export const PerioChartCreateSchema = z.object({
   readings: z.array(PerioReadingCreateSchema).optional().default([]),
 });
 
+export const AddPerioReadingsSchema = z.object({
+  readings: z.array(PerioReadingCreateSchema),
+});
+
 export const PerioChartSummarySchema = z.object({
   id: UuidSchema,
   practiceId: UuidSchema,
@@ -79,6 +83,7 @@ export const PerioChartComparisonSchema = z.object({
   deltas: z.array(PerioSiteDeltaSchema),
 });
 
+export type AddPerioReadings = z.infer<typeof AddPerioReadingsSchema>;
 export type PerioSite = z.infer<typeof PerioSiteSchema>;
 export type Furcation = z.infer<typeof FurcationSchema>;
 export type PerioReadingCreate = z.infer<typeof PerioReadingCreateSchema>;

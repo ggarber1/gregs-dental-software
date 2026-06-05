@@ -130,6 +130,19 @@ import {
   ProcedureTotalsSchema,
   AppointmentProcedureListResponseSchema,
 } from "../src/schemas/procedures.js";
+import {
+  PerioSiteSchema,
+  FurcationSchema,
+  PerioReadingCreateSchema,
+  PerioReadingOutSchema,
+  PerioChartCreateSchema,
+  AddPerioReadingsSchema,
+  PerioChartSummarySchema,
+  PerioChartDetailSchema,
+  PerioChartListResponseSchema,
+  PerioSiteDeltaSchema,
+  PerioChartComparisonSchema,
+} from "../src/schemas/perio-charts.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -226,6 +239,18 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   UpdateAppointmentProcedure: UpdateAppointmentProcedureSchema,
   ProcedureTotals: ProcedureTotalsSchema,
   AppointmentProcedureListResponse: AppointmentProcedureListResponseSchema,
+  // Perio Charts
+  PerioSite: PerioSiteSchema,
+  Furcation: FurcationSchema,
+  PerioReadingCreate: PerioReadingCreateSchema,
+  PerioReadingOut: PerioReadingOutSchema,
+  PerioChartCreate: PerioChartCreateSchema,
+  AddPerioReadings: AddPerioReadingsSchema,
+  PerioChartSummary: PerioChartSummarySchema,
+  PerioChartDetail: PerioChartDetailSchema,
+  PerioChartListResponse: PerioChartListResponseSchema,
+  PerioSiteDelta: PerioSiteDeltaSchema,
+  PerioChartComparison: PerioChartComparisonSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
