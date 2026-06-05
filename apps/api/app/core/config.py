@@ -1,6 +1,7 @@
+import json
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
     # ── App ───────────────────────────────────────────────────────────────────
     api_env: str = Field(default="development")
     api_port: int = Field(default=8000)
-    api_cors_origins: list[str] = Field(default=["http://localhost:3000"])
+    api_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
     # ── Database ──────────────────────────────────────────────────────────────
     database_url: str = Field(...)
@@ -75,6 +76,37 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.api_env == "production"
+
+    @field_validator("api_cors_origins", mode="before")
+    @classmethod
+    def parse_api_cors_origins(cls, value: object) -> object:
+        """
+        Accept both JSON arrays and plain comma-delimited values in env vars.
+
+        Examples:
+          API_CORS_ORIGINS='["http://localhost:3000"]'
+          API_CORS_ORIGINS='http://localhost:3000,http://127.0.0.1:3000'
+          API_CORS_ORIGINS='http://localhost:3000'
+        """
+        if value is None:
+            return ["http://localhost:3000"]
+        if isinstance(value, list):
+            return value
+        if not isinstance(value, str):
+            return value
+
+        raw = value.strip()
+        if raw == "":
+            return ["http://localhost:3000"]
+
+        if raw.startswith("["):
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                # Fall back to comma split if env value is malformed JSON.
+                pass
+
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 @lru_cache

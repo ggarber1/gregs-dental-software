@@ -174,10 +174,28 @@ Grow beyond solo practices; expand TAM.
 
 ### 5.2 Patient Portal
 - Patient-facing web app (separate subdomain)
-- View appointments, treatment plans, past visit summaries
-- Pay outstanding balances online
-- Update medical history and insurance before visit
-- Download records and X-rays
+- Security baseline (required before launch):
+  - Dedicated patient auth path and role claims (no staff-role token reuse)
+  - Least-privilege API scope: patients can only read/write their own records
+  - Full audit trail for every portal read/write touching PHI
+  - Strict PHI-safe logging and error handling (no PHI in logs/errors)
+- Portal MVP (ship first):
+  - View upcoming appointments and appointment details
+  - View active treatment plans and completed visit summaries
+  - Update medical history and insurance before visit
+  - Download records (CCD/PDF exports) and intake copies
+- Portal Billing Extension (after Phase 3 billing APIs are stable):
+  - View outstanding balances and statement history
+  - Pay balances online (hosted payment page + webhook reconciliation)
+  - Save payment receipts in patient portal history
+- Deferred from this phase:
+  - X-ray download/viewing (depends on imaging integration workstream)
+  - Patient self-booking (covered in 5.3 Online Booking)
+- Suggested delivery sequence:
+  - 5.2A Auth + patient profile linkage + portal shell
+  - 5.2B Read-only portal (appointments, treatment plans, visit summaries)
+  - 5.2C Update flows (medical history + insurance updates with staff review queue)
+  - 5.2D Billing/payments + receipts
 
 ### 5.3 Online Booking
 - Public-facing booking page (by procedure type, provider, time)
