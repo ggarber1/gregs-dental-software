@@ -12,18 +12,25 @@ from starlette.responses import JSONResponse, Response
 
 from app.core.config import get_settings
 from app.core.db import get_session_factory
+from app.models.patient_portal_account import PatientPortalAccount
 from app.models.user import PracticeUser, User
 
 logger = logging.getLogger(__name__)
 
 # Routes that do not require authentication.
 _PUBLIC_PATHS: set[str] = {"/health"}
-_PUBLIC_PREFIXES: tuple[str, ...] = ("/api/intake/form/", "/api/v1/webhooks/")
+_PUBLIC_PREFIXES: tuple[str, ...] = (
+    "/api/intake/form/",
+    "/api/v1/webhooks/",
+    "/api/portal/invite/",
+)
 
-# JWKS cache: { kid -> public key object }
-_jwks_cache: dict[str, Any] = {}
-_jwks_fetched_at: float = 0.0
+# Patient portal routes validated against the dedicated patient Cognito pool.
+_PATIENT_AUTH_EXACT_PATHS: set[str] = {"/api/v1/portal/me"}
+
 _JWKS_TTL = 3600.0  # re-fetch JWKS once per hour
+_jwks_cache: dict[str, dict[str, Any]] = {}
+_jwks_fetched_at: dict[str, float] = {}
 
 
 class AuthenticatedUser:
@@ -54,33 +61,66 @@ class AuthenticatedUser:
         self.groups = groups
 
 
-def _jwks_url() -> str:
-    settings = get_settings()
+class AuthenticatedPatient:
+    """Populated on request.state.patient for patient portal routes."""
+
+    __slots__ = ("sub", "email", "account_id", "patient_id", "practice_id")
+
+    def __init__(
+        self,
+        sub: str,
+        email: str,
+        account_id: uuid.UUID,
+        patient_id: uuid.UUID,
+        practice_id: uuid.UUID,
+    ) -> None:
+        self.sub = sub
+        self.email = email
+        self.account_id = account_id
+        self.patient_id = patient_id
+        self.practice_id = practice_id
+
+
+def _jwks_url(pool_id: str, region: str) -> str:
     return (
-        f"https://cognito-idp.{settings.cognito_region}.amazonaws.com"
-        f"/{settings.cognito_user_pool_id}/.well-known/jwks.json"
+        f"https://cognito-idp.{region}.amazonaws.com"
+        f"/{pool_id}/.well-known/jwks.json"
     )
 
 
-async def _get_public_key(kid: str) -> Any:
-    global _jwks_cache, _jwks_fetched_at
-
+async def _get_public_key(kid: str, pool_id: str, region: str) -> Any:
+    cache_key = f"{region}:{pool_id}"
     now = time.monotonic()
-    if not _jwks_cache or (now - _jwks_fetched_at) > _JWKS_TTL:
+    cache = _jwks_cache.get(cache_key, {})
+    fetched_at = _jwks_fetched_at.get(cache_key, 0.0)
+
+    if not cache or (now - fetched_at) > _JWKS_TTL:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(_jwks_url())
+            resp = await client.get(_jwks_url(pool_id, region))
             resp.raise_for_status()
             keys = resp.json().get("keys", [])
-        _jwks_cache = {k["kid"]: jwk.construct(k) for k in keys}
-        _jwks_fetched_at = now
+        cache = {k["kid"]: jwk.construct(k) for k in keys}
+        _jwks_cache[cache_key] = cache
+        _jwks_fetched_at[cache_key] = now
 
-    return _jwks_cache.get(kid)
+    return cache.get(kid)
 
 
 def _is_public(path: str) -> bool:
     if path in _PUBLIC_PATHS:
         return True
-    return any(path.startswith(prefix) for prefix in _PUBLIC_PREFIXES)
+    if any(path.startswith(prefix) for prefix in _PUBLIC_PREFIXES):
+        # Invite completion requires patient auth even though prefix is public.
+        if path.endswith("/complete"):
+            return False
+        return True
+    return False
+
+
+def _requires_patient_auth(path: str) -> bool:
+    if path in _PATIENT_AUTH_EXACT_PATHS:
+        return True
+    return path.startswith("/api/portal/invite/") and path.endswith("/complete")
 
 
 async def _resolve_practice_membership(
@@ -110,15 +150,41 @@ async def _resolve_practice_membership(
         return user_row, membership.role
 
 
+async def _resolve_active_patient_account(cognito_sub: str) -> PatientPortalAccount | None:
+    async with get_session_factory()() as session:
+        return await session.scalar(
+            select(PatientPortalAccount).where(
+                PatientPortalAccount.cognito_sub == cognito_sub,
+                PatientPortalAccount.status == "active",
+            )
+        )
+
+
+async def _resolve_patient_from_invite_token(token: str, cognito_sub: str, email: str) -> AuthenticatedPatient | None:
+    """Allow invite completion before the account is marked active."""
+    async with get_session_factory()() as session:
+        account = await session.scalar(
+            select(PatientPortalAccount).where(PatientPortalAccount.invite_token == token)
+        )
+        if account is None or account.status != "invited":
+            return None
+        if account.email.lower() != email.lower():
+            return None
+        return AuthenticatedPatient(
+            sub=cognito_sub,
+            email=email,
+            account_id=account.id,
+            patient_id=account.patient_id,
+            practice_id=account.practice_id,
+        )
+
+
 class CognitoAuthMiddleware(BaseHTTPMiddleware):
     """
     Verifies Cognito JWT on every non-public request.
 
-    If X-Practice-ID header is present, also validates the user has an active
-    practice_users row for that practice and populates practice_id + role.
-
-    On success: attaches AuthenticatedUser to request.state.user.
-    On failure: returns 401/403 immediately — never passes the request downstream.
+    Staff routes use the staff Cognito pool + optional X-Practice-ID membership.
+    Patient portal routes use the dedicated patient Cognito pool.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -135,10 +201,115 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         token = auth_header[len("Bearer ") :]
         settings = get_settings()
 
+        if _requires_patient_auth(request.url.path):
+            return await self._handle_patient_auth(request, call_next, token, settings)
+
+        return await self._handle_staff_auth(request, call_next, token, settings)
+
+    async def _handle_patient_auth(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+        token: str,
+        settings: Any,
+    ) -> Response:
+        if not settings.has_patient_auth:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "PATIENT_AUTH_UNAVAILABLE",
+                        "message": "Patient portal authentication is not configured",
+                    }
+                },
+                status_code=503,
+            )
+
         try:
             unverified_header = jwt.get_unverified_header(token)
             kid = unverified_header.get("kid", "")
-            public_key = await _get_public_key(kid)
+            public_key = await _get_public_key(
+                kid,
+                settings.cognito_patient_pool_id,
+                settings.cognito_patient_region,
+            )
+            if public_key is None:
+                raise JWTError("Unknown key ID")
+
+            claims = jwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                audience=settings.cognito_patient_client_id,
+            )
+        except JWTError as exc:
+            logger.warning("Patient JWT verification failed: %s", exc)
+            return JSONResponse(
+                {"error": {"code": "INVALID_TOKEN", "message": "Token is invalid or expired"}},
+                status_code=401,
+            )
+        except httpx.HTTPError as exc:
+            logger.error("Patient JWKS fetch failed: %s", exc)
+            return JSONResponse(
+                {"error": {"code": "AUTH_UNAVAILABLE", "message": "Authentication service error"}},
+                status_code=503,
+            )
+
+        email = claims.get("email", "")
+        sub = claims["sub"]
+        path = request.url.path
+
+        if path.endswith("/complete"):
+            token_suffix = path.removeprefix("/api/portal/invite/").removesuffix("/complete")
+            patient = await _resolve_patient_from_invite_token(token_suffix, sub, email)
+        else:
+            account = await _resolve_active_patient_account(sub)
+            if account is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "PORTAL_ACCESS_DENIED",
+                            "message": "No active patient portal account found",
+                        }
+                    },
+                    status_code=403,
+                )
+            patient = AuthenticatedPatient(
+                sub=sub,
+                email=email,
+                account_id=account.id,
+                patient_id=account.patient_id,
+                practice_id=account.practice_id,
+            )
+
+        if patient is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "PORTAL_ACCESS_DENIED",
+                        "message": "Portal access denied for this invite",
+                    }
+                },
+                status_code=403,
+            )
+
+        request.state.patient = patient
+        return await call_next(request)
+
+    async def _handle_staff_auth(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+        token: str,
+        settings: Any,
+    ) -> Response:
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+            kid = unverified_header.get("kid", "")
+            public_key = await _get_public_key(
+                kid,
+                settings.cognito_user_pool_id,
+                settings.cognito_region,
+            )
             if public_key is None:
                 raise JWTError("Unknown key ID")
 

@@ -6,6 +6,7 @@ from app.models.audit_log import AuditLog as AuditLog
 from app.models.clinical_note import ClinicalNote as ClinicalNote
 from app.models.insurance_plan import InsurancePlan as InsurancePlan
 from app.models.intake_form import IntakeForm as IntakeForm
+from app.models.patient_portal_account import PatientPortalAccount as PatientPortalAccount
 from app.models.medical_history_version import MedicalHistoryVersion as MedicalHistoryVersion
 from app.models.operatory import Operatory as Operatory
 from app.models.patient import Patient as Patient

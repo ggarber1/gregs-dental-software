@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 export const ACCESS_TOKEN_COOKIE = "dental-access-token";
 export const REFRESH_TOKEN_COOKIE = "dental-refresh-token";
+export const PORTAL_ACCESS_TOKEN_COOKIE = "dental-portal-access-token";
 
 const COOKIE_BASE = [
   "Path=/",
@@ -34,6 +35,13 @@ export function buildSetCookieHeaders(accessToken: string, refreshToken?: string
   return headers;
 }
 
+export function buildPortalSetCookieHeaders(accessToken: string): string[] {
+  const accessMaxAge = 60 * 60;
+  return [
+    `${PORTAL_ACCESS_TOKEN_COOKIE}=${accessToken}; Max-Age=${accessMaxAge}; ${COOKIE_BASE}`,
+  ];
+}
+
 export function buildClearCookieHeaders(): string[] {
   return [
     `${ACCESS_TOKEN_COOKIE}=; Max-Age=0; ${COOKIE_BASE}`,
@@ -41,9 +49,17 @@ export function buildClearCookieHeaders(): string[] {
   ];
 }
 
+export function buildPortalClearCookieHeaders(): string[] {
+  return [`${PORTAL_ACCESS_TOKEN_COOKIE}=; Max-Age=0; ${COOKIE_BASE}`];
+}
+
 // Server-side: read from a NextRequest (middleware or route handler).
 export function getAccessTokenFromRequest(req: NextRequest): string | undefined {
   return req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+}
+
+export function getPortalAccessTokenFromRequest(req: NextRequest): string | undefined {
+  return req.cookies.get(PORTAL_ACCESS_TOKEN_COOKIE)?.value;
 }
 
 export function getRefreshTokenFromRequest(req: NextRequest): string | undefined {
@@ -57,6 +73,14 @@ export function getAccessToken(): string | undefined {
   if (typeof document === "undefined") return undefined;
   const match = document.cookie.match(
     new RegExp(`(?:^|;\\s*)${ACCESS_TOKEN_COOKIE}=([^;]+)`),
+  );
+  return match?.[1];
+}
+
+export function getPortalAccessToken(): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${PORTAL_ACCESS_TOKEN_COOKIE}=([^;]+)`),
   );
   return match?.[1];
 }
