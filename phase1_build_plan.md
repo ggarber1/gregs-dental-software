@@ -592,9 +592,17 @@ Appointment notes (`appointments.notes`) are invisible on the calendar today.
 - [x] Only render the notes line when the tile is tall enough to fit it (appointment duration ≥ 30 min) — below that, the existing two lines already crowd the tile
 - [x] No schema or API change — `notes` is already on the payload
 
-### 3.5 Per-Appointment Procedures (Lite) - DELAYED TO LATER
+### 3.5 Per-Appointment Procedures (Lite) - ✅ DONE (first Phase 3 sub-project)
 
 Dad needs to enter the procedure(s) done at a visit — procedure number (CDT), name, fee, and the insurance's expected coverage for that procedure on that patient. This is a **scoped-down slice** of Module 6 (full co-pay engine) — capture the data; don't build the calculation service yet.
+
+**Built (branch `module-3.5-appointment-procedures`):** `cdt_codes` + `appointment_procedures` tables (migration 0025, 20 seeded codes); CDT typeahead, appointment-scoped CRUD (list+totals, create, patch, delete), and a patient-scoped procedure-history endpoint; frontend api-client + hooks, a Procedures section in the appointment modal (edit mode), and a Procedure History tab on the patient chart. Design spec: `docs/superpowers/specs/2026-06-04-module-3.5-appointment-procedures-design.md`; plan: `docs/superpowers/plans/2026-06-04-module-3.5-appointment-procedures.md`.
+
+**Coverage-model decision (locked in during brainstorming):** the insurance/patient split is stored as **absolute integer cents** (`insurance_est_cents` / `patient_est_cents` + an `estimate_source` provenance flag), NOT a coverage percentage — matching `treatment_plan_items` and everything downstream (Module 6 engine output, claims, ERA). A percentage only lives in Module 5 eligibility data. See `docs/superpowers/specs/phase3-build-order.md`.
+
+**Deferred (per spec):** co-pay auto-calculation (Module 6); `treatment_plan_item_id` linking (kept independent for now, add later); full CDT catalog (Module 6.2); soft-cancelling an appointment does not soft-delete its procedures (billing semantics — only the DB-level hard-delete cascade is wired).
+
+**Note:** this work surfaced and fixed a pre-existing repo bug — `pnpm generate` was lossy (the committed `generated.py` had been hand-edited with perio classes and `Appointment.noShowRisk` that were never in the Zod sources). `generated.py` is now reproducible from Zod.
 
 #### Scope decision
 
@@ -636,19 +644,20 @@ appointment_procedures                       -- per-visit rows
 
 #### API
 
-- [ ] `GET /api/v1/appointments/{id}/procedures` — list
-- [ ] `POST /api/v1/appointments/{id}/procedures` — add (idempotency-key required)
-- [ ] `PATCH /api/v1/appointments/{id}/procedures/{procId}` — edit
-- [ ] `DELETE /api/v1/appointments/{id}/procedures/{procId}` — soft delete
-- [ ] `GET /api/v1/cdt-codes?q=...` — typeahead search for the seed list
-- [ ] Audit log on every mutation (PHI-adjacent; tie to the patient)
+- [x] `GET /api/v1/appointments/{id}/procedures` — list (returns server-computed totals)
+- [x] `POST /api/v1/appointments/{id}/procedures` — add (idempotency-key required)
+- [x] `PATCH /api/v1/appointments/{id}/procedures/{procId}` — edit
+- [x] `DELETE /api/v1/appointments/{id}/procedures/{procId}` — soft delete
+- [x] `GET /api/v1/cdt-codes?q=...` — typeahead search for the seed list
+- [x] `GET /api/v1/patients/{id}/procedures` — patient-wide procedure history (added)
+- [x] Audit log on every mutation (PHI-adjacent; tie to the patient)
 
 #### Frontend
 
-- [ ] New "Procedures" section in the appointment modal: table of procedure rows with add/edit/delete
-- [ ] Row editor: CDT typeahead (falls back to free text), procedure name, tooth/surface, fee, coverage %, source dropdown, computed patient portion (read-only unless manually overridden)
-- [ ] Totals strip at the bottom: `Fee total · Insurance est. · Patient est.`
-- [ ] Patient chart: new "Procedure history" tab listing all procedures across appointments (read-only; sort by `appointment.start_time` desc)
+- [x] New "Procedures" section in the appointment modal: table of procedure rows with add/delete (inline row edit deferred — optional, not built)
+- [x] Row editor: CDT typeahead (falls back to free text), procedure name, tooth/surface, fee, **insurance/patient estimate in dollars→cents**, source dropdown (no coverage %, no computed portion — manual entry only in 3.5)
+- [x] Totals strip at the bottom: `Fee total · Insurance est. · Patient est.`
+- [x] Patient chart: new "Procedure history" tab listing all procedures across appointments (read-only; sorted by `created_at` desc — proxy for visit order, avoids a join)
 
 #### Rules / constraints
 
@@ -659,9 +668,9 @@ appointment_procedures                       -- per-visit rows
 
 #### Tests
 
-- [ ] Unit tests: add/edit/delete/list; computed patient portion; coverage bounds validation
-- [ ] Integration test: create appointment → add 3 procedures → totals match; delete a procedure → totals recompute
-- [ ] Authorization test: user scoped to Practice A cannot add a procedure to an appointment owned by Practice B
+- [x] Tests: CDT search, list+totals, create (3 procs → totals 23500/16100/2400), code-or-name 422, missing-appointment 404, patch fields, patch-cannot-null-last-code 422, delete+recompute, patient history (15 integration tests). Frontend: `formatCents` unit tests. (Backend tests live in the integration suite — router tests in this repo fully mock the DB, so the real-DB integration suite is the right home.)
+- [x] Integration test: create appointment → add 3 procedures → totals match; delete a procedure → totals recompute
+- [x] Authorization test: Practice A cannot add/patch/delete a procedure on Practice B's appointment (404)
 
 ## 🚦 Staging Checkpoint 3 — End of Module 3 (after 3.1–3.3)
 
