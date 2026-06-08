@@ -61,6 +61,7 @@ export const AppointmentSchema = z.object({
     emailStatus: z.string().optional(),
     patientSmsOptedOut: z.boolean().default(false),
   }).optional(),
+  noShowRisk: z.enum(["low", "medium", "high"]).nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

@@ -104,7 +104,7 @@ def _reading_to_dict(row: PerioReadingModel) -> dict[str, Any]:
         id=row.id,
         perioChartId=row.perio_chart_id,
         toothNumber=row.tooth_number,
-        site=PerioSite(row.site),
+        site=PerioSite(row.site),  # type: ignore[arg-type]
         probingDepthMm=row.probing_depth_mm,
         recessionMm=row.recession_mm,
         cal=row.probing_depth_mm + row.recession_mm,
@@ -159,7 +159,7 @@ def _chart_to_detail(
         bleedingSiteCount=stats["bleedingSiteCount"],
         createdAt=chart.created_at.replace(tzinfo=UTC),
         updatedAt=chart.updated_at.replace(tzinfo=UTC),
-        readings=[_reading_to_dict(r) for r in readings],
+        readings=[_reading_to_dict(r) for r in readings],  # type: ignore[misc]
     )
 
 
@@ -276,7 +276,7 @@ async def list_perio_charts(
     ]
 
     return PerioChartListResponse(
-        items=items,
+        items=items,  # type: ignore[arg-type]
         nextCursor=next_cursor,
         hasMore=has_more,
     )
@@ -319,7 +319,7 @@ async def create_perio_chart(
         session.add(chart)
         await session.flush()
 
-        await _upsert_readings(session, chart.id, body.readings)
+        await _upsert_readings(session, chart.id, body.readings)  # type: ignore[arg-type]
         await session.commit()
         await session.refresh(chart)
 
@@ -407,7 +407,7 @@ async def compare_perio_charts(
     deltas = [
         PerioSiteDelta(
             toothNumber=tooth,
-            site=PerioSite(site),
+            site=PerioSite(site),  # type: ignore[arg-type]
             depthA=map_a[tooth, site].probing_depth_mm if (tooth, site) in map_a else 0,
             depthB=map_b[tooth, site].probing_depth_mm if (tooth, site) in map_b else 0,
             delta=(map_b[tooth, site].probing_depth_mm if (tooth, site) in map_b else 0)
@@ -417,9 +417,9 @@ async def compare_perio_charts(
     ]
 
     return PerioChartComparison(
-        chartA=_chart_to_detail(chart_a, list(readings_a)).model_dump(by_alias=True),
-        chartB=_chart_to_detail(chart_b, list(readings_b)).model_dump(by_alias=True),
-        deltas=deltas,
+        chartA=_chart_to_detail(chart_a, list(readings_a)).model_dump(by_alias=True),  # type: ignore[arg-type]
+        chartB=_chart_to_detail(chart_b, list(readings_b)).model_dump(by_alias=True),  # type: ignore[arg-type]
+        deltas=deltas,  # type: ignore[arg-type]
     )
 
 
@@ -490,7 +490,7 @@ async def upsert_readings(
                 ).model_dump(by_alias=True),
             )
 
-        await _upsert_readings(session, chart_id, body.readings)
+        await _upsert_readings(session, chart_id, body.readings)  # type: ignore[arg-type]
         await session.commit()
         await session.refresh(chart)
 

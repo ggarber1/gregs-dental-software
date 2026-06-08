@@ -37,6 +37,7 @@ import { isoToTimeInTz, isoToDateInTz, localInputToUTC, todayInTz } from "@/lib/
 import { AppointmentStatusActions } from "@/components/scheduling/AppointmentStatusActions";
 import { ApiError } from "@/lib/api-client";
 import { ReminderHistory } from "@/components/scheduling/ReminderHistory";
+import { ProceduresSection } from "@/components/scheduling/ProceduresSection";
 
 interface Props {
   open: boolean;
@@ -319,7 +320,7 @@ export function AppointmentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={isEditing ? "max-w-2xl" : "max-w-lg"}>
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Appointment" : "New Appointment"}</DialogTitle>
         </DialogHeader>
@@ -507,6 +508,18 @@ export function AppointmentModal({
               appointmentId={currentAppointment.id}
               reminderSummary={currentAppointment.reminderSummary}
             />
+          )}
+
+          {/* Procedures */}
+          {isEditing && appointment ? (
+            <div className="space-y-2">
+              <Label>Procedures</Label>
+              <ProceduresSection appointmentId={appointment.id} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Save the appointment to add procedures.
+            </p>
           )}
 
           {/* API error */}

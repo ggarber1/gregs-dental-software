@@ -120,6 +120,29 @@ import {
   TreatmentPlanListResponseSchema,
   OpenPlanQueueItemSchema,
 } from "../src/schemas/treatment-plans.js";
+import {
+  CdtCategorySchema,
+  EstimateSourceSchema,
+  CdtCodeSchema,
+  AppointmentProcedureSchema,
+  CreateAppointmentProcedureSchema,
+  UpdateAppointmentProcedureSchema,
+  ProcedureTotalsSchema,
+  AppointmentProcedureListResponseSchema,
+} from "../src/schemas/procedures.js";
+import {
+  PerioSiteSchema,
+  FurcationSchema,
+  PerioReadingCreateSchema,
+  PerioReadingOutSchema,
+  PerioChartCreateSchema,
+  AddPerioReadingsSchema,
+  PerioChartSummarySchema,
+  PerioChartDetailSchema,
+  PerioChartListResponseSchema,
+  PerioSiteDeltaSchema,
+  PerioChartComparisonSchema,
+} from "../src/schemas/perio-charts.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -207,6 +230,27 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   UpdateTreatmentPlanItem: UpdateTreatmentPlanItemSchema,
   TreatmentPlanListResponse: TreatmentPlanListResponseSchema,
   OpenPlanQueueItem: OpenPlanQueueItemSchema,
+  // Appointment Procedures
+  CdtCategory: CdtCategorySchema,
+  EstimateSource: EstimateSourceSchema,
+  CdtCode: CdtCodeSchema,
+  AppointmentProcedure: AppointmentProcedureSchema,
+  CreateAppointmentProcedure: CreateAppointmentProcedureSchema,
+  UpdateAppointmentProcedure: UpdateAppointmentProcedureSchema,
+  ProcedureTotals: ProcedureTotalsSchema,
+  AppointmentProcedureListResponse: AppointmentProcedureListResponseSchema,
+  // Perio Charts
+  PerioSite: PerioSiteSchema,
+  Furcation: FurcationSchema,
+  PerioReadingCreate: PerioReadingCreateSchema,
+  PerioReadingOut: PerioReadingOutSchema,
+  PerioChartCreate: PerioChartCreateSchema,
+  AddPerioReadings: AddPerioReadingsSchema,
+  PerioChartSummary: PerioChartSummarySchema,
+  PerioChartDetail: PerioChartDetailSchema,
+  PerioChartListResponse: PerioChartListResponseSchema,
+  PerioSiteDelta: PerioSiteDeltaSchema,
+  PerioChartComparison: PerioChartComparisonSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

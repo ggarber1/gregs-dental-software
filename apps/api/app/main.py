@@ -18,6 +18,7 @@ from app.middleware.idempotency import IdempotencyMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.routers import (
     ambient_notes,
+    appointment_procedures,
     appointment_types,
     appointments,
     clinical_notes,
@@ -135,6 +136,9 @@ def create_app() -> FastAPI:
     app.include_router(intake.staff_router)
     app.include_router(appointment_types.router)
     app.include_router(appointments.router)
+    app.include_router(appointment_procedures.cdt_router)
+    app.include_router(appointment_procedures.router)
+    app.include_router(appointment_procedures.patient_router)
     app.include_router(practice.router)
     app.include_router(providers.router)
     app.include_router(operatories.router)
