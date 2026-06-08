@@ -17,11 +17,12 @@ reconciles it with what already exists in the codebase.
 
 ```
 Module 3.5 — Per-Appointment Procedures   ← prerequisite for 6 + 7
+Module 3.6 — Practice Fee Schedule         ← enhances 3.5 (fee auto-fill); feeds 6
 Module 5.2–5.4 — Eligibility Verification  ← 5.1 (plan/patient_insurance CRUD) already done
         │
         ├──────────────┐
         ▼              ▼
-Module 6 — Co-pay Calculation  (requires 3.5 procedures + 5 eligibility data)
+Module 6 — Co-pay Calculation  (requires 3.5 procedures + 3.6 fees + 5 eligibility data)
         │
         ▼ (soft — 7 can ship before 6 using manually-entered co-pays)
 Module 7 — Claims Submission (837D) + ERA Processing (835)  (requires 3.5)
@@ -34,14 +35,61 @@ Module 8 — Billing & Payments (ledger, statements, aging, QuickBooks export)  
 
 | # | Module | Depends on | Can parallelize with | Spec |
 |---|--------|-----------|----------------------|------|
-| 1 | **3.5 — Per-Appointment Procedures** | nothing new | 5.2–5.4 | `2026-06-04-module-3.5-appointment-procedures-design.md` |
-| 2 | **5.2–5.4 — Eligibility Verification** | 5.1 (done) | 3.5 | _tbd_ |
-| 3 | **6 — Co-pay Calculation** | 3.5, 5 | — | _tbd_ |
-| 4 | **7 — Claims Submission + ERA** | 3.5 (6 optional) | — | _tbd_ |
-| 5 | **8 — Billing & Payments** | 7 | — | _tbd_ |
+| 1 | **3.5 — Per-Appointment Procedures** | nothing new | 5.2–5.4 | `2026-06-04-module-3.5-appointment-procedures-design.md` (✅ done) |
+| 2 | **3.6 — Practice Fee Schedule** | 3.5 (cdt_codes) | 5.2–5.4 | _separate PR — see below_ |
+| 3 | **5.2–5.4 — Eligibility Verification** | 5.1 (done) | 3.5 / 3.6 | _tbd_ |
+| 4 | **6 — Co-pay Calculation** | 3.5, 3.6, 5 | — | _tbd_ |
+| 5 | **7 — Claims Submission + ERA** | 3.5 (6 optional) | — | _tbd_ |
+| 6 | **8 — Billing & Payments** | 7 | — | _tbd_ |
 
-Modules 1 and 2 (3.5 and eligibility) are independent and may be built in either
-order or concurrently. Everything after depends on 3.5 being in place.
+3.5, 3.6, and eligibility are independent and may be built in any order or
+concurrently. Everything from Module 6 on depends on 3.5 being in place.
+
+## Module 3.6 — Practice Fee Schedule (planned, separate PR)
+
+**Goal:** let each practice set its own fee per CDT code in Settings, instead of
+typing the fee on every procedure. This is the "Practice Fee Schedule" item from the
+longterm plan (Phase 2) and the per-practice override hinted at by
+`cdt_codes.default_fee_cents` (currently global/null).
+
+**Why it matters:**
+- **3.5 today** makes staff type the fee on every procedure row. With a fee schedule,
+  selecting a CDT code auto-fills the practice's fee (the `ProceduresSection` already
+  prefills from a code's default fee when the field is blank — this just gives those
+  defaults real per-practice values). Same hook would prefill treatment-plan items.
+- **Module 6 (co-pay) needs it.** The calculation is `(fee − write-off) × coinsurance …`;
+  the provider fee is the starting number. Per-practice fees are a prerequisite for
+  accurate estimates, not a nicety.
+
+**Data model (sketch — finalize during its own brainstorm):**
+- New table `practice_fee_schedule`: `practice_id` FK, `cdt_code_id` FK (or `code`),
+  `fee_cents` (integer cents, per the money convention), timestamps, soft delete.
+  Unique on `(practice_id, cdt_code_id)`.
+- Keep `cdt_codes.default_fee_cents` as the platform-wide fallback; the practice row
+  overrides it. Resolution order at fee lookup: practice fee → cdt default → blank
+  (staff types it).
+
+**API (sketch):**
+- `GET /api/v1/fee-schedule` — practice's fees (joined with the CDT catalog so the UI
+  can show every code with its current/blank fee).
+- `PUT /api/v1/fee-schedule/{cdtCodeId}` — set/replace a fee (idempotency-key required).
+- `DELETE /api/v1/fee-schedule/{cdtCodeId}` — revert to the default.
+- Practice-scoped + write-role + audit, same as every other mutating endpoint.
+
+**Frontend (sketch):**
+- A "Fee Schedule" section in Settings: searchable table of CDT codes (reuse the
+  `/cdt-codes` typeahead) with an editable dollar field per row; dollars→cents on save.
+- Wire `ProceduresSection` (and later treatment-plan item entry) to prefill the fee from
+  the resolved practice fee on CDT selection.
+
+**Dependencies / sequencing:** depends only on 3.5's `cdt_codes` table; independent of
+eligibility. Build it before or alongside Module 6 (6 consumes these fees). Ships as its
+own PR with its own design spec + plan.
+
+**Open questions for its brainstorm:** full CDT catalog vs. the 20-code seed (a real fee
+schedule likely wants the complete D-code list — that overlaps Module 6.2's catalog
+seeding, so decide whether 3.6 or 6.2 owns seeding the full catalog); bulk import of an
+existing fee schedule (CSV) so a practice isn't hand-entering hundreds of codes.
 
 ## Cross-module decisions locked in during brainstorming
 
