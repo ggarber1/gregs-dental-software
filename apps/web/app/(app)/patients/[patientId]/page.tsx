@@ -8,6 +8,7 @@ import Link from "next/link";
 import { InsuranceCard } from "@/components/patients/InsuranceCard";
 import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
 import { MedicalHistoryCard } from "@/components/patients/MedicalHistoryCard";
+import { PatientPortalAccessCard } from "@/components/patients/PatientPortalAccessCard";
 import { ClinicalNoteCard } from "@/components/patients/ClinicalNoteCard";
 import { ClinicalNoteList } from "@/components/patients/ClinicalNoteList";
 import { ToothChartCard } from "@/components/patients/ToothChartCard";
@@ -877,6 +878,7 @@ export default function PatientDetailPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <DemographicsCard patient={patient} patientId={patientId} />
             <ContactCard patient={patient} patientId={patientId} />
+            <PatientPortalAccessCard patientId={patientId} patientEmail={patient.email ?? null} />
             <MedicalHistoryCard patientId={patientId} />
             <DentalHistoryCard patient={patient} patientId={patientId} />
             <InsuranceCard patientId={patientId} />

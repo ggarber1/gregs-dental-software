@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { OperatoriesSettings } from "@/components/settings/OperatoriesSettings";
 import { AppointmentTypesSettings } from "@/components/settings/AppointmentTypesSettings";
 import { RemindersSettings } from "@/components/settings/RemindersSettings";
 import { InsurancePlansSettings } from "@/components/settings/InsurancePlansSettings";
+import { PatientPortalSettings } from "@/components/settings/PatientPortalSettings";
 
 const TABS = [
   { key: "providers", label: "Providers" },
@@ -16,12 +18,16 @@ const TABS = [
   { key: "appointment-types", label: "Appointment Types" },
   { key: "reminders", label: "Reminders" },
   { key: "insurance-plans", label: "Insurance Plans" },
+  { key: "patient-portal", label: "Patient Portal" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
 function SettingsContent() {
-  const [activeTab, setActiveTab] = useState<TabKey>("providers");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const defaultTab = TABS.some((tab) => tab.key === initialTab) ? (initialTab as TabKey) : "providers";
+  const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,6 +54,7 @@ function SettingsContent() {
       {activeTab === "appointment-types" && <AppointmentTypesSettings />}
       {activeTab === "reminders" && <RemindersSettings />}
       {activeTab === "insurance-plans" && <InsurancePlansSettings />}
+      {activeTab === "patient-portal" && <PatientPortalSettings />}
     </div>
   );
 }

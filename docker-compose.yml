@@ -69,7 +69,13 @@ services:
     volumes:
       - whisper_model_cache:/root/.cache/huggingface
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -108,7 +114,13 @@ services:
       whisper:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
