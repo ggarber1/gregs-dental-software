@@ -6,13 +6,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from sqlalchemy import or_, select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session_factory
 from app.models.appointment import Appointment as AppointmentModel
 from app.models.appointment_procedure import AppointmentProcedure as ProcedureModel
 from app.models.appointment_procedure import CdtCode as CdtCodeModel
+from app.models.fee_schedule import PracticeFeeSchedule as FeeScheduleModel
 from app.routers.patients import _require_practice_scope, _require_write_role
 from app.schemas.generated import (
     ApiError,
@@ -44,13 +45,15 @@ def _err(code: str, message: str) -> dict[str, Any]:
     return ApiError(error=Error(code=code, message=message)).model_dump(by_alias=True)
 
 
-def _cdt_to_schema(row: CdtCodeModel) -> CdtCode:
+def _cdt_to_schema(row: CdtCodeModel, resolved_fee_cents: int | None = None) -> CdtCode:
+    resolved = resolved_fee_cents if resolved_fee_cents is not None else row.default_fee_cents
     return CdtCode(
         id=row.id,
         code=row.code,
         description=row.description,
         category=row.category,  # type: ignore[arg-type]
         defaultFeeCents=row.default_fee_cents,  # type: ignore[arg-type]
+        resolvedFeeCents=resolved,  # type: ignore[arg-type]
         isActive=row.is_active,
     )
 
@@ -138,10 +141,19 @@ def _resolve_code_fields(body: CreateAppointmentProcedure) -> str | None:
 
 @cdt_router.get("", response_model=list[CdtCode])
 async def search_cdt_codes(request: Request, q: str | None = None) -> list[CdtCode]:
-    _require_practice_scope(request)
+    practice_id = _require_practice_scope(request)
     async with get_session_factory()() as session:
-        query = select(CdtCodeModel).where(
-            CdtCodeModel.is_active.is_(True), CdtCodeModel.deleted_at.is_(None)
+        query = (
+            select(CdtCodeModel, FeeScheduleModel.fee_cents)
+            .outerjoin(
+                FeeScheduleModel,
+                and_(
+                    FeeScheduleModel.cdt_code_id == CdtCodeModel.id,
+                    FeeScheduleModel.practice_id == practice_id,
+                    FeeScheduleModel.deleted_at.is_(None),
+                ),
+            )
+            .where(CdtCodeModel.is_active.is_(True), CdtCodeModel.deleted_at.is_(None))
         )
         if q:
             term = q.strip()
@@ -152,8 +164,8 @@ async def search_cdt_codes(request: Request, q: str | None = None) -> list[CdtCo
                 )
             )
         query = query.order_by(CdtCodeModel.code.asc()).limit(_CDT_SEARCH_LIMIT)
-        rows = (await session.scalars(query)).all()
-    return [_cdt_to_schema(r) for r in rows]
+        result = await session.execute(query)
+    return [_cdt_to_schema(cdt, fee) for cdt, fee in result.all()]
 
 
 @router.get("", response_model=AppointmentProcedureListResponse)

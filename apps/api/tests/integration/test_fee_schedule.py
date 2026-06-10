@@ -164,3 +164,20 @@ class TestRoleAuth:
                 "/api/v1/fee-schedule/D0120", json={"feeCents": 4500}, headers=mut(headers)
             )
         assert resp.status_code == 403, resp.text
+
+
+class TestTypeaheadAutofill:
+    async def test_cdt_search_returns_practice_resolved_fee(
+        self, client: AsyncClient, auth_headers
+    ):
+        # No override yet -> resolvedFeeCents equals the global default (None for seeds).
+        before = (await client.get("/api/v1/cdt-codes?q=D0120", headers=auth_headers)).json()
+        d0120 = next(r for r in before if r["code"] == "D0120")
+        assert d0120["resolvedFeeCents"] == d0120["defaultFeeCents"]
+
+        # Set a practice fee, then the typeahead reflects it.
+        await client.put(
+            "/api/v1/fee-schedule/D0120", json={"feeCents": 4500}, headers=mut(auth_headers)
+        )
+        after = (await client.get("/api/v1/cdt-codes?q=D0120", headers=auth_headers)).json()
+        assert next(r for r in after if r["code"] == "D0120")["resolvedFeeCents"] == 4500
