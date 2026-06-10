@@ -47,6 +47,7 @@ _TRUNCATE_TABLES = (
     "intake_forms",
     "audit_logs",
     "patient_insurances",
+    "practice_fee_schedule",
     "insurance_plans",
     "medical_history_versions",
     "clinical_notes",
