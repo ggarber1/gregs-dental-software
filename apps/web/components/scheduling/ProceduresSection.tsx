@@ -20,6 +20,7 @@ import {
   useCreateAppointmentProcedure,
   useDeleteAppointmentProcedure,
   formatCents,
+  prefillFeeDollars,
   type CdtCode,
   type CreateAppointmentProcedureBody,
   type EstimateSource,
@@ -91,10 +92,7 @@ export function ProceduresSection({ appointmentId }: ProceduresSectionProps) {
       ...prev,
       procedureCode: code.code,
       procedureName: code.description,
-      fee:
-        prev.fee || code.defaultFeeCents == null
-          ? prev.fee
-          : (code.defaultFeeCents / 100).toString(),
+      fee: prefillFeeDollars(prev.fee, code.resolvedFeeCents),
     }));
     setShowCodeDropdown(false);
   }
