@@ -113,6 +113,19 @@ class TestSetFee:
         )
         assert resp.status_code == 404, resp.text
 
+    async def test_put_zero_is_a_real_override(self, client: AsyncClient, auth_headers):
+        put = await client.put(
+            "/api/v1/fee-schedule/D0120", json={"feeCents": 0}, headers=mut(auth_headers)
+        )
+        assert put.status_code == 200, put.text
+        assert put.json()["practiceFeeCents"] == 0
+        assert put.json()["resolvedFeeCents"] == 0
+
+        rows = (await client.get("/api/v1/fee-schedule", headers=auth_headers)).json()
+        d0120 = _find(rows, "D0120")
+        assert d0120["practiceFeeCents"] == 0
+        assert d0120["resolvedFeeCents"] == 0
+
 
 class TestRevertFee:
     async def test_delete_reverts_to_default(self, client: AsyncClient, auth_headers):
@@ -132,6 +145,36 @@ class TestRevertFee:
     ):
         resp = await client.delete("/api/v1/fee-schedule/D0120", headers=mut(auth_headers))
         assert resp.status_code == 204, resp.text
+
+    async def test_revert_then_reset_yields_single_active_row(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession
+    ):
+        from sqlalchemy import func, select
+
+        from app.models.fee_schedule import PracticeFeeSchedule
+
+        await client.put(
+            "/api/v1/fee-schedule/D0120", json={"feeCents": 4500}, headers=mut(auth_headers)
+        )
+        await client.delete("/api/v1/fee-schedule/D0120", headers=mut(auth_headers))
+        reset = await client.put(
+            "/api/v1/fee-schedule/D0120", json={"feeCents": 5000}, headers=mut(auth_headers)
+        )
+        assert reset.status_code == 200, reset.text
+
+        rows = (await client.get("/api/v1/fee-schedule", headers=auth_headers)).json()
+        assert _find(rows, "D0120")["practiceFeeCents"] == 5000
+
+        active = await db_session.scalar(
+            select(func.count())
+            .select_from(PracticeFeeSchedule)
+            .where(PracticeFeeSchedule.deleted_at.is_(None))
+        )
+        assert active == 1
+
+    async def test_delete_unknown_code_404(self, client: AsyncClient, auth_headers):
+        resp = await client.delete("/api/v1/fee-schedule/D9999", headers=mut(auth_headers))
+        assert resp.status_code == 404, resp.text
 
 
 class TestPracticeIsolation:
@@ -181,3 +224,29 @@ class TestTypeaheadAutofill:
         )
         after = (await client.get("/api/v1/cdt-codes?q=D0120", headers=auth_headers)).json()
         assert next(r for r in after if r["code"] == "D0120")["resolvedFeeCents"] == 4500
+
+
+class TestDefaultFallback:
+    async def test_resolved_falls_back_to_nonnull_default(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession
+    ):
+        import uuid as _uuid
+
+        from app.models.appointment_procedure import CdtCode
+
+        code = CdtCode(
+            id=_uuid.uuid4(),
+            code="D9995",
+            description="Test code with default fee",
+            category="other",
+            default_fee_cents=7700,
+            is_active=True,
+        )
+        db_session.add(code)
+        await db_session.commit()
+
+        rows = (await client.get("/api/v1/fee-schedule", headers=auth_headers)).json()
+        row = _find(rows, "D9995")
+        assert row["defaultFeeCents"] == 7700
+        assert row["practiceFeeCents"] is None
+        assert row["resolvedFeeCents"] == 7700
