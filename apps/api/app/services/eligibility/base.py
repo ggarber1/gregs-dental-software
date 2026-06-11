@@ -3,18 +3,18 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class EligibilityStatus(str, Enum):
+class EligibilityStatus(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     UNKNOWN = "unknown"
 
 
 # Coinsurance categories used by concrete provider parsers to bucket benefits.
-class BenefitCategory(str, Enum):
+class BenefitCategory(StrEnum):
     PREVENTIVE = "preventive"
     BASIC = "basic"
     MAJOR = "major"

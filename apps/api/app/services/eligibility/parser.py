@@ -34,7 +34,10 @@ def _parse_date(value: str | None) -> date | None:
 
 def _info_parts(entry: dict[str, Any]) -> list[str]:
     """Return the list of additionalInformation description strings for *entry*."""
-    return [str(a.get("description", "")) for a in entry.get("additionalInformation", [])]
+    info = entry.get("additionalInformation") or []
+    if isinstance(info, dict):
+        info = [info]
+    return [str(a.get("description", "")) for a in info if isinstance(a, dict)]
 
 
 def _additional_info_text(entry: dict[str, Any]) -> str:
@@ -93,31 +96,38 @@ def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
         level = b.get("coverageLevelCode")
         tq = b.get("timeQualifierCode")
         text = _descriptions(b)  # full text (name + additionalInformation) for categorization
-        additional_text = _additional_info_text(b)  # additionalInformation only for insurance-share detection
+        # additionalInformation only — for insurance-share detection
+        additional_text = _additional_info_text(b)
 
         if code == "C":
             amt = _money_to_cents(b.get("benefitAmount"))
             if level == "FAM":
                 # First-wins: keep existing value if already set
-                deductible_fam = deductible_fam if deductible_fam is not None else amt
+                if deductible_fam is None:
+                    deductible_fam = amt
             else:
                 # First-wins: keep existing value if already set
-                deductible_ind = deductible_ind if deductible_ind is not None else amt
+                if deductible_ind is None:
+                    deductible_ind = amt
         elif code == "F":
             amt = _money_to_cents(b.get("benefitAmount"))
             if tq == "29":
                 # First-wins
-                annual_max_remaining = annual_max_remaining if annual_max_remaining is not None else amt
+                if annual_max_remaining is None:
+                    annual_max_remaining = amt
             elif "used" in text:
                 # First-wins
-                annual_max_used = annual_max_used if annual_max_used is not None else amt
+                if annual_max_used is None:
+                    annual_max_used = amt
             else:
                 # First-wins
-                annual_max = annual_max if annual_max is not None else amt
+                if annual_max is None:
+                    annual_max = amt
         elif code == "G" and level != "FAM":
             amt = _money_to_cents(b.get("benefitAmount"))
             # First-wins
-            oop_ind = oop_ind if oop_ind is not None else amt
+            if oop_ind is None:
+                oop_ind = amt
         elif code == "A":
             pct_raw = b.get("benefitPercent")
             if pct_raw not in (None, ""):

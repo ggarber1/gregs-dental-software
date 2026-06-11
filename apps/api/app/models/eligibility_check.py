@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -71,8 +72,8 @@ class EligibilityCheck(Base, PHIMixin):
     waiting_period_major_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     waiting_period_ortho_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    frequency_limits: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    raw_response: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    frequency_limits: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    raw_response: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     requested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

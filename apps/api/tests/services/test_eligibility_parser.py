@@ -155,3 +155,19 @@ def test_duplicate_deductible_keeps_first():
     }
     r = parse_stedi_response(payload)
     assert r.deductible_individual == 5000
+
+
+def test_additional_information_null_or_object_does_not_crash():
+    payload = {
+        "benefitsInformation": [
+            {"code": "1", "name": "Active Coverage", "additionalInformation": None},
+            {
+                "code": "A", "name": "Co-Insurance", "benefitPercent": "0.30",
+                "additionalInformation": {"description": "Preventive services"},
+            },
+        ]
+    }
+    r = parse_stedi_response(payload)
+    assert r.status == EligibilityStatus.ACTIVE
+    # single-object additionalInformation is coerced; preventive 0.30 stays patient-share
+    assert r.coinsurance_preventive == 0.30

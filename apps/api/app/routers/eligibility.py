@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
@@ -39,7 +40,7 @@ def _err(status: int, code: str, message: str) -> HTTPException:
 
 
 def _row_to_schema(row: CheckModel) -> EligibilityCheck:
-    def coins(v: object) -> float | None:
+    def coins(v: Any) -> float | None:
         return float(v) if v is not None else None
 
     return EligibilityCheck(
@@ -127,6 +128,7 @@ async def create_eligibility_check(
         )
 
         await require_feature(session, practice_id, _FEATURE, practice=practice)
+        assert practice is not None  # require_feature 403s when the practice is missing
 
         insurance = await session.scalar(
             select(InsuranceModel).where(
@@ -153,6 +155,7 @@ async def create_eligibility_check(
         if plan is None:
             raise _err(422, "NO_PAYER_ID", "Linked insurance plan not found")
 
+        dob: date | None
         if insurance.relationship_to_insured == "self":
             patient = await session.scalar(
                 select(PatientModel).where(PatientModel.id == insurance.patient_id)
