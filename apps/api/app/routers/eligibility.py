@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 
 from app.core.db import get_session_factory
+from app.core.features import require_feature
 from app.core.ssm import get_ssm_parameter
 from app.models.eligibility_check import EligibilityCheck as CheckModel
 from app.models.insurance_plan import InsurancePlan as PlanModel
@@ -125,14 +126,7 @@ async def create_eligibility_check(
             select(PracticeModel).where(PracticeModel.id == practice_id)
         )
 
-        # Feature gate — inline check so we avoid a second practice query later.
-        enabled = bool(practice and (practice.features or {}).get(_FEATURE))
-        if not enabled:
-            raise _err(
-                403,
-                "FEATURE_NOT_ENABLED",
-                f"The '{_FEATURE}' feature is not enabled for this practice",
-            )
+        await require_feature(session, practice_id, _FEATURE, practice=practice)
 
         insurance = await session.scalar(
             select(InsuranceModel).where(
@@ -232,16 +226,7 @@ async def create_eligibility_check(
 async def get_eligibility_check(check_id: uuid.UUID, request: Request) -> EligibilityCheck:
     practice_id = _require_practice_scope(request)
     async with get_session_factory()() as session:
-        practice = await session.scalar(
-            select(PracticeModel).where(PracticeModel.id == practice_id)
-        )
-        enabled = bool(practice and (practice.features or {}).get(_FEATURE))
-        if not enabled:
-            raise _err(
-                403,
-                "FEATURE_NOT_ENABLED",
-                f"The '{_FEATURE}' feature is not enabled for this practice",
-            )
+        await require_feature(session, practice_id, _FEATURE)
         row = await session.scalar(
             select(CheckModel).where(
                 CheckModel.id == check_id,
@@ -261,16 +246,7 @@ async def list_eligibility_checks(
     """Latest check per patient_insurance_id for the patient (feeds the chart card)."""
     practice_id = _require_practice_scope(request)
     async with get_session_factory()() as session:
-        practice = await session.scalar(
-            select(PracticeModel).where(PracticeModel.id == practice_id)
-        )
-        enabled = bool(practice and (practice.features or {}).get(_FEATURE))
-        if not enabled:
-            raise _err(
-                403,
-                "FEATURE_NOT_ENABLED",
-                f"The '{_FEATURE}' feature is not enabled for this practice",
-            )
+        await require_feature(session, practice_id, _FEATURE)
         rows = (
             await session.scalars(
                 select(CheckModel)
