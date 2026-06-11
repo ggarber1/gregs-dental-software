@@ -13,6 +13,9 @@ from app.schemas.generated import ApiError, Error
 async def require_feature(session: AsyncSession, practice_id: uuid.UUID, flag: str) -> None:
     """Raise 403 unless practice.features[flag] is truthy."""
     practice = await session.scalar(select(Practice).where(Practice.id == practice_id))
+    # A missing/inaccessible practice row is treated as "feature not enabled" (403),
+    # not 404: callers always resolve practice scope + membership upstream, and we
+    # avoid leaking practice existence. Denying is the safe default here.
     enabled = bool(practice and (practice.features or {}).get(flag))
     if not enabled:
         raise HTTPException(

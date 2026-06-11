@@ -21,3 +21,11 @@ async def test_require_feature_403_when_disabled():
     with pytest.raises(HTTPException) as exc:
         await require_feature(session, uuid.uuid4(), "eligibility_verification")
     assert exc.value.status_code == 403
+
+
+async def test_require_feature_403_when_practice_not_found():
+    session = MagicMock()
+    session.scalar = AsyncMock(return_value=None)
+    with pytest.raises(HTTPException) as exc:
+        await require_feature(session, uuid.uuid4(), "eligibility_verification")
+    assert exc.value.status_code == 403
