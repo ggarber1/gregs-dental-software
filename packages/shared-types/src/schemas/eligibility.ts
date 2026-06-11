@@ -26,6 +26,7 @@ export const EligibilityCheckSchema = z.object({
   clearinghouse: z.string(),
   payerIdUsed: z.string(),
   payerName: z.string().optional(),
+  planName: z.string().optional(),
   failureReason: z.string().optional(),
 
   // Coverage
@@ -33,20 +34,20 @@ export const EligibilityCheckSchema = z.object({
   coverageStartDate: z.string().date().optional(),
   coverageEndDate: z.string().date().optional(),
 
-  // Deductibles (null = not returned by payer)
-  deductibleIndividual: z.number().optional(),
-  deductibleIndividualMet: z.number().optional(),
-  deductibleFamily: z.number().optional(),
-  deductibleFamilyMet: z.number().optional(),
+  // Deductibles (null = not returned by payer) — integer cents
+  deductibleIndividual: z.number().int().optional(),
+  deductibleIndividualMet: z.number().int().optional(),
+  deductibleFamily: z.number().int().optional(),
+  deductibleFamilyMet: z.number().int().optional(),
 
-  // Out-of-pocket max
-  oopMaxIndividual: z.number().optional(),
-  oopMaxIndividualMet: z.number().optional(),
+  // Out-of-pocket max — integer cents
+  oopMaxIndividual: z.number().int().optional(),
+  oopMaxIndividualMet: z.number().int().optional(),
 
-  // Annual maximum
-  annualMaxIndividual: z.number().optional(),
-  annualMaxIndividualUsed: z.number().optional(),
-  annualMaxIndividualRemaining: z.number().optional(),
+  // Annual maximum — integer cents
+  annualMaxIndividual: z.number().int().optional(),
+  annualMaxIndividualUsed: z.number().int().optional(),
+  annualMaxIndividualRemaining: z.number().int().optional(),
 
   // Coinsurance — patient's share (0.20 = patient pays 20%)
   coinsurancePreventive: z.number().optional(),
