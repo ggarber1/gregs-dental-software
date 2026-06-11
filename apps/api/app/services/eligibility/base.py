@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
+from typing import Any
 
 
 class EligibilityStatus(str, Enum):
@@ -12,6 +13,7 @@ class EligibilityStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+# Coinsurance categories used by concrete provider parsers to bucket benefits.
 class BenefitCategory(str, Enum):
     PREVENTIVE = "preventive"
     BASIC = "basic"
@@ -19,7 +21,7 @@ class BenefitCategory(str, Enum):
     ORTHODONTIA = "orthodontia"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EligibilityRequest:
     payer_id: str
     subscriber_id: str
@@ -35,7 +37,7 @@ class EligibilityRequest:
 
 @dataclass(frozen=True)
 class EligibilityResult:
-    raw_response: dict
+    raw_response: dict[str, Any]
     payer_name: str | None
     plan_name: str | None
     status: EligibilityStatus
@@ -59,7 +61,7 @@ class EligibilityResult:
     waiting_period_basic_months: int | None
     waiting_period_major_months: int | None
     waiting_period_ortho_months: int | None
-    frequency_limits: dict | None = field(default=None)
+    frequency_limits: dict[str, Any] | None = field(default=None)
 
 
 class EligibilityProviderError(Exception):
