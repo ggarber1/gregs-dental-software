@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from app.services.eligibility.base import (
     BenefitCategory,
@@ -31,15 +32,19 @@ def _parse_date(value: str | None) -> date | None:
     return None
 
 
-def _additional_info_text(entry: dict) -> str:
+def _info_parts(entry: dict[str, Any]) -> list[str]:
+    """Return the list of additionalInformation description strings for *entry*."""
+    return [str(a.get("description", "")) for a in entry.get("additionalInformation", [])]
+
+
+def _additional_info_text(entry: dict[str, Any]) -> str:
     """Concatenate additionalInformation descriptions only (no entry name)."""
-    parts = [str(a.get("description", "")) for a in entry.get("additionalInformation", [])]
-    return " ".join(parts).lower()
+    return " ".join(_info_parts(entry)).lower()
 
 
-def _descriptions(entry: dict) -> str:
+def _descriptions(entry: dict[str, Any]) -> str:
     """Full text: additionalInformation descriptions + entry name (for categorization)."""
-    parts = [str(a.get("description", "")) for a in entry.get("additionalInformation", [])]
+    parts = _info_parts(entry)
     parts.append(str(entry.get("name", "")))
     return " ".join(parts).lower()
 
@@ -66,7 +71,7 @@ def _patient_share(pct: float, additional_text: str) -> float:
     return round(pct, 4)
 
 
-def parse_stedi_response(raw: dict) -> EligibilityResult:
+def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
     benefits = raw.get("benefitsInformation", []) or []
 
     status = EligibilityStatus.UNKNOWN
@@ -93,28 +98,40 @@ def parse_stedi_response(raw: dict) -> EligibilityResult:
         if code == "C":
             amt = _money_to_cents(b.get("benefitAmount"))
             if level == "FAM":
-                deductible_fam = deductible_fam if amt is None else amt
+                # First-wins: keep existing value if already set
+                deductible_fam = deductible_fam if deductible_fam is not None else amt
             else:
-                deductible_ind = deductible_ind if amt is None else amt
+                # First-wins: keep existing value if already set
+                deductible_ind = deductible_ind if deductible_ind is not None else amt
         elif code == "F":
             amt = _money_to_cents(b.get("benefitAmount"))
             if tq == "29":
-                annual_max_remaining = annual_max_remaining if amt is None else amt
+                # First-wins
+                annual_max_remaining = annual_max_remaining if annual_max_remaining is not None else amt
             elif "used" in text:
-                annual_max_used = annual_max_used if amt is None else amt
+                # First-wins
+                annual_max_used = annual_max_used if annual_max_used is not None else amt
             else:
-                annual_max = annual_max if amt is None else amt
+                # First-wins
+                annual_max = annual_max if annual_max is not None else amt
         elif code == "G" and level != "FAM":
             amt = _money_to_cents(b.get("benefitAmount"))
-            oop_ind = oop_ind if amt is None else amt
+            # First-wins
+            oop_ind = oop_ind if oop_ind is not None else amt
         elif code == "A":
             pct_raw = b.get("benefitPercent")
             if pct_raw not in (None, ""):
                 try:
-                    share = _patient_share(float(pct_raw), additional_text)
+                    pct = float(pct_raw)
                 except ValueError:
                     continue
-                coins[_categorize(text)] = share
+                # Normalize whole-number percent (e.g. "80" means 80%, not 8000%)
+                if pct > 1.0:
+                    pct = pct / 100.0
+                share = _patient_share(pct, additional_text)
+                # First-wins: first coinsurance value for a category sticks;
+                # real 271s break BASIC out by procedure so deterministic ordering matters.
+                coins.setdefault(_categorize(text), share)
 
     plan_name = None
     plan_info = raw.get("planInformation") or {}
