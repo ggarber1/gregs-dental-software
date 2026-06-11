@@ -36,7 +36,7 @@ Module 8 — Billing & Payments (ledger, statements, aging, QuickBooks export)  
 | # | Module | Depends on | Can parallelize with | Spec |
 |---|--------|-----------|----------------------|------|
 | 1 | **3.5 — Per-Appointment Procedures** | nothing new | 5.2–5.4 | `2026-06-04-module-3.5-appointment-procedures-design.md` (✅ done) |
-| 2 | **3.6 — Practice Fee Schedule** | 3.5 (cdt_codes) | 5.2–5.4 | _separate PR — see below_ |
+| 2 | **3.6 — Practice Fee Schedule** | 3.5 (cdt_codes) | 5.2–5.4 | `2026-06-10-module-3.6-fee-schedule-design.md` (✅ done) |
 | 3 | **5.2–5.4 — Eligibility Verification** | 5.1 (done) | 3.5 / 3.6 | _tbd_ |
 | 4 | **6 — Co-pay Calculation** | 3.5, 3.6, 5 | — | _tbd_ |
 | 5 | **7 — Claims Submission + ERA** | 3.5 (6 optional) | — | _tbd_ |

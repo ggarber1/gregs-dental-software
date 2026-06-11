@@ -22,6 +22,7 @@ export const CdtCodeSchema = z.object({
   description: z.string().min(1),
   category: CdtCategorySchema,
   defaultFeeCents: z.number().int().nonnegative().nullable(),
+  resolvedFeeCents: z.number().int().nonnegative().nullable(),
   isActive: z.boolean(),
 });
 
@@ -71,6 +72,20 @@ export const AppointmentProcedureListResponseSchema = z.object({
   totals: ProcedureTotalsSchema,
 });
 
+export const FeeScheduleRowSchema = z.object({
+  cdtCodeId: UuidSchema,
+  code: z.string().min(1),
+  description: z.string().min(1),
+  category: CdtCategorySchema,
+  defaultFeeCents: z.number().int().nonnegative().nullable(),
+  practiceFeeCents: z.number().int().nonnegative().nullable(),
+  resolvedFeeCents: z.number().int().nonnegative().nullable(),
+});
+
+export const SetFeeSchema = z.object({
+  feeCents: z.number().int().nonnegative(),
+});
+
 export type CdtCategory = z.infer<typeof CdtCategorySchema>;
 export type EstimateSource = z.infer<typeof EstimateSourceSchema>;
 export type CdtCode = z.infer<typeof CdtCodeSchema>;
@@ -85,3 +100,5 @@ export type ProcedureTotals = z.infer<typeof ProcedureTotalsSchema>;
 export type AppointmentProcedureListResponse = z.infer<
   typeof AppointmentProcedureListResponseSchema
 >;
+export type FeeScheduleRow = z.infer<typeof FeeScheduleRowSchema>;
+export type SetFee = z.infer<typeof SetFeeSchema>;

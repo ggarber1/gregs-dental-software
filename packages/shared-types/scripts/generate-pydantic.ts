@@ -129,6 +129,8 @@ import {
   UpdateAppointmentProcedureSchema,
   ProcedureTotalsSchema,
   AppointmentProcedureListResponseSchema,
+  FeeScheduleRowSchema,
+  SetFeeSchema,
 } from "../src/schemas/procedures.js";
 import {
   PerioSiteSchema,
@@ -239,6 +241,8 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   UpdateAppointmentProcedure: UpdateAppointmentProcedureSchema,
   ProcedureTotals: ProcedureTotalsSchema,
   AppointmentProcedureListResponse: AppointmentProcedureListResponseSchema,
+  FeeScheduleRow: FeeScheduleRowSchema,
+  SetFee: SetFeeSchema,
   // Perio Charts
   PerioSite: PerioSiteSchema,
   Furcation: FurcationSchema,

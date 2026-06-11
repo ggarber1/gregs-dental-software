@@ -26,6 +26,7 @@ export interface CdtCode {
   description: string;
   category: CdtCategory;
   defaultFeeCents: number | null;
+  resolvedFeeCents: number | null;
   isActive: boolean;
 }
 
@@ -136,6 +137,14 @@ export async function deleteAppointmentProcedure(
 /** Pure helper — format an integer cents amount as a USD string. Exported for tests. */
 export function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+/** Pure helper — decide the fee field's dollar value when a CDT code is picked.
+ * Never clobbers a value the user already typed; blank when no fee resolves.
+ * Exported for tests. */
+export function prefillFeeDollars(currentFee: string, resolvedFeeCents: number | null): string {
+  if (currentFee || resolvedFeeCents == null) return currentFee;
+  return (resolvedFeeCents / 100).toString();
 }
 
 // ── Query keys ────────────────────────────────────────────────────────────────
