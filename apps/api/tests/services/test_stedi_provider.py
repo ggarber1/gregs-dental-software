@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from datetime import date
 
 import httpx
@@ -68,3 +69,28 @@ async def test_server_error_raises_retryable():
     with pytest.raises(EligibilityProviderError) as exc:
         await provider.check_eligibility(_REQ)
     assert exc.value.retryable is True
+
+
+def test_build_payload_omits_optional_fields_when_none():
+    req = dataclasses.replace(_REQ, group_number=None, submitter_id=None)
+    payload = StediProvider(api_key="k").build_payload(req)
+    assert "groupNumber" not in payload["subscriber"]
+    assert "serviceProviderNumber" not in payload["provider"]
+
+
+async def test_timeout_raises_retryable():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = StediProvider(api_key="k", client=client)
+    with pytest.raises(EligibilityProviderError) as exc:
+        await provider.check_eligibility(_REQ)
+    assert exc.value.retryable is True
+
+
+async def test_http_400_raises_not_supported():
+    provider = StediProvider(api_key="k", client=_client_returning(400, {"message": "bad"}))
+    with pytest.raises(EligibilityProviderError) as exc:
+        await provider.check_eligibility(_REQ)
+    assert exc.value.not_supported is True

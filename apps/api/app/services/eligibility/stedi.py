@@ -19,6 +19,7 @@ _STEDI_URL = (
     "https://healthcare.us.stedi.com/2024-04-01/change/medicalnetwork/eligibility/v3"
 )
 _DENTAL_SERVICE_TYPE_CODES = ["35", "27", "F3", "AJ"]
+_TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
 
 class StediProvider(EligibilityProvider):
@@ -52,9 +53,8 @@ class StediProvider(EligibilityProvider):
     async def check_eligibility(self, request: EligibilityRequest) -> EligibilityResult:
         payload = self.build_payload(request)
         headers = {"Authorization": f"ApiKey {self._api_key}"}
-        timeout = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
-        client = self._client or httpx.AsyncClient(timeout=timeout)
+        client = self._client or httpx.AsyncClient(timeout=_TIMEOUT)
         owns_client = self._client is None
         try:
             resp = await client.post(_STEDI_URL, json=payload, headers=headers)
@@ -75,7 +75,12 @@ class StediProvider(EligibilityProvider):
                 f"Stedi rejected request {resp.status_code}: {resp.text}", not_supported=True
             )
 
-        body = resp.json()
+        try:
+            body = resp.json()
+        except ValueError as exc:
+            raise EligibilityProviderError(
+                f"Stedi returned a non-JSON 200 body: {resp.text[:200]}", retryable=True
+            ) from exc
         if body.get("errors"):
             raise EligibilityProviderError(
                 f"Stedi AAA/payer error: {body['errors']}", not_supported=True
