@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 _BOTO_CONFIG = Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 2})
 
 
+# Not cached (unlike sqs.py): SSM is called infrequently; a fresh client avoids
+# stale-credential issues with IAM role rotation on long-lived containers.
 def _get_ssm_client() -> Any:
     settings = get_settings()
     kwargs: dict[str, Any] = {

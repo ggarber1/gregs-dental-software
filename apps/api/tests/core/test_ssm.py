@@ -18,7 +18,7 @@ def test_get_ssm_parameter_returns_decrypted_value():
 
 def test_get_ssm_parameter_missing_returns_none():
     fake_client = MagicMock()
-    fake_client.exceptions.ParameterNotFound = KeyError
+    # The broad except in get_ssm_parameter catches any exception from get_parameter.
     fake_client.get_parameter.side_effect = KeyError("nope")
     with patch("app.core.ssm._get_ssm_client", return_value=fake_client):
         assert get_ssm_parameter("/missing") is None
