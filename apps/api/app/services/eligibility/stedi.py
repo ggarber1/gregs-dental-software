@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 _STEDI_URL = (
     "https://healthcare.us.stedi.com/2024-04-01/change/medicalnetwork/eligibility/v3"
 )
-_DENTAL_SERVICE_TYPE_CODES = ["35", "27", "F3", "AJ"]
+# Stedi supports only service type code 35 (dental) for dental eligibility requests.
+_DENTAL_SERVICE_TYPE_CODES = ["35"]
 _TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
 
@@ -52,7 +53,7 @@ class StediProvider(EligibilityProvider):
 
     async def check_eligibility(self, request: EligibilityRequest) -> EligibilityResult:
         payload = self.build_payload(request)
-        headers = {"Authorization": f"ApiKey {self._api_key}"}
+        headers = {"Authorization": f"Key {self._api_key}"}
 
         client = self._client or httpx.AsyncClient(timeout=_TIMEOUT)
         owns_client = self._client is None

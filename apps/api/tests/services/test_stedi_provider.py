@@ -41,8 +41,21 @@ def test_build_request_payload_shape():
     assert payload["subscriber"]["memberId"] == "XYZ123"
     assert payload["subscriber"]["dateOfBirth"] == "19800101"
     assert payload["encounter"]["dateOfService"] == "20260410"
-    assert set(payload["encounter"]["serviceTypeCodes"]) == {"35", "27", "F3", "AJ"}
+    # Stedi supports only STC 35 for dental eligibility.
+    assert payload["encounter"]["serviceTypeCodes"] == ["35"]
     assert payload["provider"]["npi"] == "1234567890"
+
+
+async def test_check_eligibility_sends_key_auth_header():
+    captured: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["auth"] = request.headers.get("Authorization", "")
+        return httpx.Response(200, json={"benefitsInformation": [{"code": "1"}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    await StediProvider(api_key="secret123", client=client).check_eligibility(_REQ)
+    assert captured["auth"] == "Key secret123"
 
 
 async def test_check_eligibility_success_parses_result():
