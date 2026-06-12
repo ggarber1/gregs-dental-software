@@ -207,6 +207,7 @@ async def create_eligibility_check(
                 subscriber_first_name=first,
                 subscriber_last_name=last,
                 provider_npi=practice.billing_npi,
+                organization_name=practice.name,
                 submitter_id=practice.clearinghouse_submitter_id,
                 date_of_service=datetime.now(UTC).date(),
                 control_number=str(uuid.uuid4().int)[:9],

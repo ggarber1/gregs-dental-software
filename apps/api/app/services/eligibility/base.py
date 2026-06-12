@@ -30,6 +30,7 @@ class EligibilityRequest:
     subscriber_first_name: str
     subscriber_last_name: str
     provider_npi: str
+    organization_name: str
     submitter_id: str | None
     date_of_service: date
     control_number: str

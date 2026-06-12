@@ -54,6 +54,7 @@ def _build_request() -> EligibilityRequest:
         subscriber_first_name=os.environ["STEDI_FIRST"],
         subscriber_last_name=os.environ["STEDI_LAST"],
         provider_npi=os.environ.get("STEDI_NPI", "1999999984"),
+        organization_name=os.environ.get("STEDI_ORG", "Provider Name"),
         submitter_id=os.environ.get("STEDI_SUBMITTER") or None,
         date_of_service=date.today(),
         control_number="112233445",

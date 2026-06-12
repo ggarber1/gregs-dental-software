@@ -21,6 +21,7 @@ _REQ = EligibilityRequest(
     subscriber_first_name="John",
     subscriber_last_name="Smith",
     provider_npi="1234567890",
+    organization_name="Downtown Dental",
     submitter_id="SUB1",
     date_of_service=date(2026, 4, 10),
     control_number="000000001",
@@ -44,6 +45,7 @@ def test_build_request_payload_shape():
     # Stedi supports only STC 35 for dental eligibility.
     assert payload["encounter"]["serviceTypeCodes"] == ["35"]
     assert payload["provider"]["npi"] == "1234567890"
+    assert payload["provider"]["organizationName"] == "Downtown Dental"
 
 
 async def test_check_eligibility_sends_key_auth_header():

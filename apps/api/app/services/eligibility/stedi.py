@@ -37,7 +37,10 @@ class StediProvider(EligibilityProvider):
         }
         if request.group_number:
             subscriber["groupNumber"] = request.group_number
-        provider: dict[str, Any] = {"npi": request.provider_npi}
+        provider: dict[str, Any] = {
+            "organizationName": request.organization_name,
+            "npi": request.provider_npi,
+        }
         if request.submitter_id:
             provider["serviceProviderNumber"] = request.submitter_id
         return {
