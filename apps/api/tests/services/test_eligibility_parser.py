@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.services.eligibility.base import BenefitCategory, EligibilityStatus
+from app.services.eligibility.base import EligibilityStatus
 from app.services.eligibility.parser import parse_stedi_response
 
 _ACTIVE_FULL = {
@@ -51,10 +51,18 @@ def test_parse_money_to_cents():
     assert r.annual_max_individual_remaining == 120000
 
 
-def test_coinsurance_patient_share_both_conventions():
-    r = parse_stedi_response(_ACTIVE_FULL)
-    assert r.coinsurance_preventive == 0.20
-    assert r.coinsurance_major == 0.20
+def test_coinsurance_is_not_summarized():
+    """Coinsurance (code 'A') is intentionally not summarized into categories.
+
+    Real dental 271s return coinsurance per CDT code, not by preventive/basic/
+    major/ortho; structuring it is deferred to Module 6. The raw 271 retains the
+    per-code rates, but the coinsurance_* summary fields stay None.
+    """
+    r = parse_stedi_response(_ACTIVE_FULL)  # fixture has two code "A" entries
+    assert r.coinsurance_preventive is None
+    assert r.coinsurance_basic is None
+    assert r.coinsurance_major is None
+    assert r.coinsurance_ortho is None
 
 
 def test_missing_fields_are_none_not_zero():
@@ -66,22 +74,8 @@ def test_missing_fields_are_none_not_zero():
     assert r.coinsurance_basic is None
 
 
-def test_ortho_detected_from_description():
-    payload = {
-        "benefitsInformation": [
-            {"code": "1", "name": "Active Coverage"},
-            {
-                "code": "A", "name": "Co-Insurance", "benefitPercent": "0.50",
-                "additionalInformation": [{"description": "Orthodontic treatment"}],
-            },
-        ]
-    }
-    r = parse_stedi_response(payload)
-    assert r.coinsurance_ortho == 0.50
-
-
 # ---------------------------------------------------------------------------
-# New tests — lock in first-wins, whole-number percent, and empty payloads
+# New tests — lock in first-wins and empty payloads
 # ---------------------------------------------------------------------------
 
 def test_family_deductible_parsed():
@@ -101,7 +95,7 @@ def test_family_deductible_parsed():
 
 
 def test_annual_max_used_parsed():
-    """code=F entry whose additionalInformation description contains 'used' maps to annual_max_individual_used."""
+    """A code=F entry whose description contains 'used' maps to annual_max_individual_used."""
     payload = {
         "benefitsInformation": [
             {
@@ -127,22 +121,6 @@ def test_empty_payload_is_unknown():
     assert r_none.status == EligibilityStatus.UNKNOWN
     assert r_none.deductible_individual is None
     assert r_none.coinsurance_basic is None
-
-
-def test_whole_number_percent_normalized():
-    """benefitPercent='80' (insurance pays 80%) → coinsurance_major == 0.20."""
-    payload = {
-        "benefitsInformation": [
-            {
-                "code": "A",
-                "name": "Co-Insurance",
-                "benefitPercent": "80",
-                "additionalInformation": [{"description": "Major - insurance pays"}],
-            },
-        ]
-    }
-    r = parse_stedi_response(payload)
-    assert r.coinsurance_major == 0.20
 
 
 def test_duplicate_deductible_keeps_first():
@@ -181,5 +159,5 @@ def test_additional_information_null_or_object_does_not_crash():
     }
     r = parse_stedi_response(payload)
     assert r.status == EligibilityStatus.ACTIVE
-    # single-object additionalInformation is coerced; preventive 0.30 stays patient-share
-    assert r.coinsurance_preventive == 0.30
+    # null / single-object additionalInformation must not crash the parser
+    assert r.coinsurance_preventive is None

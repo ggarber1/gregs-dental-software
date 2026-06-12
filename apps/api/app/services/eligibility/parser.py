@@ -4,12 +4,9 @@ from datetime import date, datetime
 from typing import Any
 
 from app.services.eligibility.base import (
-    BenefitCategory,
     EligibilityResult,
     EligibilityStatus,
 )
-
-_INSURANCE_KEYWORDS = ("insurance", "plan pays", "carrier")
 
 
 def _money_to_cents(value: str | None) -> int | None:
@@ -40,38 +37,11 @@ def _info_parts(entry: dict[str, Any]) -> list[str]:
     return [str(a.get("description", "")) for a in info if isinstance(a, dict)]
 
 
-def _additional_info_text(entry: dict[str, Any]) -> str:
-    """Concatenate additionalInformation descriptions only (no entry name)."""
-    return " ".join(_info_parts(entry)).lower()
-
-
 def _descriptions(entry: dict[str, Any]) -> str:
-    """Full text: additionalInformation descriptions + entry name (for categorization)."""
+    """Lowercased text: additionalInformation descriptions + entry name."""
     parts = _info_parts(entry)
     parts.append(str(entry.get("name", "")))
     return " ".join(parts).lower()
-
-
-def _categorize(text: str) -> BenefitCategory:
-    if "ortho" in text:
-        return BenefitCategory.ORTHODONTIA
-    if any(k in text for k in ("preventive", "diagnostic", "routine")):
-        return BenefitCategory.PREVENTIVE
-    if any(k in text for k in ("major", "crown", "prosthodontic", "prosthetic")):
-        return BenefitCategory.MAJOR
-    return BenefitCategory.BASIC
-
-
-def _patient_share(pct: float, additional_text: str) -> float:
-    """Detect insurance-share convention from additionalInformation descriptions only.
-
-    The entry name (e.g. "Co-Insurance") contains "insurance" as a substring,
-    so we must NOT include it in the insurance-share detection — only the
-    additionalInformation descriptions should be checked.
-    """
-    if any(k in additional_text for k in _INSURANCE_KEYWORDS):
-        return round(1.0 - pct, 4)
-    return round(pct, 4)
 
 
 def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
@@ -89,15 +59,12 @@ def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
     deductible_ind = deductible_fam = None
     annual_max = annual_max_remaining = annual_max_used = None
     oop_ind = None
-    coins: dict[BenefitCategory, float] = {}
 
     for b in benefits:
         code = b.get("code")
         level = b.get("coverageLevelCode")
         tq = b.get("timeQualifierCode")
-        text = _descriptions(b)  # full text (name + additionalInformation) for categorization
-        # additionalInformation only — for insurance-share detection
-        additional_text = _additional_info_text(b)
+        text = _descriptions(b)
 
         if code == "C":
             amt = _money_to_cents(b.get("benefitAmount"))
@@ -128,20 +95,12 @@ def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
             # First-wins
             if oop_ind is None:
                 oop_ind = amt
-        elif code == "A":
-            pct_raw = b.get("benefitPercent")
-            if pct_raw not in (None, ""):
-                try:
-                    pct = float(pct_raw)
-                except ValueError:
-                    continue
-                # Normalize whole-number percent (e.g. "80" means 80%, not 8000%)
-                if pct > 1.0:
-                    pct = pct / 100.0
-                share = _patient_share(pct, additional_text)
-                # First-wins: first coinsurance value for a category sticks;
-                # real 271s break BASIC out by procedure so deterministic ordering matters.
-                coins.setdefault(_categorize(text), share)
+        # Coinsurance (code "A") is intentionally NOT summarized here. Real dental
+        # 271s return coinsurance per individual CDT procedure code (grouped under
+        # granular service-type codes), not by coarse preventive/basic/major/ortho
+        # categories. A faithful, per-procedure coinsurance model is a Module 6
+        # (co-pay) design decision; until then the raw 271 in `raw_response`
+        # preserves every per-code rate and the coinsurance_* fields stay None.
 
     # Real payers populate different plan-name fields: Cigna uses
     # planNetworkIdDescription (e.g. "TOTAL CIGNA DPPO"); others use planDescription.
@@ -170,10 +129,10 @@ def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
         annual_max_individual=annual_max,
         annual_max_individual_used=annual_max_used,
         annual_max_individual_remaining=annual_max_remaining,
-        coinsurance_preventive=coins.get(BenefitCategory.PREVENTIVE),
-        coinsurance_basic=coins.get(BenefitCategory.BASIC),
-        coinsurance_major=coins.get(BenefitCategory.MAJOR),
-        coinsurance_ortho=coins.get(BenefitCategory.ORTHODONTIA),
+        coinsurance_preventive=None,
+        coinsurance_basic=None,
+        coinsurance_major=None,
+        coinsurance_ortho=None,
         waiting_period_basic_months=None,
         waiting_period_major_months=None,
         waiting_period_ortho_months=None,

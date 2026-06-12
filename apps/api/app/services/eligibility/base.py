@@ -13,14 +13,6 @@ class EligibilityStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
-# Coinsurance categories used by concrete provider parsers to bucket benefits.
-class BenefitCategory(StrEnum):
-    PREVENTIVE = "preventive"
-    BASIC = "basic"
-    MAJOR = "major"
-    ORTHODONTIA = "orthodontia"
-
-
 @dataclass(frozen=True, kw_only=True)
 class EligibilityRequest:
     payer_id: str
