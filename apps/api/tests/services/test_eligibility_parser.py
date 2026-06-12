@@ -157,6 +157,18 @@ def test_duplicate_deductible_keeps_first():
     assert r.deductible_individual == 5000
 
 
+def test_plan_name_falls_back_to_network_id_description():
+    # Cigna-style: no planDescription; plan name lives in planNetworkIdDescription.
+    payload = {
+        "planInformation": {
+            "groupDescription": "DENTAL GROUP",
+            "planNetworkIdDescription": "TOTAL CIGNA DPPO",
+        },
+        "benefitsInformation": [{"code": "1", "name": "Active Coverage"}],
+    }
+    assert parse_stedi_response(payload).plan_name == "TOTAL CIGNA DPPO"
+
+
 def test_additional_information_null_or_object_does_not_crash():
     payload = {
         "benefitsInformation": [

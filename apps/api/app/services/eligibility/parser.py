@@ -143,10 +143,14 @@ def parse_stedi_response(raw: dict[str, Any]) -> EligibilityResult:
                 # real 271s break BASIC out by procedure so deterministic ordering matters.
                 coins.setdefault(_categorize(text), share)
 
+    # Real payers populate different plan-name fields: Cigna uses
+    # planNetworkIdDescription (e.g. "TOTAL CIGNA DPPO"); others use planDescription.
     plan_name = None
     plan_info = raw.get("planInformation") or {}
-    if plan_info.get("planDescription"):
-        plan_name = str(plan_info["planDescription"])
+    for key in ("planDescription", "planNetworkIdDescription", "groupDescription"):
+        if plan_info.get(key):
+            plan_name = str(plan_info[key])
+            break
 
     dates = raw.get("planDateInformation") or {}
 
