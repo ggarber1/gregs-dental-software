@@ -73,6 +73,8 @@ Close the revenue cycle loop so the practice doesn't need a separate billing too
 - Insurance aging report (outstanding claims by carrier + age bucket)
 - Practice fee schedule → insurance estimation (coverage % per plan per CDT code)
 
+**Clearinghouse call allowance:** The $249/mo plan includes 250 clearinghouse calls/month (claims + eligibility combined). Track monthly usage per practice in the DB so we can identify practices approaching or exceeding the limit. Overage handling TBD — options are absorb the cost, throttle, or add a per-call surcharge above 250. At Stedi PAYG rates ($0.30/call), the 250-call bundle costs ~$75/mo and is already priced into the margin model. See `research/16_cost_and_scaling_model.md`.
+
 ---
 
 ## Phase 4 — AI & Automation
@@ -86,6 +88,8 @@ The features that create switching costs through embedded workflow value. Sequen
 - **HIPAA:** Audio in-memory only, never persisted; covered under AWS BAA (Bedrock is HIPAA-eligible) — no separate Anthropic BAA needed. Revisit only if Bedrock's model/feature lag becomes a quality bottleneck.
 - **Plan:** `ambient_notes_plan.md`
 - **Status:** 🔲 Blocked — waiting on dad's clinical note form review (see Phase 2 gate)
+
+VERIFY THIS WORKS!!!!!
 
 ### 4.2A No-Show Risk Scoring (Rule-Based) — Ship First
 - Risk score per appointment: low / medium / high
@@ -210,9 +214,54 @@ Some features are gated on having enough production data. Track this explicitly.
 
 ---
 
+## Pending Manual Verification — Eligibility (Staging Checkpoint 5)
+
+The Module 5.2–5.4 eligibility *sync slice* is built and merged (PR #52), and the
+live Stedi sandbox call is confirmed **locally** via
+`apps/api/scripts/stedi_eligibility_smoke.py` (a real Cigna mock 271 parses
+correctly). What is **not** yet proven — and can't be tested off-AWS — is the
+same call from inside the ECS **private subnet**: NAT egress to Stedi, fetching
+the clearinghouse key from SSM, and the task IAM/KMS permissions. Do this when
+convenient; it's not a blocker for further dev.
+
+**Prerequisites / steps (staging):**
+1. **Set the Stedi test key in SSM** — currently still the Terraform placeholder
+   (`/dental/staging/clearinghouse/api_key`, verified placeholder 2026-06-14):
+   ```
+   source apps/api/.stedi-smoke.env && aws ssm put-parameter \
+     --name /dental/staging/clearinghouse/api_key \
+     --type SecureString --overwrite \
+     --value "$STEDI_TEST_API_KEY" --region us-east-1
+   ```
+2. **Bring staging up** — `make staging-up` in `infra/terraform` (starts the
+   stoppable NAT instance and scales the api service up from 0).
+3. **Seed a practice** with `features.eligibility_verification = true`,
+   `billing_npi`, `clearinghouse_submitter_id`, and
+   `clearinghouse_api_key_ssm_path = /dental/staging/clearinghouse/api_key`.
+4. **Seed a test patient + insurance** matching the Stedi dental mock exactly:
+   `insurance_plan.payer_id = 62308`, patient (relationship `self`) =
+   **Jaguar Dent**, DOB **1996-05-05**, member **U3141592653**.
+5. In the app, open that patient → **Eligibility card → "Verify now."**
+
+**Expected result** (same as the local smoke test): status `active`, deductible
+$50.00, annual max $2,000, plan `TOTAL CIGNA DPPO`. Coinsurance fields blank —
+the per-CDT-code coinsurance model is deferred to Module 6.
+
+**What it proves (the part untestable locally):** the ECS api task reaches
+`healthcare.us.stedi.com` via the NAT instance; the task role reads the key from
+SSM (via the SSM VPC interface endpoint) and decrypts via KMS; no 500s.
+
+**Failure triage:** request timeout → NAT instance not running / route missing.
+A `failed` check with "Clearinghouse API key unavailable" → SSM param still
+placeholder, or IAM/KMS permission gap. `not_supported`/401 → wrong key. It's a
+**test-mode** key (free, mock requests only); production uses
+`/dental/production/clearinghouse/api_key` with the real key.
+
+---
+
 ## Open Decisions
 
 - **Phase 3 scope:** Which billing features are table stakes vs. nice-to-have? ERA + ledger + statements are probably the minimum before dropping Eaglesoft entirely for billing.
-- **Clearinghouse:** Which clearinghouse for claim submission? (Availity, Office Ally, etc.) — affects Phase 3 timeline significantly.
+- **Clearinghouse:** Decided — Stedi PAYG (837D dental confirmed, no per-provider fees, transparent per-call pricing). See `research/17_clearinghouse_comparison.md`. Open sub-question: overage policy above the 250-call monthly allowance (absorb, throttle, or surcharge).
 - **Multi-location practices:** Not scoped yet. `practice_id` is on every table, so the data model supports it, but the UI and billing rollup logic do not.
 - **HIPAA BAA with Anthropic:** Must be in place before ambient notes (4.1) goes to production. Start the paperwork during Phase 2 so it doesn't block 4.1.
