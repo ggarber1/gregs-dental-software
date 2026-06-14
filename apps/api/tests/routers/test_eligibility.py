@@ -3,13 +3,17 @@ from __future__ import annotations
 import os
 import uuid
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import date
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import ASGITransport, AsyncClient
 
-from app.services.eligibility.base import EligibilityProviderError, EligibilityResult, EligibilityStatus
+from app.services.eligibility.base import (
+    EligibilityProviderError,
+    EligibilityResult,
+    EligibilityStatus,
+)
 
 _PRACTICE_ID = uuid.uuid4()
 _USER_ID = uuid.uuid4()
@@ -102,17 +106,16 @@ async def test_check_feature_disabled_returns_403():
     app = _get_app()
     session = MagicMock()
     session.scalar = AsyncMock(return_value=_practice({}))
-    with _auth_patches() as headers:
-        with patch("app.routers.eligibility.get_session_factory") as sf:
-            sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
-            sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/v1/eligibility/check",
-                    json={"patientInsuranceId": str(_INSURANCE_ID)},
-                    headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                )
+    with _auth_patches() as headers, patch("app.routers.eligibility.get_session_factory") as sf:
+        sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
+        sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/eligibility/check",
+                json={"patientInsuranceId": str(_INSURANCE_ID)},
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
     assert resp.status_code == 403
 
 
@@ -121,21 +124,20 @@ async def test_check_happy_path_returns_verified():
     fake_provider = MagicMock()
     fake_provider.check_eligibility = AsyncMock(return_value=_result())
     session = _session_for_check(feature_on=True)
-    with _auth_patches() as headers:
-        with (
-            patch("app.routers.eligibility.get_session_factory") as sf,
-            patch("app.routers.eligibility.get_ssm_parameter", return_value="api-key"),
-            patch("app.routers.eligibility.StediProvider", return_value=fake_provider),
-        ):
-            sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
-            sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/v1/eligibility/check",
-                    json={"patientInsuranceId": str(_INSURANCE_ID)},
-                    headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                )
+    with (
+        _auth_patches() as headers, patch("app.routers.eligibility.get_session_factory") as sf,
+        patch("app.routers.eligibility.get_ssm_parameter", return_value="api-key"),
+        patch("app.routers.eligibility.StediProvider", return_value=fake_provider),
+    ):
+        sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
+        sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/eligibility/check",
+                json={"patientInsuranceId": str(_INSURANCE_ID)},
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
     assert resp.status_code == 201
     body = resp.json()
     assert body["status"] == "verified"
@@ -150,21 +152,20 @@ async def test_check_provider_error_marks_failed():
         side_effect=EligibilityProviderError("boom", retryable=True)
     )
     session = _session_for_check(feature_on=True)
-    with _auth_patches() as headers:
-        with (
-            patch("app.routers.eligibility.get_session_factory") as sf,
-            patch("app.routers.eligibility.get_ssm_parameter", return_value="api-key"),
-            patch("app.routers.eligibility.StediProvider", return_value=fake_provider),
-        ):
-            sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
-            sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/v1/eligibility/check",
-                    json={"patientInsuranceId": str(_INSURANCE_ID)},
-                    headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                )
+    with (
+        _auth_patches() as headers, patch("app.routers.eligibility.get_session_factory") as sf,
+        patch("app.routers.eligibility.get_ssm_parameter", return_value="api-key"),
+        patch("app.routers.eligibility.StediProvider", return_value=fake_provider),
+    ):
+        sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
+        sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/eligibility/check",
+                json={"patientInsuranceId": str(_INSURANCE_ID)},
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
     assert resp.status_code == 201
     body = resp.json()
     assert body["status"] == "failed"
@@ -178,19 +179,18 @@ async def test_check_payer_not_found_marks_not_supported():
         side_effect=EligibilityProviderError("nope", not_supported=True)
     )
     session = _session_for_check(feature_on=True)
-    with _auth_patches() as headers:
-        with (
-            patch("app.routers.eligibility.get_session_factory") as sf,
-            patch("app.routers.eligibility.get_ssm_parameter", return_value="api-key"),
-            patch("app.routers.eligibility.StediProvider", return_value=fake_provider),
-        ):
-            sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
-            sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/v1/eligibility/check",
-                    json={"patientInsuranceId": str(_INSURANCE_ID)},
-                    headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                )
+    with (
+        _auth_patches() as headers, patch("app.routers.eligibility.get_session_factory") as sf,
+        patch("app.routers.eligibility.get_ssm_parameter", return_value="api-key"),
+        patch("app.routers.eligibility.StediProvider", return_value=fake_provider),
+    ):
+        sf.return_value.return_value.__aenter__ = AsyncMock(return_value=session)
+        sf.return_value.return_value.__aexit__ = AsyncMock(return_value=None)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/eligibility/check",
+                json={"patientInsuranceId": str(_INSURANCE_ID)},
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
     assert resp.json()["status"] == "not_supported"
