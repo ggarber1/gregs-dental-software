@@ -748,6 +748,8 @@ Verify:
 
 ## Module 5: Insurance Verification
 
+**Status (2026-06-14):** sync slice shipped (PR #52) — manual "Verify now" works end-to-end against the live Stedi sandbox. Async pre-appointment batch, queue/badge UI, the per-CDT coinsurance model (Module 6), and Staging Checkpoint 5 are pending. Design: `docs/superpowers/specs/2026-06-11-module-5.2-5.4-eligibility-verification-design.md`.
+
 ### 5.1 Insurance Plan Management
 
 - [x] `insurance_plans` CRUD — carrier name, payer ID (clearinghouse ID), group number, in/out of network flag
@@ -757,26 +759,26 @@ Verify:
 
 ### 5.2 Eligibility Verification API
 
-- [ ] Abstract `EligibilityProvider` interface — swappable between Stedi (dev/staging), Availity (production primary), and DentalXChange (secondary for dental-specific payers)
-- [ ] `POST /api/v1/eligibility/check` — enqueue async check via SQS
-- [ ] ECS eligibility worker — dequeues, calls clearinghouse API, stores structured result in `eligibility_checks`
-- [ ] `GET /api/v1/eligibility/{checkId}` — poll for result
-- [ ] Pre-appointment auto-fetch — trigger eligibility check 3 days before each appointment via CloudWatch scheduled rule
-- [ ] MassHealth: route through clearinghouse as payer ID `CKMA1` — no special-case portal logic
-- [ ] On clearinghouse failure: mark check as `failed`, alert staff, never silently skip
+- [x] Abstract `EligibilityProvider` interface — swappable; built Stedi only (Stedi is prod primary per research_17; DentalXChange deferred)
+- [ ] `POST /api/v1/eligibility/check` — built **synchronous** in the sync slice (PR #52); async SQS enqueue deferred
+- [ ] ECS eligibility worker — dequeues, calls clearinghouse API, stores structured result in `eligibility_checks` *(deferred)*
+- [x] `GET /api/v1/eligibility/{checkId}` — fetch a check (plus `GET /api/v1/eligibility?patient_id=` for the chart card)
+- [ ] Pre-appointment auto-fetch — trigger eligibility check 3 days before each appointment via CloudWatch scheduled rule *(deferred)*
+- [ ] MassHealth: route through clearinghouse as payer ID `CKMA1` — routing is generic (no special-casing by design); verify at Checkpoint 5
+- [ ] On clearinghouse failure: `failed`/`not_supported` marking + never-silently-skip done; staff alerting deferred to the async worker
 
 ### 5.3 Eligibility Data Storage
 
-- [ ] Parse and store structured benefit fields: deductible (individual/family/met), out-of-pocket max, coinsurance by category (preventive/basic/major/ortho), annual max + used, waiting periods, frequency limitations
-- [ ] Store full raw response as `jsonb` for debugging and manual review
-- [ ] Patients with secondary insurance flagged for manual co-pay review (no COB auto-calculation in Phase 1)
+- [ ] Parse structured benefits: deductible (ind/family), OOP, annual max + remaining parse & store; **coinsurance-by-category removed** (real 271s are per-CDT — deferred to Module 6, see PR #52); waiting periods + frequency limits not yet populated
+- [x] Store full raw response as `jsonb` for debugging and manual review
+- [x] Patients with secondary insurance flagged for manual co-pay review (no COB auto-calculation in Phase 1)
 
 ### 5.4 Eligibility Frontend
 
-- [ ] Insurance verification queue — today's patients with verification status
-- [ ] Eligibility card on patient chart — benefit summary, deductible remaining, coverage % by category
-- [ ] Eligibility badge inline on appointment slot (verified / pending / failed / not-checked)
-- [ ] Manual re-verify button (re-triggers check)
+- [ ] Insurance verification queue — today's patients with verification status *(deferred)*
+- [x] Eligibility card on patient chart — benefit summary + deductible/annual-max remaining (coverage % by category deferred to Module 6, renders "—")
+- [ ] Eligibility badge inline on appointment slot (verified / pending / failed / not-checked) *(deferred)*
+- [x] Manual re-verify button (re-triggers check)
 
 ---
 
