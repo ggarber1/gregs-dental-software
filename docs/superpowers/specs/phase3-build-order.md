@@ -37,13 +37,25 @@ Module 8 — Billing & Payments (ledger, statements, aging, QuickBooks export)  
 |---|--------|-----------|----------------------|------|
 | 1 | **3.5 — Per-Appointment Procedures** | nothing new | 5.2–5.4 | `2026-06-04-module-3.5-appointment-procedures-design.md` (✅ done) |
 | 2 | **3.6 — Practice Fee Schedule** | 3.5 (cdt_codes) | 5.2–5.4 | `2026-06-10-module-3.6-fee-schedule-design.md` (✅ done) |
-| 3 | **5.2–5.4 — Eligibility Verification** | 5.1 (done) | 3.5 / 3.6 | _tbd_ |
+| 3 | **5.2–5.4 — Eligibility Verification** | 5.1 (done) | 3.5 / 3.6 | `2026-06-11-module-5.2-5.4-eligibility-verification-design.md` (✅ sync slice done; async batch deferred) |
 | 4 | **6 — Co-pay Calculation** | 3.5, 3.6, 5 | — | _tbd_ |
 | 5 | **7 — Claims Submission + ERA** | 3.5 (6 optional) | — | _tbd_ |
 | 6 | **8 — Billing & Payments** | 7 | — | _tbd_ |
 
 3.5, 3.6, and eligibility are independent and may be built in any order or
 concurrently. Everything from Module 6 on depends on 3.5 being in place.
+
+**Module 5.2–5.4 status (2026-06-11):** the *sync slice* shipped — `EligibilityProvider`
+interface + Stedi adapter + 271 parser, the `eligibility_checks` table (migration 0027
+ALTERs the table originally created by 0015: money → integer cents, adds `plan_name`,
+relaxes `raw_response`), a synchronous `POST /api/v1/eligibility/check` + retrieval
+endpoints (feature-gated via `require_feature`), and the patient-chart benefit-summary
+card + verify button. **Deferred to follow-ups** (see the design's §9): the SQS
+`eligibility-worker` + EventBridge 3-day pre-appointment batch, the appointment-slot
+badge, the verification-queue page, the DentalXChange adapter, MassHealth (CKMA1)
+hardcoded frequency reference data, and secondary-insurance COB. The live Stedi sandbox
+smoke test runs at **Staging Checkpoint 5** (first outbound call from the ECS private
+subnet — not testable locally).
 
 ## Module 3.6 — Practice Fee Schedule (planned, separate PR)
 

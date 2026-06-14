@@ -6,6 +6,7 @@ import { ArrowLeft, Pencil, X, Check, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { InsuranceCard } from "@/components/patients/InsuranceCard";
+import { EligibilityCard } from "@/components/patients/EligibilityCard";
 import { MedicalAlertsBar } from "@/components/patients/MedicalAlertsBar";
 import { MedicalHistoryCard } from "@/components/patients/MedicalHistoryCard";
 import { ClinicalNoteCard } from "@/components/patients/ClinicalNoteCard";
@@ -880,6 +881,7 @@ export default function PatientDetailPage() {
             <MedicalHistoryCard patientId={patientId} />
             <DentalHistoryCard patient={patient} patientId={patientId} />
             <InsuranceCard patientId={patientId} />
+            <EligibilityCard patientId={patientId} />
             <ClinicalNoteCard patientId={patientId} />
             <TreatmentPlanCard
               patientId={patientId}

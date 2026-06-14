@@ -54,3 +54,7 @@ Thumbs.db
 *.tfvars
 !*.tfvars.example
 .terraform.lock.hcl
+
+# Local Stedi smoke-test secrets (never commit)
+apps/api/.stedi-smoke.env
+.stedi-smoke.env
