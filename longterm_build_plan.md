@@ -25,7 +25,7 @@ Everything a practice needs to run day-to-day before seeing a patient.
 - ✅ Patient records (CRUD, search, demographics)
 - ✅ Scheduling (calendar, operatories, appointment types, providers)
 - ✅ Appointment reminders (SMS + email via Twilio/SES, configurable hours)
-- 🔲 Insurance (eligibility checks via 271/272, plan management)
+- 🔄 Insurance — plan management ✅; eligibility checks (271) manual/sync ✅ (PR #52); async pre-appointment auto-verify + queue/badge UI + staging Checkpoint 5 pending
 - ✅ Intake forms (digital forms with patient-facing token link)
 - ✅ Medical history (versioned, with alerts bar for blood thinners/bisphosphonates/etc.)
 
