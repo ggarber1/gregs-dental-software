@@ -79,7 +79,7 @@ class EligibilityCheck(Base, PHIMixin):
     network_status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="in_network"
     )
-    coinsurance_by_code: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    coinsurance_by_code: Mapped[dict[str, float] | None] = mapped_column(JSONB, nullable=True)
     deductible_waived_diagnostic: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
