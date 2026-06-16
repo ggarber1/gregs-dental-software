@@ -49,11 +49,20 @@ export const EligibilityCheckSchema = z.object({
   annualMaxIndividualUsed: z.number().int().optional(),
   annualMaxIndividualRemaining: z.number().int().optional(),
 
+  // Plan classification
+  planType: z.enum(["ppo", "premier", "medicaid", "indemnity", "dhmo"]).optional(),
+  networkStatus: z.enum(["in_network", "out_of_network"]).optional(),
+
   // Coinsurance — patient's share (0.20 = patient pays 20%)
   coinsurancePreventive: z.number().optional(),
   coinsuranceBasic: z.number().optional(),
   coinsuranceMajor: z.number().optional(),
   coinsuranceOrtho: z.number().optional(),
+  coinsuranceByCode: z.record(z.number()).nullable().optional(),
+
+  // Ortho lifetime maximum — integer cents
+  orthoLifetimeMax: z.number().int().nonnegative().nullable().optional(),
+  orthoLifetimeMaxUsed: z.number().int().nonnegative().nullable().optional(),
 
   // Waiting periods in months
   waitingPeriodBasicMonths: z.number().int().optional(),

@@ -77,6 +77,11 @@ def _row_to_schema(row: CheckModel) -> EligibilityCheck:
         waitingPeriodMajorMonths=row.waiting_period_major_months,
         waitingPeriodOrthoMonths=row.waiting_period_ortho_months,
         frequencyLimits=row.frequency_limits,
+        planType=row.plan_type,  # type: ignore[arg-type]
+        networkStatus=row.network_status,  # type: ignore[arg-type]
+        coinsuranceByCode=row.coinsurance_by_code,
+        orthoLifetimeMax=row.ortho_lifetime_max,  # type: ignore[arg-type]
+        orthoLifetimeMaxUsed=row.ortho_lifetime_max_used,  # type: ignore[arg-type]
         requestedAt=(row.requested_at or row.created_at or datetime.now(UTC)).replace(tzinfo=UTC),
         verifiedAt=row.verified_at.replace(tzinfo=UTC) if row.verified_at else None,
         failedAt=row.failed_at.replace(tzinfo=UTC) if row.failed_at else None,
@@ -109,6 +114,14 @@ def _apply_result(row: CheckModel, result: EligibilityResult) -> None:
     row.waiting_period_major_months = result.waiting_period_major_months
     row.waiting_period_ortho_months = result.waiting_period_ortho_months
     row.frequency_limits = result.frequency_limits
+    row.coinsurance_by_code = result.coinsurance_by_code
+    row.plan_type = result.plan_type
+    row.network_status = result.network_status
+    row.deductible_waived_diagnostic = result.deductible_waived_diagnostic
+    row.deductible_waived_preventive = result.deductible_waived_preventive
+    row.deductible_waived_orthodontic = result.deductible_waived_orthodontic
+    row.ortho_lifetime_max = result.ortho_lifetime_max
+    row.ortho_lifetime_max_used = result.ortho_lifetime_max_used
     row.raw_response = result.raw_response
     row.verified_at = datetime.now(UTC)
 
