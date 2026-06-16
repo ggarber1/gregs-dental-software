@@ -55,6 +55,14 @@ class EligibilityResult:
     waiting_period_major_months: int | None
     waiting_period_ortho_months: int | None
     frequency_limits: dict[str, Any] | None = field(default=None)
+    plan_type: str = "ppo"
+    network_status: str = "in_network"
+    coinsurance_by_code: dict[str, float] | None = None
+    deductible_waived_diagnostic: bool = False
+    deductible_waived_preventive: bool = True
+    deductible_waived_orthodontic: bool = False
+    ortho_lifetime_max: int | None = None
+    ortho_lifetime_max_used: int | None = None
 
 
 class EligibilityProviderError(Exception):
