@@ -10,6 +10,7 @@ import { AppointmentTypesSettings } from "@/components/settings/AppointmentTypes
 import { RemindersSettings } from "@/components/settings/RemindersSettings";
 import { InsurancePlansSettings } from "@/components/settings/InsurancePlansSettings";
 import { FeeScheduleSettings } from "@/components/settings/FeeScheduleSettings";
+import { ContractedFeesSettings } from "@/components/settings/ContractedFeesSettings";
 
 const TABS = [
   { key: "providers", label: "Providers" },
@@ -18,6 +19,7 @@ const TABS = [
   { key: "reminders", label: "Reminders" },
   { key: "insurance-plans", label: "Insurance Plans" },
   { key: "fee-schedule", label: "Fee Schedule" },
+  { key: "contracted-fees", label: "Contracted Fees" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -51,6 +53,7 @@ function SettingsContent() {
       {activeTab === "reminders" && <RemindersSettings />}
       {activeTab === "insurance-plans" && <InsurancePlansSettings />}
       {activeTab === "fee-schedule" && <FeeScheduleSettings />}
+      {activeTab === "contracted-fees" && <ContractedFeesSettings />}
     </div>
   );
 }
