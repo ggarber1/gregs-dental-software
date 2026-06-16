@@ -51,18 +51,10 @@ def test_parse_money_to_cents():
     assert r.annual_max_individual_remaining == 120000
 
 
-def test_coinsurance_is_not_summarized():
-    """Coinsurance (code 'A') is intentionally not summarized into categories.
-
-    Real dental 271s return coinsurance per CDT code, not by preventive/basic/
-    major/ortho; structuring it is deferred to Module 6. The raw 271 retains the
-    per-code rates, but the coinsurance_* summary fields stay None.
-    """
-    r = parse_stedi_response(_ACTIVE_FULL)  # fixture has two code "A" entries
-    assert r.coinsurance_preventive is None
-    assert r.coinsurance_basic is None
-    assert r.coinsurance_major is None
-    assert r.coinsurance_ortho is None
+def test_coinsurance_requires_dcodes_in_description():
+    # _ACTIVE_FULL's 'A' segments describe categories in prose, no D-codes -> nothing extracted.
+    r = parse_stedi_response(_ACTIVE_FULL)
+    assert r.coinsurance_by_code is None
 
 
 def test_missing_fields_are_none_not_zero():
@@ -159,5 +151,41 @@ def test_additional_information_null_or_object_does_not_crash():
     }
     r = parse_stedi_response(payload)
     assert r.status == EligibilityStatus.ACTIVE
-    # null / single-object additionalInformation must not crash the parser
+    # Prose description "Preventive services" contains no D-codes -> nothing extracted.
     assert r.coinsurance_preventive is None
+
+
+def test_parse_per_code_coinsurance_map():
+    raw = {
+        "benefitsInformation": [
+            {"code": "1", "name": "Active Coverage"},
+            {
+                "code": "A", "name": "Co-Insurance", "benefitPercent": "0.20",
+                "additionalInformation": [{"description": "D1110, D0120"}],
+            },
+            {
+                "code": "A", "name": "Co-Insurance", "benefitPercent": "0.50",
+                "additionalInformation": [{"description": "D2740"}],
+            },
+        ],
+    }
+    r = parse_stedi_response(raw)
+    assert r.coinsurance_by_code == {"D1110": 0.20, "D0120": 0.20, "D2740": 0.50}
+
+
+def test_per_category_fallback_derived_from_codes():
+    raw = {
+        "benefitsInformation": [
+            {"code": "1"},
+            {"code": "A", "benefitPercent": "0.00",
+             "additionalInformation": [{"description": "D1110"}]},   # preventive
+            {"code": "A", "benefitPercent": "0.20",
+             "additionalInformation": [{"description": "D2140"}]},   # basic (n<5000)
+            {"code": "A", "benefitPercent": "0.50",
+             "additionalInformation": [{"description": "D5110"}]},   # major (5000<=n<8000)
+        ],
+    }
+    r = parse_stedi_response(raw)
+    assert r.coinsurance_preventive == 0.00
+    assert r.coinsurance_basic == 0.20
+    assert r.coinsurance_major == 0.50

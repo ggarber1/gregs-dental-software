@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -73,6 +74,24 @@ class EligibilityCheck(Base, PHIMixin):
     waiting_period_ortho_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     frequency_limits: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    plan_type: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ppo")
+    network_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="in_network"
+    )
+    coinsurance_by_code: Mapped[dict[str, float] | None] = mapped_column(JSONB, nullable=True)
+    deductible_waived_diagnostic: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    deductible_waived_preventive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
+    deductible_waived_orthodontic: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    ortho_lifetime_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ortho_lifetime_max_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     raw_response: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     requested_at: Mapped[datetime] = mapped_column(
@@ -97,6 +116,14 @@ class EligibilityCheck(Base, PHIMixin):
         CheckConstraint(
             "clearinghouse IN ('stedi', 'dentalxchange', 'manual')",
             name="ck_eligibility_checks_clearinghouse",
+        ),
+        CheckConstraint(
+            "plan_type IN ('ppo', 'premier', 'medicaid', 'indemnity', 'dhmo')",
+            name="ck_eligibility_checks_plan_type",
+        ),
+        CheckConstraint(
+            "network_status IN ('in_network', 'out_of_network')",
+            name="ck_eligibility_checks_network_status",
         ),
         Index("ix_eligibility_checks_idempotency_key", "idempotency_key", unique=True),
         Index("ix_eligibility_checks_patient_id", "patient_id"),
