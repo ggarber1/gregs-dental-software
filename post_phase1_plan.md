@@ -1,5 +1,13 @@
 # Molar — Post-Phase 1 Roadmap
 
+> **⚠️ SUPERSEDED — archive only.** The canonical roadmap + deferred-items backlog is
+> [`longterm_build_plan.md`](longterm_build_plan.md). This file's unique items have been
+> folded into that file's "Deferred Follow-Ups & Backlog" section. Do **not** add new
+> planning here. Note that some content is stale — e.g. §3.5 names **Availity** as the
+> primary clearinghouse, but the locked decision is **Stedi** (see `longterm`'s Open
+> Decisions and `research/17_clearinghouse_comparison.md`). Kept only for its detailed
+> prose on features not yet broken into specs.
+
 Phase 1 delivers: scheduling, reminders, patient records, digital intake, and optionally eligibility verification, co-pay estimation, and claims submission.
 
 Everything below is what turns a working MVP into a full Eaglesoft replacement and beyond.

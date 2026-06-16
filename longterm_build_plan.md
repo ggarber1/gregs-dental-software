@@ -259,6 +259,63 @@ placeholder, or IAM/KMS permission gap. `not_supported`/401 → wrong key. It's 
 
 ---
 
+## Deferred Follow-Ups & Backlog
+
+**This is the canonical roll-up of everything we've consciously deferred.** The
+phase sections above are the forward roadmap; this section captures the granular
+follow-ups that get spun off from individual module specs (and would otherwise be
+lost inside them). **Detail-of-record stays in each spec's own "Deferred" section** —
+the links below point there. When a module brainstorm defers something, add a line
+here.
+
+### A. Module follow-ups (from shipped / in-progress modules)
+
+| Item | Source spec | Trigger / when |
+|---|---|---|
+| Async eligibility batch (EventBridge→SQS→ECS worker) | `specs/...eligibility-verification-design.md` §9 | **Staging Checkpoint 5** (untestable locally; first live call from ECS) |
+| Appointment-slot eligibility badge | eligibility §9 | Bundle with Checkpoint 5 |
+| Verification-queue page (today's patients + status) | eligibility §9 | Bundle with Checkpoint 5 |
+| DentalXChange adapter (behind the provider interface) | eligibility §9 | Demand-driven (only if prod needs a dental fallback; Stedi is primary) |
+| MassHealth (CKMA1) frequency refdata + `payer_id_overrides` | eligibility §9 + Module 6 §1 | When a MassHealth practice onboards |
+| Per-CDT-code coinsurance model | eligibility §9 item 7 | ✅ **Now folded into Module 6** (`specs/2026-06-16-module-6-copay-calculation-design.md`) |
+| DHMO (capitation) co-pay + per-plan copay schedule | Module 6 §1 | Deferred Module 6 slice (needs a new data source) |
+| Alternate-benefit / downgrade (composite→amalgam) | Module 6 §1 | Deferred Module 6 slice (needs per-carrier downgrade maps) |
+| Secondary-insurance COB auto-calculation | Module 6 §1 + eligibility §9 | See §B Phase 3 "Coordination of Benefits" below |
+| Plan-level (vs. payer-level) contracted-fee granularity | Module 6 §4.3 | Refinement once payer-level proves insufficient |
+| `treatment_plan_item_id` nullable FK ("complete plan item → procedure") | Module 3.5 design | When the plan→procedure link feature is built |
+| Fee-schedule CSV bulk import | Module 3.6 design | When a practice has hundreds of codes to load by hand |
+
+### B. Larger future features not yet broken into a spec
+
+These were captured in the older `post_phase1_plan.md` (now superseded — see note
+below) and are folded here so they aren't lost. They become their own spec +
+implementation plan when their phase comes up.
+
+- **Phase 3 (billing):** Eaglesoft data-migration tooling (the real cutover enabler —
+  patient/insurance/treatment-history/balance import, dry-run + validation report);
+  Coordination of Benefits (Traditional / Carve-Out / Non-Duplication, auto-detect per
+  carrier); AR management beyond statements/aging (payment plans, 30/60/90 collections
+  flagging); QuickBooks **real-time** API sync (upgrade from the planned CSV export);
+  patient financing (CareCredit / Cherry / Sunbit, surfaced above a configurable
+  responsibility threshold).
+- **Clearinghouse routing abstraction:** a config-driven `payer_id → clearinghouse`
+  map behind a common `ClearinghouseClient` interface, so adding a route (e.g.
+  MassHealth dental via **DentaQuest**, or a state Medicaid via another vendor) is a
+  config change, not an architectural one. **Note:** the current primary is **Stedi**
+  (see Open Decisions); `post_phase1_plan.md`'s "Availity primary" framing is stale.
+- **Phase 2 leftovers:** deep imaging integration (DICOM MWL + PACS surfacing — full
+  detail in `post_phase1_plan.md` §2.6 and `imaging_bridge_plan.md`); family-member
+  linking (low priority, confirmed with dad).
+- **Phase 5 expansion:** HIPAA compliance dashboard; multi-location / DSO features
+  (also tracked under Open Decisions); lab-case management; e-prescribing (EPCS).
+
+> **Roadmap consolidation:** `longterm_build_plan.md` (this file) is the single
+> canonical roadmap + backlog. `post_phase1_plan.md` is **superseded** and kept only
+> as a detailed archive; its unique items have been folded into §B above. Do not add
+> new planning there.
+
+---
+
 ## Open Decisions
 
 - **Phase 3 scope:** Which billing features are table stakes vs. nice-to-have? ERA + ledger + statements are probably the minimum before dropping Eaglesoft entirely for billing.
