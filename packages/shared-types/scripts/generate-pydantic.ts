@@ -145,6 +145,10 @@ import {
   PerioSiteDeltaSchema,
   PerioChartComparisonSchema,
 } from "../src/schemas/perio-charts.js";
+import {
+  ContractedFeeRowSchema,
+  SetContractedFeeSchema,
+} from "../src/schemas/copay.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -255,6 +259,9 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   PerioChartListResponse: PerioChartListResponseSchema,
   PerioSiteDelta: PerioSiteDeltaSchema,
   PerioChartComparison: PerioChartComparisonSchema,
+  // Contracted Fees
+  ContractedFeeRow: ContractedFeeRowSchema,
+  SetContractedFee: SetContractedFeeSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
