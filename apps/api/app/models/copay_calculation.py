@@ -41,4 +41,5 @@ class CopayCalculation(Base, PHIMixin):
 
     __table_args__ = (
         Index("ix_copay_calculations_appointment_id", "appointment_id"),
+        Index("uq_copay_calculations_idempotency_key", "idempotency_key", unique=True),
     )
