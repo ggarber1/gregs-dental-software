@@ -42,6 +42,7 @@ dev-dependencies = [
     "datamodel-code-generator>=0.26.4",
     "ruff>=0.9.1",
     "mypy>=1.14.1",
+    "types-python-dateutil>=2.9.0.20260518",
 ]
 
 [build-system]
