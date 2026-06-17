@@ -108,8 +108,10 @@ class TestSetFee:
         assert _find(rows, "D0120")["practiceFeeCents"] == 5000
 
     async def test_put_unknown_code_404(self, client: AsyncClient, auth_headers):
+        # D0001 is not a real ADA code (the D0 series starts at D0120), so it will
+        # never be in the seeded catalog.
         resp = await client.put(
-            "/api/v1/fee-schedule/D9999", json={"feeCents": 100}, headers=mut(auth_headers)
+            "/api/v1/fee-schedule/D0001", json={"feeCents": 100}, headers=mut(auth_headers)
         )
         assert resp.status_code == 404, resp.text
 
@@ -173,7 +175,8 @@ class TestRevertFee:
         assert active == 1
 
     async def test_delete_unknown_code_404(self, client: AsyncClient, auth_headers):
-        resp = await client.delete("/api/v1/fee-schedule/D9999", headers=mut(auth_headers))
+        # D0001 is not a real ADA code (the D0 series starts at D0120).
+        resp = await client.delete("/api/v1/fee-schedule/D0001", headers=mut(auth_headers))
         assert resp.status_code == 404, resp.text
 
 
@@ -234,9 +237,11 @@ class TestDefaultFallback:
 
         from app.models.appointment_procedure import CdtCode
 
+        # D0002 is not a real ADA code (the D0 series starts at D0120), so the full
+        # catalog seed never collides with this synthetic fixture row.
         code = CdtCode(
             id=_uuid.uuid4(),
-            code="D9995",
+            code="D0002",
             description="Test code with default fee",
             category="other",
             default_fee_cents=7700,
@@ -246,7 +251,7 @@ class TestDefaultFallback:
         await db_session.commit()
 
         rows = (await client.get("/api/v1/fee-schedule", headers=auth_headers)).json()
-        row = _find(rows, "D9995")
+        row = _find(rows, "D0002")
         assert row["defaultFeeCents"] == 7700
         assert row["practiceFeeCents"] is None
         assert row["resolvedFeeCents"] == 7700
