@@ -22,7 +22,9 @@ class PlanType(StrEnum):
     DHMO = "dhmo"
 
 
-# Deductible is applied to these in order, so it lands where it costs the patient least.
+# Procedures are processed in this order so the running deductible/annual-max state is
+# applied deterministically: preventive/diagnostic first (usually deductible-waived),
+# then basic before major, per industry convention.
 CATEGORY_ORDER = ["preventive", "diagnostic", "basic", "major", "ortho", "other"]
 
 
