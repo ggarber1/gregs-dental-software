@@ -59,7 +59,8 @@ class Claim(Base, PHIMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN " + str(_CLAIM_STATUSES),
+            "status IN ('draft', 'submitted', 'clearinghouse_rejected', 'submission_failed', "
+            "'acknowledged', 'pending', 'paid', 'partially_paid', 'denied', 'appealing')",
             name="ck_claims_status",
         ),
         UniqueConstraint("idempotency_key", name="uq_claims_idempotency_key"),
