@@ -282,6 +282,7 @@ here.
 | Alternate-benefit / downgrade (composite→amalgam) | Module 6 §1 | Deferred Module 6 slice (needs per-carrier downgrade maps) |
 | Secondary-insurance COB auto-calculation | Module 6 §1 + eligibility §9 | See §B Phase 3 "Coordination of Benefits" below |
 | Plan-level (vs. payer-level) contracted-fee granularity | Module 6 §4.3 | Refinement once payer-level proves insufficient |
+| Extract deductible-waiver flags from the 271 | Module 5 parser / Module 6 | Parser currently leaves `deductible_waived_*` at defaults (preventive=true, diagnostic/ortho=false) and doesn't detect waivers from the 271. Surfaced by the live Stedi smoke run: a Cigna DPPO applies the deductible to diagnostic (over-estimates patient). Errs conservative; low urgency. |
 | `treatment_plan_item_id` nullable FK ("complete plan item → procedure") | Module 3.5 design | When the plan→procedure link feature is built |
 | Fee-schedule CSV bulk import | Module 3.6 design | When a practice has hundreds of codes to load by hand |
 
