@@ -148,6 +148,9 @@ import {
 import {
   ContractedFeeRowSchema,
   SetContractedFeeSchema,
+  CopayLineItemSchema,
+  CopayEstimateSchema,
+  OverrideCopaySchema,
 } from "../src/schemas/copay.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
@@ -262,6 +265,10 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   // Contracted Fees
   ContractedFeeRow: ContractedFeeRowSchema,
   SetContractedFee: SetContractedFeeSchema,
+  // Co-pay
+  CopayLineItem: CopayLineItemSchema,
+  CopayEstimate: CopayEstimateSchema,
+  OverrideCopay: OverrideCopaySchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
