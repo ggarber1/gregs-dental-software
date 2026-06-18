@@ -38,6 +38,7 @@ import { AppointmentStatusActions } from "@/components/scheduling/AppointmentSta
 import { ApiError } from "@/lib/api-client";
 import { ReminderHistory } from "@/components/scheduling/ReminderHistory";
 import { ProceduresSection } from "@/components/scheduling/ProceduresSection";
+import { CopayEstimateCard } from "@/components/scheduling/CopayEstimateCard";
 
 interface Props {
   open: boolean;
@@ -520,6 +521,11 @@ export function AppointmentModal({
             <p className="text-sm text-muted-foreground">
               Save the appointment to add procedures.
             </p>
+          )}
+
+          {/* Co-pay estimate */}
+          {isEditing && appointment && (
+            <CopayEstimateCard appointmentId={appointment.id} />
           )}
 
           {/* API error */}
