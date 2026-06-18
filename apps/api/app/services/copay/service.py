@@ -17,6 +17,10 @@ from app.models.eligibility_check import EligibilityCheck as CheckModel
 from app.services.copay.engine import calculate_patient_responsibility
 from app.services.copay.models import EligibilitySnapshot, PlanType, ProcedureInput, ProcedureResult
 
+# Per-category fallback coinsurance field on the eligibility check, used when the 271's
+# per-CDT-code map has no rate for a procedure. Diagnostic shares the preventive bucket
+# (PPO plans almost always cover them at the same rate). "other" is intentionally absent
+# → such procedures resolve to None → flagged for manual entry.
 _CATEGORY_COINSURANCE_FIELD = {
     "preventive": "coinsurance_preventive",
     "diagnostic": "coinsurance_preventive",
