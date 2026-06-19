@@ -3,7 +3,7 @@ from datetime import date
 import httpx
 import pytest
 
-from app.services.claims.base import ClaimLine, ClaimSubmissionError, DentalClaimInput
+from app.services.claims.base import Address, ClaimLine, ClaimSubmissionError, DentalClaimInput
 from app.services.claims.stedi import StediClaimsClient
 
 _CLAIM = DentalClaimInput(
@@ -14,6 +14,7 @@ _CLAIM = DentalClaimInput(
     billing_tax_id="123456789",
     billing_taxonomy_code="1223G0001X",
     billing_org_name="Downtown Dental",
+    billing_address=Address(line1="1 Main St", city="Boston", state="MA", postal_code="021011234"),
     submitter_id="SUB1",
     rendering_npi="1234567890",
     rendering_first_name="Jane",
@@ -21,12 +22,17 @@ _CLAIM = DentalClaimInput(
     subscriber_first_name="John",
     subscriber_last_name="Smith",
     subscriber_dob=date(1980, 1, 1),
+    subscriber_gender="M",
+    subscriber_address=Address(
+        line1="2 Oak Ave", city="Boston", state="MA", postal_code="021022345"
+    ),
     member_id="U123",
     group_number="GRP1",
     relationship_to_insured="self",
     patient_first_name="John",
     patient_last_name="Smith",
     patient_dob=date(1980, 1, 1),
+    patient_gender="M",
     date_of_service=date(2026, 6, 18),
     lines=(
         ClaimLine(
@@ -51,14 +57,17 @@ def test_payload_maps_money_to_dollar_strings_and_lines():
     assert info["claimChargeAmount"] == "250.00"  # 20000 + 5000 cents
     lines = info["serviceLines"]
     assert len(lines) == 2
-    assert lines[0]["procedureCodeQualifier"] == "AD"
     assert lines[0]["procedureCode"] == "D2392"
     assert lines[0]["lineItemChargeAmount"] == "200.00"
-    assert lines[0]["toothNumber"] == "14"
+    assert lines[0]["dentalService"]["toothNumber"] == "14"
     assert lines[0]["lineItemControlNumber"] == "proc-1"
     assert lines[0]["serviceDate"] == "20260618"
     # subscriber omitted dependent when relationship is self
     assert "dependent" not in payload
+    assert payload["renderingProvider"]["lastName"] == "Dentist"
+    assert payload["claimInformation"]["releaseInformationCode"] == "Y"
+    assert payload["subscriber"]["gender"] == "M"
+    assert payload["billing"]["address"]["city"] == "Boston"
 
 
 def _client_returning(status_code: int, json_body: dict) -> httpx.AsyncClient:

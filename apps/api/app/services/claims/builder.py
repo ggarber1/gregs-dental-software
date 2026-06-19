@@ -3,7 +3,11 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from app.services.claims.base import ClaimLine, DentalClaimInput
+from app.services.claims.base import Address, ClaimLine, DentalClaimInput
+
+
+def _gender(sex: str | None) -> str:
+    return {"male": "M", "female": "F"}.get((sex or "").lower(), "U")
 
 
 def _split_full_name(full_name: str) -> tuple[str, str]:
@@ -63,6 +67,22 @@ def build_claim_input(
 
     service_date: date = appt.start_time.date() if appt.start_time else date.today()
 
+    billing_address = Address(
+        line1=practice.address_line1 or "",
+        city=practice.city or "",
+        state=practice.state or "",
+        postal_code=(practice.zip or "").replace("-", ""),
+    )
+    # For a non-self subscriber we have no insured address/gender on file, so fall back
+    # to the patient's address and an unknown gender (best-effort; most claims are self).
+    subscriber_address = Address(
+        line1=patient.address_line1 or "",
+        city=patient.city or "",
+        state=patient.state or "",
+        postal_code=(patient.zip or "").replace("-", ""),
+    )
+    subscriber_gender = _gender(patient.sex) if insurance.relationship_to_insured == "self" else "U"
+
     return DentalClaimInput(
         patient_control_number=pcn,
         payer_id=payer_id,
@@ -71,6 +91,7 @@ def build_claim_input(
         billing_tax_id=billing_tax_id,
         billing_taxonomy_code=practice.billing_taxonomy_code or "",
         billing_org_name=practice.name,
+        billing_address=billing_address,
         submitter_id=practice.clearinghouse_submitter_id or "",
         rendering_npi=provider.npi,
         rendering_first_name=rendering_first,
@@ -78,12 +99,15 @@ def build_claim_input(
         subscriber_first_name=sub_first,
         subscriber_last_name=sub_last,
         subscriber_dob=sub_dob,
+        subscriber_gender=subscriber_gender,
+        subscriber_address=subscriber_address,
         member_id=insurance.member_id or "",
         group_number=insurance.group_number,
         relationship_to_insured=insurance.relationship_to_insured,
         patient_first_name=patient.first_name,
         patient_last_name=patient.last_name,
         patient_dob=patient.date_of_birth,
+        patient_gender=_gender(patient.sex),
         date_of_service=service_date,
         lines=lines,
     )

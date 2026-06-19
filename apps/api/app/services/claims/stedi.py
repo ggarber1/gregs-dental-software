@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.services.claims.base import (
+    Address,
     ClaimResult,
     ClaimSubmissionError,
     ClearinghouseClient,
@@ -20,6 +21,11 @@ logger = logging.getLogger(__name__)
 # The nested JSON field names in to_stedi_payload() remain unverified against a real
 # accepted claim (the smoke run is blocked by the test-mode key tier). Unit tests mock
 # httpx and do not depend on this URL.
+# Payload aligned to Stedi's documented Dental Claims (837D) JSON schema 2026-06-19;
+# key changes vs X12: renderingProvider (not rendering), tooth data under dentalService,
+# serviceUnitCount numeric, releaseInformationCode required. Known gaps until tested with
+# a full-access key: receiver uses payer_id as org name; non-self subscriber
+# gender/address fall back to patient/unknown.
 _STEDI_DENTAL_CLAIMS_URL = "https://healthcare.us.stedi.com/2024-04-01/dental-claims/submission"
 _TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
@@ -29,6 +35,15 @@ _PRIMARY = "P"
 
 def _cents_to_dollars(cents: int) -> str:
     return f"{cents / 100:.2f}"
+
+
+def _address(addr: Address) -> dict[str, str]:
+    return {
+        "address1": addr.line1,
+        "city": addr.city,
+        "state": addr.state,
+        "postalCode": addr.postal_code,
+    }
 
 
 class StediClaimsClient(ClearinghouseClient):
@@ -41,24 +56,30 @@ class StediClaimsClient(ClearinghouseClient):
         service_lines: list[dict[str, Any]] = []
         for line in claim.lines:
             entry: dict[str, Any] = {
-                "procedureCodeQualifier": "AD",
                 "procedureCode": line.cdt_code,
                 "lineItemChargeAmount": _cents_to_dollars(line.fee_cents),
+                "serviceUnitCount": 1,
                 "unitOrBasisForMeasurementCode": "UN",
-                "serviceUnitCount": "1",
                 "serviceDate": service_date,
                 "lineItemControlNumber": line.procedure_id,
             }
+            dental: dict[str, Any] = {}
             if line.tooth_number:
-                entry["toothNumber"] = line.tooth_number
+                dental["toothNumber"] = line.tooth_number
+            if line.surface:
+                dental["toothInformation"] = {"toothSurfaceCode": line.surface}
+            if dental:
+                entry["dentalService"] = dental
             service_lines.append(entry)
 
-        subscriber = {
+        subscriber: dict[str, Any] = {
             "memberId": claim.member_id,
             "paymentResponsibilityLevelCode": _PRIMARY,
             "firstName": claim.subscriber_first_name,
             "lastName": claim.subscriber_last_name,
             "dateOfBirth": claim.subscriber_dob.strftime("%Y%m%d"),
+            "gender": claim.subscriber_gender,
+            "address": _address(claim.subscriber_address),
         }
         if claim.group_number:
             subscriber["groupNumber"] = claim.group_number
@@ -69,33 +90,35 @@ class StediClaimsClient(ClearinghouseClient):
         # DentalXChange raw-X12 path (deferred).
         payload: dict[str, Any] = {
             "usageIndicator": claim.usage_indicator,
-            "controlNumber": claim.patient_control_number,
             "tradingPartnerServiceId": claim.payer_id,
             "submitter": {
                 "organizationName": claim.billing_org_name,
                 "contactInformation": {"name": claim.billing_org_name},
             },
+            # receiver.organizationName should be the payer NAME; we only carry the payer
+            # id, so this is a known best-effort gap until a payer-name source is threaded.
             "receiver": {"organizationName": claim.payer_id},
             "billing": {
-                "providerType": "BillingProvider",
                 "npi": claim.billing_npi,
                 "employerId": claim.billing_tax_id,
                 "taxonomyCode": claim.billing_taxonomy_code,
                 "organizationName": claim.billing_org_name,
+                "address": _address(claim.billing_address),
             },
-            "rendering": {
-                "providerType": "RenderingProvider",
+            "renderingProvider": {
                 "npi": claim.rendering_npi,
                 "firstName": claim.rendering_first_name,
                 "lastName": claim.rendering_last_name,
+                "taxonomyCode": claim.billing_taxonomy_code,
             },
             "subscriber": subscriber,
             "claimInformation": {
                 "patientControlNumber": claim.patient_control_number,
                 "claimChargeAmount": _cents_to_dollars(claim.total_charge_cents),
-                "placeOfServiceCode": "11",  # office
-                "claimFrequencyCode": "1",   # original
+                "placeOfServiceCode": "11",
+                "claimFrequencyCode": "1",
                 "benefitsAssignmentCertificationIndicator": "Y",
+                "releaseInformationCode": "Y",
                 "serviceLines": service_lines,
             },
         }
@@ -105,7 +128,8 @@ class StediClaimsClient(ClearinghouseClient):
                 "firstName": claim.patient_first_name,
                 "lastName": claim.patient_last_name,
                 "dateOfBirth": claim.patient_dob.strftime("%Y%m%d"),
-                "relationshipToSubscriberCode": _relationship_code(claim.relationship_to_insured),
+                "gender": claim.patient_gender,
+                "relationshipToSubscriber": _relationship_code(claim.relationship_to_insured),
             }
 
         return payload

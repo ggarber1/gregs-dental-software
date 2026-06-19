@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.services.claims.base import ClaimLine, DentalClaimInput
+from app.services.claims.base import Address, ClaimLine, DentalClaimInput
 from app.services.claims.validator import validate_claim
 
 
@@ -13,6 +13,9 @@ def _claim(**overrides) -> DentalClaimInput:
         billing_tax_id="123456789",
         billing_taxonomy_code="1223G0001X",
         billing_org_name="Downtown Dental",
+        billing_address=Address(
+            line1="1 Main St", city="Boston", state="MA", postal_code="021011234"
+        ),
         submitter_id="SUB1",
         rendering_npi="1234567890",
         rendering_first_name="Jane",
@@ -20,12 +23,17 @@ def _claim(**overrides) -> DentalClaimInput:
         subscriber_first_name="John",
         subscriber_last_name="Smith",
         subscriber_dob=date(1980, 1, 1),
+        subscriber_gender="M",
+        subscriber_address=Address(
+            line1="2 Oak Ave", city="Boston", state="MA", postal_code="021022345"
+        ),
         member_id="U123",
         group_number="GRP1",
         relationship_to_insured="self",
         patient_first_name="John",
         patient_last_name="Smith",
         patient_dob=date(1980, 1, 1),
+        patient_gender="M",
         date_of_service=date(2026, 6, 18),
         lines=(
             ClaimLine(

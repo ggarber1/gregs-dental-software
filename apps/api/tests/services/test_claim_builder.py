@@ -10,6 +10,10 @@ class _Practice:
     billing_npi: str | None = "1234567890"
     billing_taxonomy_code: str | None = "1223G0001X"
     clearinghouse_submitter_id: str | None = "SUB1"
+    address_line1: str | None = "1 Main St"
+    city: str | None = "Boston"
+    state: str | None = "MA"
+    zip: str | None = "02101-1234"
 
 
 @dataclass
@@ -24,6 +28,11 @@ class _Patient:
     first_name: str = "John"
     last_name: str = "Smith"
     date_of_birth: date = date(1980, 1, 1)
+    sex: str | None = "male"
+    address_line1: str | None = "2 Oak Ave"
+    city: str | None = "Boston"
+    state: str | None = "MA"
+    zip: str | None = "02102"
 
 
 @dataclass
@@ -74,6 +83,8 @@ def test_builds_self_subscriber_and_sums_charges():
     assert claim.lines[0].procedure_id == "p1"
     assert claim.lines[0].cdt_code == "D2392"
     assert claim.date_of_service == date(2026, 6, 18)
+    assert claim.billing_address.city == "Boston"
+    assert claim.subscriber_gender == "M"
 
 
 def test_non_self_uses_insured_identity_for_subscriber():

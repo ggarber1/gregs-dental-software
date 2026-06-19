@@ -7,6 +7,14 @@ from typing import Any
 
 
 @dataclass(frozen=True, kw_only=True)
+class Address:
+    line1: str
+    city: str
+    state: str
+    postal_code: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class ClaimLine:
     procedure_id: str          # appointment_procedure.id -> lineItemControlNumber (835 correlation)
     cdt_code: str              # D####
@@ -26,6 +34,7 @@ class DentalClaimInput:
     billing_tax_id: str               # decrypted, digits only
     billing_taxonomy_code: str
     billing_org_name: str
+    billing_address: Address
     submitter_id: str
     # Rendering provider
     rendering_npi: str
@@ -35,6 +44,8 @@ class DentalClaimInput:
     subscriber_first_name: str
     subscriber_last_name: str
     subscriber_dob: date
+    subscriber_gender: str            # 'M' | 'F' | 'U'
+    subscriber_address: Address
     member_id: str
     group_number: str | None
     relationship_to_insured: str      # 'self' | 'spouse' | 'child' | 'other'
@@ -42,6 +53,7 @@ class DentalClaimInput:
     patient_first_name: str
     patient_last_name: str
     patient_dob: date
+    patient_gender: str               # 'M' | 'F' | 'U'
     # Claim
     date_of_service: date
     lines: tuple[ClaimLine, ...]
