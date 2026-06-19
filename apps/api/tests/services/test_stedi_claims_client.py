@@ -117,3 +117,11 @@ async def test_sends_key_auth_and_idempotency_header():
     await client.submit_dental_claim(_CLAIM, "idem-9")
     assert captured["auth"] == "Key secret"
     assert captured["idem"] == "idem-9"
+
+
+@pytest.mark.asyncio
+async def test_auth_error_raises_non_retryable():
+    client = StediClaimsClient(api_key="bad", client=_client_returning(401, {"message": "unauthorized"}))
+    with pytest.raises(ClaimSubmissionError) as exc:
+        await client.submit_dental_claim(_CLAIM, "idem-auth")
+    assert exc.value.retryable is False

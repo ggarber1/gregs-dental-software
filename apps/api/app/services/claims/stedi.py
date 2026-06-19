@@ -62,6 +62,9 @@ class StediClaimsClient(ClearinghouseClient):
         if claim.group_number:
             subscriber["groupNumber"] = claim.group_number
 
+        # NOTE: claim.submitter_id is validated as a required practice config (see validator)
+        # but is NOT sent per-claim — Stedi derives the submitter/trading-partner identity from
+        # the account behind the API key. It will be needed by the DentalXChange raw-X12 path (deferred).
         payload: dict[str, Any] = {
             "usageIndicator": claim.usage_indicator,
             "controlNumber": claim.patient_control_number,
@@ -128,11 +131,17 @@ class StediClaimsClient(ClearinghouseClient):
                 f"Stedi server error {resp.status_code}", retryable=True
             )
 
+        if resp.status_code in (401, 403):
+            raise ClaimSubmissionError(
+                f"Stedi auth error {resp.status_code}: {resp.text[:200]}", retryable=False
+            )
+
         try:
             body = resp.json()
         except ValueError as exc:
             raise ClaimSubmissionError(
-                f"Stedi returned a non-JSON body: {resp.text[:200]}", retryable=True
+                f"Stedi returned a non-JSON {resp.status_code} body: {resp.text[:200]}",
+                retryable=True,
             ) from exc
 
         errors = _extract_errors(body)
@@ -152,7 +161,11 @@ class StediClaimsClient(ClearinghouseClient):
 
 def _relationship_code(relationship: str) -> str:
     # X12 individual relationship codes: 01 spouse, 19 child, G8 other.
-    return {"spouse": "01", "child": "19", "other": "G8"}.get(relationship, "G8")
+    code = {"spouse": "01", "child": "19", "other": "G8"}.get(relationship)
+    if code is None:
+        logger.warning("Unknown relationship_to_insured %r; defaulting to 'other' (G8)", relationship)
+        return "G8"
+    return code
 
 
 def _extract_errors(body: dict[str, Any]) -> list[str]:
