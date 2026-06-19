@@ -14,12 +14,13 @@ from app.services.claims.base import (
 
 logger = logging.getLogger(__name__)
 
-# NOTE: confirm the exact path/version against the Stedi Dental Claims (837D) JSON
-# reference and the sandbox smoke test before going live. Unit tests do not
-# depend on this value (httpx is mocked).
-_STEDI_DENTAL_CLAIMS_URL = (
-    "https://healthcare.us.stedi.com/2024-04-01/change/medicalnetwork/dentalclaims/v3"
-)
+# Endpoint path + `Authorization: Key <key>` confirmed via the live sandbox smoke run
+# (scripts/stedi_claim_smoke.py). NOTE: this endpoint is NOT available with a Stedi
+# Test-Mode API key (returns 403 access_denied) — it needs a full-access/production key.
+# The nested JSON field names in to_stedi_payload() remain unverified against a real
+# accepted claim (the smoke run is blocked by the test-mode key tier). Unit tests mock
+# httpx and do not depend on this URL.
+_STEDI_DENTAL_CLAIMS_URL = "https://healthcare.us.stedi.com/2024-04-01/dental-claims/submission"
 _TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
 # Stedi "paymentResponsibilityLevelCode": P = primary.
