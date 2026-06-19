@@ -12,7 +12,7 @@ Replace Eaglesoft as the daily operating system for small-to-mid dental practice
 |---|---|---|
 | 1 | Core Practice Operations | 🔄 Mostly done |
 | 2 | Clinical Core (Paper Chart Replacement) | 🔄 Mostly done |
-| 3 | Billing & Insurance Depth | 🔜 Next |
+| 3 | Billing & Insurance Depth | 🔄 In progress |
 | 4 | AI & Automation | 🔜 Planned |
 | 5 | Platform Expansion | 🔜 Future |
 
@@ -41,7 +41,7 @@ Replace the paper chart. The last thing keeping a practice on Eaglesoft.
 - ✅ Treatment Planning (multi-item plans, open-plan queue)
 - 🔲 Perio Charting (6-point probing, comparison view, keyboard entry): Gonna merge but needs review
 - 🔲 Offline Resilience Phase 1 (PWA app shell, read-only offline mode)
-- 🔲 Practice Fee Schedule (CDT code catalog per practice — blocked on practice providing their procedure list)
+- ✅ Practice Fee Schedule (CDT code catalog per practice) — delivered as **Module 3.6** in Phase 3 (full CDT catalog seeded + per-practice fee entry in Settings)
 - 🔲 Imaging Software Integration (local bridge agent launches imaging software with correct patient pre-selected — plan: `imaging_bridge_plan.md`)
 
 **Gating concern:** Dad needs to review the clinical note form structure before ambient notes (4.1) can be built on top of it. Schedule this review.
@@ -62,16 +62,18 @@ Post Review
 
 ---
 
-## Phase 3 — Billing & Insurance Depth
+## Phase 3 — Billing & Insurance Depth 🔄
 
 Close the revenue cycle loop so the practice doesn't need a separate billing tool.
+Decomposed into modules — see `docs/superpowers/specs/phase3-build-order.md` for the
+dependency graph and detailed sequencing.
 
-- ERA parsing (835 electronic remittance, auto-post payments)
-- Claim submission (837P generation, clearinghouse integration)
-- Patient ledger (charges, payments, adjustments, running balance)
-- Statements (patient-facing billing statements via email/print)
-- Insurance aging report (outstanding claims by carrier + age bucket)
-- Practice fee schedule → insurance estimation (coverage % per plan per CDT code)
+- ✅ **Module 3.5 — Per-Appointment Procedures** (procedure capture on appointments; prerequisite for 6 + 7)
+- ✅ **Module 3.6 — Practice Fee Schedule** (per-practice fee per CDT code; auto-fills procedures, feeds co-pay estimation)
+- ✅ **Module 5.2–5.4 — Eligibility Verification** — sync slice done (271 parse + benefit-summary card + verify button). Async pre-appointment batch + verification-queue page + appointment-slot badge deferred to **Staging Checkpoint 5**.
+- ✅ **Module 6 — Co-pay Calculation** (PRs #53–#56: contracted fees, per-CDT coinsurance parser, full CDT catalog, engine + service + endpoints + estimate card). This is the "insurance estimation (coverage % per plan per CDT code)" line. DHMO / alternate-benefit downgrade / secondary-COB deferred per spec §Deferred.
+- 🔄 **Module 7 — Claims Submission (837D) + ERA Processing (835)** — split into **7a** and **7b**. **7a (claims submission)** built (this branch): `DentalClaimInput` → Stedi Dental Claims JSON endpoint (Stedi generates the X12; synchronous 277CA), sync submit endpoint, claims table, claim panel + worklist. Spec: `docs/superpowers/specs/2026-06-18-module-7a-claims-submission-design.md`. **7b (835 ERA ingest + auto-post)** is the next spec/plan. (requires 3.5; 6 optional)
+- 🔲 **Module 8 — Billing & Payments** — patient ledger (charges, payments, adjustments, running balance); patient-facing statements (email/print); insurance aging report (outstanding claims by carrier + age bucket); QuickBooks export. (requires 7)
 
 **Clearinghouse call allowance:** The $249/mo plan includes 250 clearinghouse calls/month (claims + eligibility combined). Track monthly usage per practice in the DB so we can identify practices approaching or exceeding the limit. Overage handling TBD — options are absorb the cost, throttle, or add a per-call surcharge above 250. At Stedi PAYG rates ($0.30/call), the 250-call bundle costs ~$75/mo and is already priced into the margin model. See `research/16_cost_and_scaling_model.md`.
 
@@ -98,6 +100,8 @@ VERIFY THIS WORKS!!!!!
 - **Algorithm:** Point-based rules (prior no-show rate, unconfirmed, day-of-week, time-of-day, lead time) — no training data required, ships immediately
 - **Plan:** `no_show_risk_plan.md`
 - **Status:** ✅ Done
+
+VERIFY THIS WORKS!!!!!
 
 ### 4.2B No-Show Risk Scoring (ML Model) — Long-Term, Data-Dependent
 - Replace rule-based scorer with a trained gradient-boosted model (scikit-learn / XGBoost)
@@ -285,6 +289,13 @@ here.
 | Extract deductible-waiver flags from the 271 | Module 5 parser / Module 6 | Parser currently leaves `deductible_waived_*` at defaults (preventive=true, diagnostic/ortho=false) and doesn't detect waivers from the 271. Surfaced by the live Stedi smoke run: a Cigna DPPO applies the deductible to diagnostic (over-estimates patient). Errs conservative; low urgency. |
 | `treatment_plan_item_id` nullable FK ("complete plan item → procedure") | Module 3.5 design | When the plan→procedure link feature is built |
 | Fee-schedule CSV bulk import | Module 3.6 design | When a practice has hundreds of codes to load by hand |
+| Module 7b — 835 ERA ingest + auto-post payments | Module 7a spec §11 | Immediate next spec/plan after 7a |
+| Async claim-submission worker (SQS/ECS) | Module 7a spec §11 | If submission volume demands it; provable only on AWS (near Staging Checkpoint 5) |
+| DentalXChange production client + raw-X12 `X12Builder` | Module 7a spec §11 | When a prod practice needs a non-Stedi route |
+| 277CA webhook + 276/277 status-polling worker | Module 7a spec §11 | With the async worker; 7b ERA is the authoritative paid/denied source |
+| MassHealth/Medicaid claims (`payer_type`, `claim_filing_code=MA`, DentaQuest enrollment) | Module 7a spec §11 | When a MassHealth practice onboards |
+| Secondary / COB claims (837D COB loops) | Module 7a spec §11 | After 7b (needs primary EOB data from an ERA) |
+| Multiple rendering providers per appointment; queryable `claim_service_lines`; claim attachments (275) | Module 7a spec §11 | Demand-driven |
 
 ### B. Larger future features not yet broken into a spec
 
