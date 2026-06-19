@@ -99,7 +99,7 @@ async def submit_claim_for_appointment(
         select(InsurancePlan).where(InsurancePlan.id == insurance.insurance_plan_id)
     )
     if plan is None:
-        raise ClaimSubmissionPrereqError("NO_PAYER_ID", "Linked insurance plan not found")
+        raise ClaimSubmissionPrereqError("INSURANCE_PLAN_NOT_FOUND", "Linked insurance plan not found")
 
     provider = await session.scalar(select(Provider).where(Provider.id == appt.provider_id))
     if provider is None:
@@ -141,7 +141,6 @@ async def submit_claim_for_appointment(
             "CLAIM_INVALID", "Claim failed validation", errors=validation.errors
         )
 
-    payload = client.to_stedi_payload(claim_input) if hasattr(client, "to_stedi_payload") else None
     claim = Claim(
         id=claim_id,
         practice_id=practice_id,
@@ -154,12 +153,15 @@ async def submit_claim_for_appointment(
         payer_id=plan.payer_id,
         status="draft",
         total_charge_cents=claim_input.total_charge_cents,
-        raw_submission=payload,
         last_accessed_by=user_sub,
         last_accessed_at=datetime.now(UTC),
     )
     session.add(claim)
     await session.commit()
+
+    # NOTE: at-least-once. If the process dies after submit_dental_claim returns but before the
+    # commit below, the claim stays 'draft' though the clearinghouse accepted it; a retry with the
+    # same idempotency key returns the stale draft. Module 7b's status reconciliation closes this gap.
 
     # 5. Submit.
     try:

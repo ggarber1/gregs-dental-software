@@ -14,7 +14,7 @@ from app.models.patient_insurance import PatientInsurance
 from app.models.insurance_plan import InsurancePlan
 from app.models.practice import Practice
 from app.models.provider import Provider
-from app.services.claims.base import ClaimResult, ClearinghouseClient, DentalClaimInput
+from app.services.claims.base import ClaimResult, ClaimSubmissionError, ClearinghouseClient, DentalClaimInput
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
     submit_claim_for_appointment,
@@ -27,9 +27,6 @@ class _FakeClient(ClearinghouseClient):
     def __init__(self, result: ClaimResult):
         self._result = result
         self.calls = 0
-
-    def to_stedi_payload(self, claim: DentalClaimInput) -> dict:
-        return {"ok": True}
 
     async def submit_dental_claim(self, claim: DentalClaimInput, idempotency_key: str) -> ClaimResult:
         self.calls += 1
@@ -145,3 +142,19 @@ async def test_no_procedures_raises_prereq_error(db_session: AsyncSession):
             usage_indicator="T", user_sub="sub-1",
         )
     assert exc.value.code == "NO_PROCEDURES"
+
+
+class _RaisingClient(ClearinghouseClient):
+    async def submit_dental_claim(self, claim, idempotency_key):
+        raise ClaimSubmissionError("Stedi timeout", retryable=True)
+
+
+@pytest.mark.asyncio
+async def test_transport_error_marks_submission_failed(db_session: AsyncSession):
+    practice, appt = await _seed(db_session)
+    claim = await submit_claim_for_appointment(
+        db_session, practice.id, appt.id, "idem-5", client=_RaisingClient(),
+        usage_indicator="T", user_sub="sub-1",
+    )
+    assert claim.status == "submission_failed"
+    assert claim.submission_errors and "timeout" in claim.submission_errors[0].lower()
