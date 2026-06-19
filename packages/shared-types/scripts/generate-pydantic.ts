@@ -152,6 +152,7 @@ import {
   CopayEstimateSchema,
   OverrideCopaySchema,
 } from "../src/schemas/copay.js";
+import { ClaimSchema, ClaimStatusSchema } from "../src/schemas/claims.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -269,6 +270,9 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   CopayLineItem: CopayLineItemSchema,
   CopayEstimate: CopayEstimateSchema,
   OverrideCopay: OverrideCopaySchema,
+  // Claims
+  ClaimStatus: ClaimStatusSchema,
+  Claim: ClaimSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
