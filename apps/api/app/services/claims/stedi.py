@@ -62,9 +62,10 @@ class StediClaimsClient(ClearinghouseClient):
         if claim.group_number:
             subscriber["groupNumber"] = claim.group_number
 
-        # NOTE: claim.submitter_id is validated as a required practice config (see validator)
-        # but is NOT sent per-claim — Stedi derives the submitter/trading-partner identity from
-        # the account behind the API key. It will be needed by the DentalXChange raw-X12 path (deferred).
+        # NOTE: claim.submitter_id is validated as a required practice config (see
+        # validator) but is NOT sent per-claim — Stedi derives the submitter/trading-
+        # partner identity from the account behind the API key. It will be needed by the
+        # DentalXChange raw-X12 path (deferred).
         payload: dict[str, Any] = {
             "usageIndicator": claim.usage_indicator,
             "controlNumber": claim.patient_control_number,
@@ -163,7 +164,9 @@ def _relationship_code(relationship: str) -> str:
     # X12 individual relationship codes: 01 spouse, 19 child, G8 other.
     code = {"spouse": "01", "child": "19", "other": "G8"}.get(relationship)
     if code is None:
-        logger.warning("Unknown relationship_to_insured %r; defaulting to 'other' (G8)", relationship)
+        logger.warning(
+            "Unknown relationship_to_insured %r; defaulting to 'other' (G8)", relationship
+        )
         return "G8"
     return code
 

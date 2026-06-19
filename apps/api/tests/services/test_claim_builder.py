@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.services.claims.builder import build_claim_input
 
@@ -48,7 +48,7 @@ class _Proc:
 
 @dataclass
 class _Appt:
-    start_time: datetime = datetime(2026, 6, 18, 14, 0, tzinfo=timezone.utc)
+    start_time: datetime = datetime(2026, 6, 18, 14, 0, tzinfo=UTC)
 
 
 def test_builds_self_subscriber_and_sums_charges():

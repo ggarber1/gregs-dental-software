@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select
@@ -8,13 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.encryption import encrypt
 from app.models.appointment import Appointment
 from app.models.appointment_procedure import AppointmentProcedure
-from app.models.claim import Claim
+from app.models.insurance_plan import InsurancePlan
 from app.models.patient import Patient
 from app.models.patient_insurance import PatientInsurance
-from app.models.insurance_plan import InsurancePlan
 from app.models.practice import Practice
 from app.models.provider import Provider
-from app.services.claims.base import ClaimResult, ClaimSubmissionError, ClearinghouseClient, DentalClaimInput
+from app.services.claims.base import (
+    ClaimResult,
+    ClaimSubmissionError,
+    ClearinghouseClient,
+    DentalClaimInput,
+)
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
     submit_claim_for_appointment,
@@ -28,7 +32,9 @@ class _FakeClient(ClearinghouseClient):
         self._result = result
         self.calls = 0
 
-    async def submit_dental_claim(self, claim: DentalClaimInput, idempotency_key: str) -> ClaimResult:
+    async def submit_dental_claim(
+        self, claim: DentalClaimInput, idempotency_key: str
+    ) -> ClaimResult:
         self.calls += 1
         return self._result
 
@@ -70,8 +76,8 @@ async def _seed(session: AsyncSession):
     )
     appt = Appointment(
         id=uuid.uuid4(), practice_id=practice.id, patient_id=patient.id,
-        provider_id=provider.id, start_time=datetime(2026, 6, 18, 14, 0, tzinfo=timezone.utc),
-        end_time=datetime(2026, 6, 18, 15, 0, tzinfo=timezone.utc),
+        provider_id=provider.id, start_time=datetime(2026, 6, 18, 14, 0, tzinfo=UTC),
+        end_time=datetime(2026, 6, 18, 15, 0, tzinfo=UTC),
     )
     session.add_all([insurance, appt])
     # Flush appointment before procedure: the DB has an explicit FK on appointment_id
@@ -91,7 +97,8 @@ async def test_submits_and_persists_submitted(db_session: AsyncSession):
     practice, appt = await _seed(db_session)
     client = _FakeClient(_ok_result())
     claim = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-1", client=client, usage_indicator="T", user_sub="sub-1",
+        db_session, practice.id, appt.id, "idem-1",
+        client=client, usage_indicator="T", user_sub="sub-1",
     )
     assert claim.status == "submitted"
     assert claim.clearinghouse_claim_id == "txn-1"
@@ -104,10 +111,12 @@ async def test_idempotent_second_call_returns_same_row(db_session: AsyncSession)
     practice, appt = await _seed(db_session)
     client = _FakeClient(_ok_result())
     first = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-1", client=client, usage_indicator="T", user_sub="sub-1",
+        db_session, practice.id, appt.id, "idem-1",
+        client=client, usage_indicator="T", user_sub="sub-1",
     )
     second = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-1", client=client, usage_indicator="T", user_sub="sub-1",
+        db_session, practice.id, appt.id, "idem-1",
+        client=client, usage_indicator="T", user_sub="sub-1",
     )
     assert first.id == second.id
     assert client.calls == 1

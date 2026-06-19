@@ -15,7 +15,7 @@ from app.models.patient import Patient
 from app.models.patient_insurance import PatientInsurance
 from app.models.practice import Practice
 from app.models.provider import Provider
-from app.services.claims.base import ClearinghouseClient, ClaimSubmissionError
+from app.services.claims.base import ClaimSubmissionError, ClearinghouseClient
 from app.services.claims.builder import build_claim_input
 from app.services.claims.idempotency import generate_pcn
 from app.services.claims.validator import validate_claim
@@ -99,7 +99,9 @@ async def submit_claim_for_appointment(
         select(InsurancePlan).where(InsurancePlan.id == insurance.insurance_plan_id)
     )
     if plan is None:
-        raise ClaimSubmissionPrereqError("INSURANCE_PLAN_NOT_FOUND", "Linked insurance plan not found")
+        raise ClaimSubmissionPrereqError(
+            "INSURANCE_PLAN_NOT_FOUND", "Linked insurance plan not found"
+        )
 
     provider = await session.scalar(select(Provider).where(Provider.id == appt.provider_id))
     if provider is None:
@@ -159,9 +161,10 @@ async def submit_claim_for_appointment(
     session.add(claim)
     await session.commit()
 
-    # NOTE: at-least-once. If the process dies after submit_dental_claim returns but before the
-    # commit below, the claim stays 'draft' though the clearinghouse accepted it; a retry with the
-    # same idempotency key returns the stale draft. Module 7b's status reconciliation closes this gap.
+    # NOTE: at-least-once. If the process dies after submit_dental_claim returns but
+    # before the commit below, the claim stays 'draft' though the clearinghouse accepted
+    # it; a retry with the same idempotency key returns the stale draft. Module 7b's
+    # status reconciliation closes this gap.
 
     # 5. Submit.
     try:

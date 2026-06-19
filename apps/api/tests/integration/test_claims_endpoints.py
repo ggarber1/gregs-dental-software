@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -103,8 +103,8 @@ async def _seed(session: AsyncSession, claims_submission_enabled: bool = True):
         practice_id=practice.id,
         patient_id=patient.id,
         provider_id=provider.id,
-        start_time=datetime(2026, 6, 18, 14, 0, tzinfo=timezone.utc),
-        end_time=datetime(2026, 6, 18, 15, 0, tzinfo=timezone.utc),
+        start_time=datetime(2026, 6, 18, 14, 0, tzinfo=UTC),
+        end_time=datetime(2026, 6, 18, 15, 0, tzinfo=UTC),
     )
     session.add_all([insurance, appt])
     await session.flush()
