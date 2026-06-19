@@ -68,7 +68,6 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     user_sub = getattr(request.state.user, "sub", None)
-    idempotency_key = request.headers.get("Idempotency-Key") or str(uuid.uuid4())
 
     async with get_session_factory()() as session:
         practice = await session.scalar(
@@ -89,7 +88,6 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
                 session,
                 practice_id,
                 appointment_id,
-                idempotency_key,
                 client=client,
                 usage_indicator=_usage_indicator(),
                 user_sub=user_sub,

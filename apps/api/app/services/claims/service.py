@@ -17,7 +17,7 @@ from app.models.practice import Practice
 from app.models.provider import Provider
 from app.services.claims.base import ClaimSubmissionError, ClearinghouseClient
 from app.services.claims.builder import build_claim_input
-from app.services.claims.idempotency import generate_pcn
+from app.services.claims.idempotency import generate_claim_idempotency_key, generate_pcn
 from app.services.claims.validator import validate_claim
 
 
@@ -35,25 +35,12 @@ async def submit_claim_for_appointment(
     session: AsyncSession,
     practice_id: uuid.UUID,
     appointment_id: uuid.UUID,
-    idempotency_key: str,
     *,
     client: ClearinghouseClient,
     usage_indicator: str,
     user_sub: str | None,
 ) -> Claim:
-    # 1. Idempotency — return the existing claim unchanged, no second network call.
-    #    The idempotency_key column has a global unique constraint, so we only need
-    #    to filter by key (practice_id is an additional safety scope check).
-    existing = await session.scalar(
-        select(Claim).where(
-            Claim.idempotency_key == idempotency_key,
-            Claim.practice_id == practice_id,
-        )
-    )
-    if existing is not None:
-        return existing
-
-    # 2. Load appointment + scope check.
+    # 1. Load appointment (scope to practice_id, deleted_at null).
     appt = await session.scalar(
         select(Appointment).where(
             Appointment.id == appointment_id,
@@ -68,21 +55,7 @@ async def submit_claim_for_appointment(
             "NO_PROVIDER", "Appointment has no provider; a rendering provider is required"
         )
 
-    procedures = (
-        await session.scalars(
-            select(AppointmentProcedure).where(
-                AppointmentProcedure.appointment_id == appointment_id,
-                AppointmentProcedure.deleted_at.is_(None),
-            )
-        )
-    ).all()
-    if not procedures:
-        raise ClaimSubmissionPrereqError("NO_PROCEDURES", "Appointment has no procedures")
-
-    patient = await session.scalar(select(Patient).where(Patient.id == appt.patient_id))
-    if patient is None:
-        raise ClaimSubmissionPrereqError("PATIENT_NOT_FOUND", "Patient not found")
-
+    # 2. Load primary insurance (needed to compute the deterministic key).
     insurance = await session.scalar(
         select(PatientInsurance).where(
             PatientInsurance.patient_id == appt.patient_id,
@@ -95,6 +68,41 @@ async def submit_claim_for_appointment(
         raise ClaimSubmissionPrereqError(
             "NO_INSURANCE", "Patient has no primary insurance with a linked plan"
         )
+
+    # 3. Compute deterministic idempotency key and check for an existing claim.
+    #    A re-click returns the same claim — no second submission to the payer.
+    #    Recovering a 'submission_failed' claim (transient transport error) is
+    #    deferred to Module 7b's status reconciliation.
+    idempotency_key = generate_claim_idempotency_key(
+        str(appointment_id), str(appt.patient_id), str(insurance.id), 1
+    )
+    existing = await session.scalar(
+        select(Claim).where(
+            Claim.idempotency_key == idempotency_key,
+            Claim.practice_id == practice_id,
+        )
+    )
+    if existing is not None:
+        return existing
+
+    # 4. Load procedures.
+    procedures = (
+        await session.scalars(
+            select(AppointmentProcedure).where(
+                AppointmentProcedure.appointment_id == appointment_id,
+                AppointmentProcedure.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    if not procedures:
+        raise ClaimSubmissionPrereqError("NO_PROCEDURES", "Appointment has no procedures")
+
+    # 5. Load patient.
+    patient = await session.scalar(select(Patient).where(Patient.id == appt.patient_id))
+    if patient is None:
+        raise ClaimSubmissionPrereqError("PATIENT_NOT_FOUND", "Patient not found")
+
+    # 6. Load plan.
     plan = await session.scalar(
         select(InsurancePlan).where(InsurancePlan.id == insurance.insurance_plan_id)
     )
@@ -103,10 +111,12 @@ async def submit_claim_for_appointment(
             "INSURANCE_PLAN_NOT_FOUND", "Linked insurance plan not found"
         )
 
+    # 7. Load provider.
     provider = await session.scalar(select(Provider).where(Provider.id == appt.provider_id))
     if provider is None:
         raise ClaimSubmissionPrereqError("NO_PROVIDER", "Rendering provider not found")
 
+    # 8. Load practice and config checks.
     practice = await session.scalar(select(Practice).where(Practice.id == practice_id))
     if practice is None or not practice.billing_npi:
         raise ClaimSubmissionPrereqError("MISSING_NPI", "Practice billing NPI is not configured")
@@ -120,7 +130,7 @@ async def submit_claim_for_appointment(
         )
     billing_tax_id = decrypt(practice.billing_tax_id_encrypted)
 
-    # 3. Persist a draft BEFORE the network call so a crash leaves a retryable record.
+    # 9. Build and validate the claim input.
     claim_id = uuid.uuid4()
     pcn = generate_pcn(str(claim_id))
     claim_input = build_claim_input(
@@ -136,13 +146,13 @@ async def submit_claim_for_appointment(
         usage_indicator=usage_indicator,
     )
 
-    # 4. Validate before any network call.
     validation = validate_claim(claim_input)
     if not validation.valid:
         raise ClaimSubmissionPrereqError(
             "CLAIM_INVALID", "Claim failed validation", errors=validation.errors
         )
 
+    # 10. Persist a draft BEFORE the network call so a crash leaves a retryable record.
     claim = Claim(
         id=claim_id,
         practice_id=practice_id,
@@ -166,7 +176,7 @@ async def submit_claim_for_appointment(
     # it; a retry with the same idempotency key returns the stale draft. Module 7b's
     # status reconciliation closes this gap.
 
-    # 5. Submit.
+    # 11. Submit.
     try:
         result = await client.submit_dental_claim(claim_input, idempotency_key)
     except ClaimSubmissionError as exc:
@@ -176,7 +186,7 @@ async def submit_claim_for_appointment(
         await session.refresh(claim)
         return claim
 
-    # 6. Apply result.
+    # 12. Apply result.
     claim.raw_submission = result.raw_request
     claim.raw_response = result.raw_response
     claim.clearinghouse_claim_id = result.clearinghouse_claim_id

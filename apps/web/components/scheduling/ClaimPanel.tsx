@@ -33,7 +33,7 @@ export function ClaimPanel({ appointmentId }: { appointmentId: string }) {
         <CardTitle className="text-base">Insurance Claim</CardTitle>
         <Button size="sm" disabled={submit.isPending} onClick={() => submit.mutate()}>
           <Send className="mr-2 h-4 w-4" />
-          {latest ? "Resubmit Claim" : "Submit Claim"}
+          {"Submit Claim"}
         </Button>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">

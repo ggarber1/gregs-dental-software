@@ -345,3 +345,56 @@ class TestGetClaims:
 
         assert resp.status_code == 404, resp.text
         assert resp.json()["error"]["code"] == "CLAIM_NOT_FOUND"
+
+    async def test_cross_tenant_isolation_404(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """A claim created under practice A is not visible to practice B (tenant isolation)."""
+        # Seed practice A and create a claim under it.
+        practice_a, appt_a, user_a, sub_a = await _seed(db_session)
+
+        decoded_a = {
+            "sub": sub_a,
+            "email": user_a.email,
+            "cognito:groups": ["admin"],
+        }
+        headers_a = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice_a.id),
+        }
+
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_a),
+            patch("app.routers.claims.get_ssm_parameter", return_value="fake-key"),
+            patch("app.routers.claims.StediClaimsClient", return_value=_FakeClient()),
+        ):
+            post_resp = await client.post(_claim_url(appt_a.id), headers=mut(headers_a))
+        assert post_resp.status_code == 201, post_resp.text
+        claim_id = post_resp.json()["id"]
+
+        # Seed practice B (its own user).
+        practice_b, _appt_b, user_b, sub_b = await _seed(db_session)
+        decoded_b = {
+            "sub": sub_b,
+            "email": user_b.email,
+            "cognito:groups": ["admin"],
+        }
+        headers_b = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice_b.id),
+        }
+
+        # Practice B should not see practice A's claim.
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_b),
+        ):
+            resp = await client.get(f"/api/v1/claims/{claim_id}", headers=headers_b)
+
+        assert resp.status_code == 404, resp.text
+        assert resp.json()["error"]["code"] == "CLAIM_NOT_FOUND"

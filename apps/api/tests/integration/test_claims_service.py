@@ -97,7 +97,7 @@ async def test_submits_and_persists_submitted(db_session: AsyncSession):
     practice, appt = await _seed(db_session)
     client = _FakeClient(_ok_result())
     claim = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-1",
+        db_session, practice.id, appt.id,
         client=client, usage_indicator="T", user_sub="sub-1",
     )
     assert claim.status == "submitted"
@@ -111,11 +111,11 @@ async def test_idempotent_second_call_returns_same_row(db_session: AsyncSession)
     practice, appt = await _seed(db_session)
     client = _FakeClient(_ok_result())
     first = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-1",
+        db_session, practice.id, appt.id,
         client=client, usage_indicator="T", user_sub="sub-1",
     )
     second = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-1",
+        db_session, practice.id, appt.id,
         client=client, usage_indicator="T", user_sub="sub-1",
     )
     assert first.id == second.id
@@ -130,7 +130,7 @@ async def test_rejected_result_marks_clearinghouse_rejected(db_session: AsyncSes
         errors=["Invalid member ID"], raw_request={}, raw_response={},
     )
     claim = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-2", client=_FakeClient(rejected),
+        db_session, practice.id, appt.id, client=_FakeClient(rejected),
         usage_indicator="T", user_sub="sub-1",
     )
     assert claim.status == "clearinghouse_rejected"
@@ -147,7 +147,7 @@ async def test_no_procedures_raises_prereq_error(db_session: AsyncSession):
     await db_session.commit()
     with pytest.raises(ClaimSubmissionPrereqError) as exc:
         await submit_claim_for_appointment(
-            db_session, practice.id, appt.id, "idem-3", client=_FakeClient(_ok_result()),
+            db_session, practice.id, appt.id, client=_FakeClient(_ok_result()),
             usage_indicator="T", user_sub="sub-1",
         )
     assert exc.value.code == "NO_PROCEDURES"
@@ -162,7 +162,7 @@ class _RaisingClient(ClearinghouseClient):
 async def test_transport_error_marks_submission_failed(db_session: AsyncSession):
     practice, appt = await _seed(db_session)
     claim = await submit_claim_for_appointment(
-        db_session, practice.id, appt.id, "idem-5", client=_RaisingClient(),
+        db_session, practice.id, appt.id, client=_RaisingClient(),
         usage_indicator="T", user_sub="sub-1",
     )
     assert claim.status == "submission_failed"
