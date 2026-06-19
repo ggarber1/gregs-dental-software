@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from datetime import UTC
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.db import get_session_factory
 from app.core.features import require_feature
 from app.core.ssm import get_ssm_parameter
 from app.models.claim import Claim as ClaimModel
 from app.models.practice import Practice as PracticeModel
 from app.routers.patients import _require_practice_scope, _require_write_role
-from app.schemas.generated import ApiError, Claim, Error
-from app.services.claims.base import ClaimSubmissionError
+from app.schemas.generated import ApiError, Claim, ClaimStatus, Error
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
     submit_claim_for_appointment,
@@ -31,7 +30,7 @@ _FEATURE = "claims_submission"
 
 def _usage_indicator() -> str:
     # 'T' for any non-production environment; 'P' only in production.
-    return "P" if os.getenv("APP_ENV") == "production" else "T"
+    return "P" if get_settings().is_production else "T"
 
 
 def _err(status: int, code: str, message: str) -> HTTPException:
@@ -76,7 +75,7 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
             select(PracticeModel).where(PracticeModel.id == practice_id)
         )
         await require_feature(session, practice_id, _FEATURE, practice=practice)
-        assert practice is not None
+        assert practice is not None  # require_feature 403s when the practice is missing
 
         if not practice.clearinghouse_api_key_ssm_path:
             raise _err(422, "MISSING_CLEARINGHOUSE", "Clearinghouse credentials are not configured")
@@ -104,8 +103,6 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
                     error=Error(code=exc.code, message=exc.message, details=details)
                 ).model_dump(by_alias=True),
             ) from exc
-        except ClaimSubmissionError as exc:
-            raise _err(502, "CLEARINGHOUSE_ERROR", str(exc)) from exc
         return _to_schema(claim)
 
 
@@ -146,7 +143,7 @@ async def get_claim(claim_id: uuid.UUID, request: Request) -> Claim:
 
 
 @router.get("/claims", response_model=list[Claim])
-async def list_claims(request: Request, status: str | None = None) -> list[Claim]:
+async def list_claims(request: Request, status: ClaimStatus | None = None) -> list[Claim]:
     practice_id = _require_practice_scope(request)
     async with get_session_factory()() as session:
         await require_feature(session, practice_id, _FEATURE)

@@ -6,7 +6,6 @@ from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -263,3 +262,86 @@ class TestSubmitClaim:
 
         assert resp.status_code == 404, resp.text
         assert resp.json()["error"]["code"] == "APPOINTMENT_NOT_FOUND"
+
+
+class TestGetClaims:
+    async def test_get_claim_round_trip(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """POST creates a claim; GET /appointments/{id}/claim and GET /claims/{id} return it."""
+        practice, appt, user, cognito_sub = await _seed(db_session)
+
+        decoded_token = {
+            "sub": cognito_sub,
+            "email": user.email,
+            "cognito:groups": ["admin"],
+        }
+        headers = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice.id),
+        }
+
+        # POST to create the claim
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_token),
+            patch("app.routers.claims.get_ssm_parameter", return_value="fake-key"),
+            patch("app.routers.claims.StediClaimsClient", return_value=_FakeClient()),
+        ):
+            post_resp = await client.post(_claim_url(appt.id), headers=mut(headers))
+        assert post_resp.status_code == 201, post_resp.text
+        claim_id = post_resp.json()["id"]
+
+        # GET /appointments/{appt_id}/claim — list should contain the new claim
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_token),
+        ):
+            list_resp = await client.get(_claim_url(appt.id), headers=headers)
+        assert list_resp.status_code == 200, list_resp.text
+        ids = [c["id"] for c in list_resp.json()]
+        assert claim_id in ids
+
+        # GET /claims/{claim_id} — should return 200 with matching id
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_token),
+        ):
+            get_resp = await client.get(f"/api/v1/claims/{claim_id}", headers=headers)
+        assert get_resp.status_code == 200, get_resp.text
+        assert get_resp.json()["id"] == claim_id
+
+    async def test_get_claim_not_found_404(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """GET /claims/{random_uuid} returns 404 with CLAIM_NOT_FOUND code."""
+        practice, _appt, user, cognito_sub = await _seed(db_session)
+
+        headers = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice.id),
+        }
+
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(
+                _P_DECODE,
+                return_value={
+                    "sub": cognito_sub,
+                    "email": user.email,
+                    "cognito:groups": ["admin"],
+                },
+            ),
+        ):
+            resp = await client.get(f"/api/v1/claims/{uuid.uuid4()}", headers=headers)
+
+        assert resp.status_code == 404, resp.text
+        assert resp.json()["error"]["code"] == "CLAIM_NOT_FOUND"
