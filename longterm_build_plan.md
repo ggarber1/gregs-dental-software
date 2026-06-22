@@ -263,6 +263,33 @@ placeholder, or IAM/KMS permission gap. `not_supported`/401 → wrong key. It's 
 
 ---
 
+## Pending Manual Verification — Claims Submission (needs a full-access Stedi key)
+
+Module 7a (claims submission, PR #57) is built, but the **live 837D submission path is
+unverified** because **Stedi's dental-claims submission endpoint is not available to
+test-mode API keys** (unlike eligibility, there is *no* mock/sandbox mode for claim
+submission). A live smoke run on 2026-06-19 confirmed the endpoint URL
+(`/2024-04-01/dental-claims/submission`) and the `Authorization: Key <key>` header, then
+hit `403 access_denied "not available in Test Mode."` So the JSON payload field names in
+`StediClaimsClient.to_stedi_payload()` are **aligned to Stedi's documented schema but never
+validated against an accepted claim.**
+
+**To do (when a full-access / production Stedi key is available — not now):**
+1. Put the full-access key in `apps/api/.stedi-smoke.env` as `STEDI_TEST_API_KEY` (it can
+   still use `usageIndicator: "T"` so accepted claims are NOT forwarded to a real payer).
+2. Run `python apps/api/scripts/stedi_claim_smoke.py` and iterate on any field-name errors
+   Stedi reports until `accepted: True`.
+3. Fix the two known best-effort gaps surfaced during doc-alignment: `receiver.organizationName`
+   currently sends the payer **id** (needs a payer-name source); a non-self subscriber's
+   `gender`/`address` fall back to the patient's/unknown (we only store the insured's name + DOB).
+4. Bundle with **Staging Checkpoint 5** (first live outbound Stedi call from the deployed ECS
+   private subnet), same as the eligibility live-call verification above.
+
+This is a **prerequisite before any real practice submits live claims through Molar**, but
+it is **not a dev blocker** for Module 7b (ERA) or anything else.
+
+---
+
 ## Deferred Follow-Ups & Backlog
 
 **This is the canonical roll-up of everything we've consciously deferred.** The
