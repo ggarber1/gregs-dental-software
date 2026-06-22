@@ -323,6 +323,7 @@ here.
 | MassHealth/Medicaid claims (`payer_type`, `claim_filing_code=MA`, DentaQuest enrollment) | Module 7a spec §11 | When a MassHealth practice onboards |
 | Secondary / COB claims (837D COB loops) | Module 7a spec §11 | After 7b (needs primary EOB data from an ERA) |
 | Multiple rendering providers per appointment; queryable `claim_service_lines`; claim attachments (275) | Module 7a spec §11 | Demand-driven |
+| **Stedi call-cost efficiency (cross-cutting)** — Stedi API calls (eligibility 270/271, claim submission, ERA transaction polling/report fetch) are a **material per-call cost** to us. Minimize them everywhere: (a) ERA poll uses the **Poll Transactions cursor (`pageToken`/`nextPageToken`)**, never a re-`List` of a window, and dedups GET-report calls on `transactionId`; (b) prefer **webhooks (free push)** over polling once the async path exists; (c) cache/short-circuit redundant eligibility re-checks; (d) batch where the API allows. Add a cost/efficiency check to any new Stedi integration. | Module 7b brainstorm (2026-06-22) + `research/16_cost_and_scaling_model.md` | **Now** for 7b's poll design; revisit each Stedi-touching module |
 
 ### B. Larger future features not yet broken into a spec
 
