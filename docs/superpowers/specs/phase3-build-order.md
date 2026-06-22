@@ -38,9 +38,10 @@ Module 8 — Billing & Payments (ledger, statements, aging, QuickBooks export)  
 | 1 | **3.5 — Per-Appointment Procedures** | nothing new | 5.2–5.4 | `2026-06-04-module-3.5-appointment-procedures-design.md` (✅ done) |
 | 2 | **3.6 — Practice Fee Schedule** | 3.5 (cdt_codes) | 5.2–5.4 | `2026-06-10-module-3.6-fee-schedule-design.md` (✅ done) |
 | 3 | **5.2–5.4 — Eligibility Verification** | 5.1 (done) | 3.5 / 3.6 | `2026-06-11-module-5.2-5.4-eligibility-verification-design.md` (✅ sync slice done; async batch deferred) |
-| 4 | **6 — Co-pay Calculation** | 3.5, 3.6, 5 | — | `2026-06-16-module-6-copay-calculation-design.md` (✅ designed; consumes the §9-item-7 per-CDT coinsurance model) |
-| 5 | **7 — Claims Submission + ERA** | 3.5 (6 optional) | — | _tbd_ |
-| 6 | **8 — Billing & Payments** | 7 | — | _tbd_ |
+| 4 | **6 — Co-pay Calculation** | 3.5, 3.6, 5 | — | `2026-06-16-module-6-copay-calculation-design.md` (✅ **done** — PRs #53–#56: contracted fees, per-CDT coinsurance parser, full CDT catalog, engine+service+endpoints+card. DHMO/downgrade/secondary-COB deferred per §Deferred) |
+| 5a | **7a — Claims Submission (837D)** | 3.5 (6 optional) | — | `2026-06-18-module-7a-claims-submission-design.md` (✅ built — Stedi Dental Claims JSON, sync submit slice; async/DentalXChange/MassHealth/secondary deferred per §11) |
+| 5b | **7b — ERA Processing (835)** | 7a | — | _tbd (next spec)_ |
+| 6 | **8 — Billing & Payments** | 7b | — | _tbd_ |
 
 3.5, 3.6, and eligibility are independent and may be built in any order or
 concurrently. Everything from Module 6 on depends on 3.5 being in place.

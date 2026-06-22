@@ -39,6 +39,7 @@ import { ApiError } from "@/lib/api-client";
 import { ReminderHistory } from "@/components/scheduling/ReminderHistory";
 import { ProceduresSection } from "@/components/scheduling/ProceduresSection";
 import { CopayEstimateCard } from "@/components/scheduling/CopayEstimateCard";
+import { ClaimPanel } from "@/components/scheduling/ClaimPanel";
 
 interface Props {
   open: boolean;
@@ -527,6 +528,9 @@ export function AppointmentModal({
           {isEditing && appointment && (
             <CopayEstimateCard appointmentId={appointment.id} />
           )}
+
+          {/* Insurance claim */}
+          {isEditing && appointment && <ClaimPanel appointmentId={appointment.id} />}
 
           {/* API error */}
           {apiErrorMessage && (

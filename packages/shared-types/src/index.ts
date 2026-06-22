@@ -12,3 +12,4 @@ export * from "./schemas/treatment-plans.js";
 export * from "./schemas/perio-charts.js";
 export * from "./schemas/procedures.js";
 export * from "./schemas/copay.js";
+export * from "./schemas/claims.js";
