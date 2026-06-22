@@ -85,6 +85,9 @@ def parse_stedi_era(raw: dict[str, Any]) -> ERAPayment:
     paymentInfo object becomes a ClaimPayment.
     """
     transactions = raw.get("transactions") or []
+    # The 835 ERA Report endpoint is fetched per transactionId and returns a single
+    # 835, so transactions[] is length 1 here; header fields come from the first
+    # transaction, and we iterate all transactions for claim payments defensively.
     txn = transactions[0] if transactions else {}
 
     fin = txn.get("financialInformation") or {}

@@ -133,3 +133,13 @@ def test_missing_fields_do_not_crash():
     cp = era.claim_payments[0]
     assert cp.patient_control_number == ""
     assert cp.paid_cents == 0
+
+
+def test_parses_iso_date_format():
+    doc = {"transactions": [{"productionDate": "2026-06-15", "detailInfo": []}]}
+    assert parse_stedi_era(doc).payment_date == date(2026, 6, 15)
+
+
+def test_missing_payer_claim_control_number_is_none():
+    era = parse_stedi_era({"transactions": [{"detailInfo": [{"paymentInfo": [{}]}]}]})
+    assert era.claim_payments[0].payer_claim_control_number is None
