@@ -57,6 +57,15 @@ class Claim(Base, PHIMixin):
     raw_response: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # --- Module 7b: ERA auto-post (claim-level) ---
+    insurance_paid_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    patient_responsibility_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payer_claim_control_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    adjustments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    denial_codes: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    remittance_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
     __table_args__ = (
         CheckConstraint(
             "status IN ('draft', 'submitted', 'clearinghouse_rejected', 'submission_failed', "
