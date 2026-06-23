@@ -72,7 +72,7 @@ dependency graph and detailed sequencing.
 - ✅ **Module 3.6 — Practice Fee Schedule** (per-practice fee per CDT code; auto-fills procedures, feeds co-pay estimation)
 - ✅ **Module 5.2–5.4 — Eligibility Verification** — sync slice done (271 parse + benefit-summary card + verify button). Async pre-appointment batch + verification-queue page + appointment-slot badge deferred to **Staging Checkpoint 5**.
 - ✅ **Module 6 — Co-pay Calculation** (PRs #53–#56: contracted fees, per-CDT coinsurance parser, full CDT catalog, engine + service + endpoints + estimate card). This is the "insurance estimation (coverage % per plan per CDT code)" line. DHMO / alternate-benefit downgrade / secondary-COB deferred per spec §Deferred.
-- 🔄 **Module 7 — Claims Submission (837D) + ERA Processing (835)** — split into **7a** and **7b**. **7a (claims submission)** built (this branch): `DentalClaimInput` → Stedi Dental Claims JSON endpoint (Stedi generates the X12; synchronous 277CA), sync submit endpoint, claims table, claim panel + worklist. Spec: `docs/superpowers/specs/2026-06-18-module-7a-claims-submission-design.md`. **7b (835 ERA ingest + auto-post)** is the next spec/plan. (requires 3.5; 6 optional)
+- ✅ **Module 7 — Claims Submission (837D) + ERA Processing (835)** — split into **7a** and **7b**, both built. **7a (claims submission, PR #57 merged):** `DentalClaimInput` → Stedi Dental Claims JSON endpoint (Stedi generates the X12; synchronous 277CA), sync submit endpoint, claims table, claim panel + worklist. Spec: `specs/2026-06-18-module-7a-claims-submission-design.md`. **7b (835 ERA ingest + auto-post, PR #58):** Stedi `Poll Transactions` → `835 ERA Report` (JSON, no raw X12) → parse → match-by-PCN onto the `claims` row (paid/patient-resp/adjustments/denial), sync `POST /era/poll` + remittances worklist + unmatched-review queue; `era_remittances`/`unmatched_era_payments` tables (migration 0033). Spec: `specs/2026-06-22-module-7b-era-ingest-design.md`. **Both live paths (claim submit + ERA pull) are unverified until a full-access Stedi key at Staging Checkpoint 5** — see "Pending Manual Verification" below. (requires 3.5; 6 optional)
 - 🔲 **Module 8 — Billing & Payments** — patient ledger (charges, payments, adjustments, running balance); patient-facing statements (email/print); insurance aging report (outstanding claims by carrier + age bucket); QuickBooks export. (requires 7)
 
 **Clearinghouse call allowance:** The $249/mo plan includes 250 clearinghouse calls/month (claims + eligibility combined). Track monthly usage per practice in the DB so we can identify practices approaching or exceeding the limit. Overage handling TBD — options are absorb the cost, throttle, or add a per-call surcharge above 250. At Stedi PAYG rates ($0.30/call), the 250-call bundle costs ~$75/mo and is already priced into the margin model. See `research/16_cost_and_scaling_model.md`.
@@ -263,7 +263,7 @@ placeholder, or IAM/KMS permission gap. `not_supported`/401 → wrong key. It's 
 
 ---
 
-## Pending Manual Verification — Claims Submission (needs a full-access Stedi key)
+## Pending Manual Verification — Claims Submission + ERA (needs a full-access Stedi key)
 
 Module 7a (claims submission, PR #57) is built, but the **live 837D submission path is
 unverified** because **Stedi's dental-claims submission endpoint is not available to
@@ -286,7 +286,17 @@ validated against an accepted claim.**
    private subnet), same as the eligibility live-call verification above.
 
 This is a **prerequisite before any real practice submits live claims through Molar**, but
-it is **not a dev blocker** for Module 7b (ERA) or anything else.
+it was **not a dev blocker** for Module 7b or anything else.
+
+**Module 7b (ERA pull) is blocked the same way.** The Stedi `Poll Transactions` / `835 ERA
+Report` endpoints can't be exercised in test mode (no claims submit → no ERAs; test ERAs
+additionally require sending the claim to the **Stedi Test Payer**). So `parse_stedi_era`,
+the poll-item 835 detection (`stedi._is_835`), and the JSON nesting
+(`parser._iter_claim_payment_objs`, `detailInfo[].paymentInfo[]`) + the report URL are
+**aligned to docs but unverified against a real response** — each is isolated to a single
+function for easy correction. At **Staging Checkpoint 5**, with the full-access key, run
+`python apps/api/scripts/stedi_era_smoke.py` to verify the live ERA shape (and confirm PCN
+match-back end-to-end against a claim submitted in step 2 above).
 
 ---
 
@@ -316,12 +326,13 @@ here.
 | Extract deductible-waiver flags from the 271 | Module 5 parser / Module 6 | Parser currently leaves `deductible_waived_*` at defaults (preventive=true, diagnostic/ortho=false) and doesn't detect waivers from the 271. Surfaced by the live Stedi smoke run: a Cigna DPPO applies the deductible to diagnostic (over-estimates patient). Errs conservative; low urgency. |
 | `treatment_plan_item_id` nullable FK ("complete plan item → procedure") | Module 3.5 design | When the plan→procedure link feature is built |
 | Fee-schedule CSV bulk import | Module 3.6 design | When a practice has hundreds of codes to load by hand |
-| Module 7b — 835 ERA ingest + auto-post payments | Module 7a spec §11 | Immediate next spec/plan after 7a |
+| Module 7b — 835 ERA ingest + auto-post payments | Module 7a spec §11 | ✅ **BUILT — PR #58** (`specs/2026-06-22-module-7b-era-ingest-design.md`) |
+| 7b follow-ups: `GET /era/remittances/{id}` detail endpoint; persisted poll cursor (vs re-listing the 30-day window); manual re-match of an unmatched payment to a chosen claim | Module 7b spec §10 | Detail endpoint + re-match demand-driven; persisted cursor rides with the async worker |
 | Async claim-submission worker (SQS/ECS) | Module 7a spec §11 | If submission volume demands it; provable only on AWS (near Staging Checkpoint 5) |
 | DentalXChange production client + raw-X12 `X12Builder` | Module 7a spec §11 | When a prod practice needs a non-Stedi route |
 | 277CA webhook + 276/277 status-polling worker | Module 7a spec §11 | With the async worker; 7b ERA is the authoritative paid/denied source |
 | MassHealth/Medicaid claims (`payer_type`, `claim_filing_code=MA`, DentaQuest enrollment) | Module 7a spec §11 | When a MassHealth practice onboards |
-| Secondary / COB claims (837D COB loops) | Module 7a spec §11 | After 7b (needs primary EOB data from an ERA) |
+| Secondary / COB claims (837D COB loops) | Module 7a spec §11 | Now unblocked (7b ERA provides primary EOB data); demand-driven when a practice needs secondary billing |
 | Multiple rendering providers per appointment; queryable `claim_service_lines`; claim attachments (275) | Module 7a spec §11 | Demand-driven |
 | **Stedi call-cost efficiency (cross-cutting)** — Stedi API calls (eligibility 270/271, claim submission, ERA transaction polling/report fetch) are a **material per-call cost** to us. Minimize them everywhere: (a) ERA poll uses the **Poll Transactions cursor (`pageToken`/`nextPageToken`)**, never a re-`List` of a window, and dedups GET-report calls on `transactionId`; (b) prefer **webhooks (free push)** over polling once the async path exists; (c) cache/short-circuit redundant eligibility re-checks; (d) batch where the API allows. Add a cost/efficiency check to any new Stedi integration. | Module 7b brainstorm (2026-06-22) + `research/16_cost_and_scaling_model.md` | **Now** for 7b's poll design; revisit each Stedi-touching module |
 
