@@ -31,6 +31,15 @@ export const ClaimSchema = z.object({
   clearinghouseClaimId: z.string().nullable(),
   clearinghouseStatus: z.string().nullable(),
   submissionErrors: z.array(z.string()).nullable(),
+  insurancePaidCents: z.number().int().nullable(),
+  patientResponsibilityCents: z.number().int().nullable(),
+  payerClaimControlNumber: z.string().nullable(),
+  adjustments: z
+    .array(z.object({ group: z.string(), code: z.string(), cents: z.number().int() }))
+    .nullable(),
+  denialCodes: z.array(z.string()).nullable(),
+  paidAt: z.string().datetime().nullable(),
+  remittanceId: UuidSchema.nullable(),
   submittedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
