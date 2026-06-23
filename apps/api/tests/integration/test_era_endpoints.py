@@ -209,7 +209,7 @@ class TestUnmatchedListAndResolve:
             )
         assert list_resp.status_code == 200, list_resp.text
         rows = list_resp.json()
-        assert len(rows) >= 1
+        assert len(rows) == 1
         unmatched_id = rows[0]["id"]
 
         # Step 3: resolve the first unmatched payment
@@ -225,3 +225,70 @@ class TestUnmatchedListAndResolve:
         assert resolve_resp.status_code == 200, resolve_resp.text
         resolved_body = resolve_resp.json()
         assert resolved_body["resolved"] is True
+
+    async def test_cross_tenant_isolation_404(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """Practice B cannot resolve an unmatched payment that belongs to practice A."""
+        # ── Practice A: poll to create an unmatched payment ──────────────────
+        practice_a, user_a, sub_a = await _seed(db_session)
+        decoded_a = {
+            "sub": sub_a,
+            "email": user_a.email,
+            "cognito:groups": ["admin"],
+        }
+        headers_a = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice_a.id),
+        }
+
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_a),
+            patch("app.routers.era.StediRemittanceClient", _FakeClient),
+            patch("app.routers.era.get_ssm_parameter", return_value="fake-key"),
+        ):
+            poll_resp = await client.post("/api/v1/era/poll", headers=mut(headers_a))
+        assert poll_resp.status_code == 200, poll_resp.text
+
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_a),
+        ):
+            list_resp = await client.get(
+                "/api/v1/era/unmatched",
+                headers=headers_a,
+                params={"resolved": "false"},
+            )
+        assert list_resp.status_code == 200, list_resp.text
+        rows = list_resp.json()
+        assert len(rows) == 1
+        a_unmatched_id = rows[0]["id"]
+
+        # ── Practice B: attempt to resolve A's unmatched payment → 404 ───────
+        practice_b, user_b, sub_b = await _seed(db_session)
+        decoded_b = {
+            "sub": sub_b,
+            "email": user_b.email,
+            "cognito:groups": ["admin"],
+        }
+        headers_b = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice_b.id),
+        }
+
+        with (
+            patch(_P_HEADER, return_value={"kid": "test-kid"}),
+            patch(_P_KEY, new=AsyncMock(return_value="fake-public-key")),
+            patch(_P_DECODE, return_value=decoded_b),
+        ):
+            resolve_resp = await client.post(
+                f"/api/v1/era/unmatched/{a_unmatched_id}/resolve",
+                headers=mut(headers_b),
+            )
+
+        assert resolve_resp.status_code == 404, resolve_resp.text
