@@ -198,9 +198,19 @@ guard makes the whole endpoint safely re-runnable after a crash with no double-p
 | `22` | Reversal of prior payment | `denied` (flag for review; rare in Phase 1) |
 
 Status comes from CLP02 + patient responsibility — **never** from `claimPaymentAmount == 0`.
-All CAS triplets land in `claims.adjustments`; `PR`-group amounts also drive
-`patient_responsibility_cents`. A `clearinghouse_rejected` claim never produces an ERA, so
-the matcher does not expect one.
+`patient_responsibility_cents` is taken from the canonical **CLP05**
+(`patientResponsibilityAmount`); all CAS triplets are stored verbatim in
+`claims.adjustments` for reference. A `clearinghouse_rejected` claim never produces an ERA,
+so the matcher does not expect one.
+
+**Match guard (implementation detail):** an ERA only posts onto a claim that is in a
+**postable** state — accepted and awaiting payment (`status IN ('submitted',
+'acknowledged', 'pending')`) and not already posted (`remittance_id IS NULL`). This prevents
+a second/reversal ERA from silently overwriting an already-paid claim and prevents posting
+onto a never-submitted (`draft` / `submission_failed`) claim. A truncated-PCN **prefix**
+that matches more than one postable claim is treated as **no-match** (routed to the unmatched
+queue) rather than posting onto an arbitrary claim. All such non-matches flow to
+`unmatched_era_payments` for manual review.
 
 ## 7. API
 
@@ -210,8 +220,7 @@ regenerated via `pnpm generate` (never hand-edit `generated.py`).
 
 - `POST /api/v1/era/poll` — run `poll_and_post_eras`; returns the summary. `403` if the
   feature is disabled.
-- `GET  /api/v1/era/remittances?from=&to=` — list ingested remittances (worklist).
-- `GET  /api/v1/era/remittances/{id}` — detail incl. matched claims + `raw_response`.
+- `GET  /api/v1/era/remittances` — list ingested remittances (worklist).
 - `GET  /api/v1/era/unmatched?resolved=false` — manual-review queue.
 - `POST /api/v1/era/unmatched/{id}/resolve` — mark resolved (operator handled it manually;
   re-matching to a chosen claim is deferred).
@@ -254,6 +263,8 @@ TDD; new exported functions/endpoints ship with happy path + one failure case.
 | Queryable `claim_service_lines` (line-level payments) | If Module 8 / reporting needs line granularity |
 | Writing to the patient ledger (charges/payments/balance) | **Module 8** |
 | Manual re-match of an unmatched payment to a chosen claim | Demand-driven (Phase 1 just clears the flag) |
+| `GET /era/remittances/{id}` detail endpoint (matched claims + `raw_response` for debugging) | Demand-driven (the worklist list + claim panel cover Phase 1; `raw_response` is persisted on the row) |
+| Persisted poll cursor (store `nextPageToken`/last-`processedAt` instead of re-listing a 30-day window each poll) | With the async worker; the dedup guard already prevents re-fetch/re-post, so the sync slice re-lists the window |
 | Raw-X12 `parse_835()` for a non-Stedi route | With DentalXChange (deferred in 7a) |
 | **Stedi call-cost efficiency** (cursor poll, transactionId dedup, webhooks over polling) | Cross-cutting — honored in 7b's poll; revisit each Stedi module |
 
