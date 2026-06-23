@@ -26,7 +26,9 @@ def upgrade() -> None:
     op.add_column("claims", sa.Column("adjustments", postgresql.JSONB, nullable=True))
     op.add_column("claims", sa.Column("denial_codes", postgresql.ARRAY(sa.Text), nullable=True))
     op.add_column("claims", sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("claims", sa.Column("remittance_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column(
+        "claims", sa.Column("remittance_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
 
     op.create_table(
         "era_remittances",
@@ -41,8 +43,14 @@ def upgrade() -> None:
         sa.Column("matched_count", sa.Integer, nullable=True),
         sa.Column("unmatched_count", sa.Integer, nullable=True),
         sa.Column("raw_response", postgresql.JSONB, nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True),
+            server_default=sa.text("now()"), nullable=False,
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True),
+            server_default=sa.text("now()"), nullable=False,
+        ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_accessed_by", sa.String(255), nullable=True),
         sa.Column("last_accessed_at", sa.DateTime(timezone=True), nullable=True),
@@ -65,8 +73,14 @@ def upgrade() -> None:
         sa.Column("raw_claim_payment", postgresql.JSONB, nullable=False),
         sa.Column("resolved", sa.Boolean, nullable=False, server_default="false"),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True),
+            server_default=sa.text("now()"), nullable=False,
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True),
+            server_default=sa.text("now()"), nullable=False,
+        ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_accessed_by", sa.String(255), nullable=True),
         sa.Column("last_accessed_at", sa.DateTime(timezone=True), nullable=True),
