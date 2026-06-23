@@ -20,7 +20,7 @@ async def _match_claim(
     """Match by PCN: exact first, then prefix (payers may truncate the PCN)."""
     if not pcn:
         return None
-    exact = await session.scalar(
+    exact: Claim | None = await session.scalar(
         select(Claim).where(
             Claim.practice_id == practice_id,
             Claim.patient_control_number == pcn,
@@ -30,16 +30,18 @@ async def _match_claim(
     if exact is not None:
         return exact
     # Prefix: the stored claim PCN starts with the (possibly truncated) ERA value.
-    return await session.scalar(
+    # pcn is hex-safe (no SQL LIKE wildcards) — see generate_pcn() in claims/idempotency.py.
+    prefix: Claim | None = await session.scalar(
         select(Claim).where(
             Claim.practice_id == practice_id,
             Claim.patient_control_number.like(f"{pcn}%"),
             Claim.deleted_at.is_(None),
         )
     )
+    return prefix
 
 
-async def _post_to_claim(
+def _post_to_claim(
     claim: Claim, cp: ClaimPayment, remittance_id: uuid.UUID, user_sub: str | None
 ) -> None:
     fields = claim_payment_fields(cp)
@@ -107,7 +109,7 @@ async def poll_and_post_eras(
         for cp in era.claim_payments:
             claim = await _match_claim(session, practice_id, cp.patient_control_number)
             if claim is not None:
-                await _post_to_claim(claim, cp, remittance.id, user_sub)
+                _post_to_claim(claim, cp, remittance.id, user_sub)
                 r_matched += 1
             else:
                 session.add(

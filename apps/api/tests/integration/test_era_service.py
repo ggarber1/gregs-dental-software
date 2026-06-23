@@ -1,14 +1,14 @@
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim
-from app.models.era_remittance import ERARemittance, UnmatchedERAPayment
+from app.models.era_remittance import UnmatchedERAPayment
 from app.services.era.base import RemittanceClient, Transaction
-from app.services.era.service import poll_and_post_eras
+from app.services.era.service import poll_and_post_eras, resolve_unmatched_payment
 
 pytestmark = pytest.mark.integration
 
@@ -104,7 +104,9 @@ async def test_dedup_skips_already_ingested_no_second_fetch(db_session: AsyncSes
     await poll_and_post_eras(db_session, practice_id, client=client, since=since, user_sub="s")
     assert client.fetches == 1
     # second poll: same transaction id already ingested -> skipped, no new fetch
-    summary = await poll_and_post_eras(db_session, practice_id, client=client, since=since, user_sub="s")
+    summary = await poll_and_post_eras(
+        db_session, practice_id, client=client, since=since, user_sub="s"
+    )
     assert client.fetches == 1
     assert summary["new"] == 0
 
@@ -137,3 +139,46 @@ async def test_prefix_match_handles_truncated_pcn(db_session: AsyncSession):
     assert summary["matched"] == 1
     await db_session.refresh(claim)
     assert claim.status == "partially_paid"
+
+
+@pytest.mark.asyncio
+async def test_resolve_unmatched_marks_resolved(db_session: AsyncSession):
+    practice_id = uuid.uuid4()
+    client = _FakeClient({"txn-1": _era_doc("NOPE")})
+    await poll_and_post_eras(
+        db_session, practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+    )
+    row = (
+        await db_session.scalars(
+            select(UnmatchedERAPayment).where(UnmatchedERAPayment.practice_id == practice_id)
+        )
+    ).first()
+    assert row is not None
+    resolved = await resolve_unmatched_payment(db_session, practice_id, row.id)
+    assert resolved is not None
+    assert resolved.resolved is True
+    assert resolved.resolved_at is not None
+
+
+@pytest.mark.asyncio
+async def test_resolve_unmatched_not_found_returns_none(db_session: AsyncSession):
+    assert await resolve_unmatched_payment(db_session, uuid.uuid4(), uuid.uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_unmatched_other_practice_returns_none(db_session: AsyncSession):
+    practice_id = uuid.uuid4()
+    client = _FakeClient({"txn-1": _era_doc("NOPE")})
+    await poll_and_post_eras(
+        db_session, practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+    )
+    row = (
+        await db_session.scalars(
+            select(UnmatchedERAPayment).where(UnmatchedERAPayment.practice_id == practice_id)
+        )
+    ).first()
+    assert row is not None
+    # a different practice cannot resolve another practice's unmatched payment
+    assert await resolve_unmatched_payment(db_session, uuid.uuid4(), row.id) is None
