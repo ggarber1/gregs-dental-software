@@ -32,6 +32,13 @@ export interface Claim {
   clearinghouseClaimId: string | null;
   clearinghouseStatus: string | null;
   submissionErrors: string[] | null;
+  insurancePaidCents: number | null;
+  patientResponsibilityCents: number | null;
+  payerClaimControlNumber: string | null;
+  adjustments: Array<{ group: string; code: string; cents: number }> | null;
+  denialCodes: string[] | null;
+  paidAt: string | null;
+  remittanceId: string | null;
   submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
