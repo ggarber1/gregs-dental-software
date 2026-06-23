@@ -80,6 +80,7 @@ export function useResolveUnmatched() {
       ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["era", "unmatched"] });
+      void qc.invalidateQueries({ queryKey: eraKeys.remittances });
     },
   });
 }

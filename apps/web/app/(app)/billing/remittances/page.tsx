@@ -75,6 +75,13 @@ export default function RemittancesPage() {
                   <TableCell className="text-muted-foreground">{r.paymentDate ?? "—"}</TableCell>
                 </TableRow>
               ))}
+              {(remittances ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    No remittances yet. Click &ldquo;Poll for ERAs&rdquo; to fetch.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
