@@ -182,3 +182,70 @@ async def test_resolve_unmatched_other_practice_returns_none(db_session: AsyncSe
     assert row is not None
     # a different practice cannot resolve another practice's unmatched payment
     assert await resolve_unmatched_payment(db_session, uuid.uuid4(), row.id) is None
+
+
+@pytest.mark.asyncio
+async def test_draft_claim_is_not_matched(db_session: AsyncSession):
+    claim = await _seed_claim(db_session, "PCNDRAFT")
+    claim.status = "draft"
+    await db_session.commit()
+    client = _FakeClient({"txn-1": _era_doc("PCNDRAFT")})
+    summary = await poll_and_post_eras(
+        db_session, claim.practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+    )
+    assert summary["matched"] == 0
+    assert summary["unmatched"] == 1
+    await db_session.refresh(claim)
+    assert claim.status == "draft"  # untouched
+
+
+@pytest.mark.asyncio
+async def test_already_posted_claim_is_not_overwritten(db_session: AsyncSession):
+    claim = await _seed_claim(db_session, "PCNPAID1")
+    client = _FakeClient({"txn-1": _era_doc("PCNPAID1")})
+    practice_id = claim.practice_id
+    since = datetime.now(UTC) - timedelta(days=30)
+    # first ERA posts and sets remittance_id
+    await poll_and_post_eras(db_session, practice_id, client=client, since=since, user_sub="s")
+    await db_session.refresh(claim)
+    first_remittance = claim.remittance_id
+    assert first_remittance is not None
+    # a different ERA (different txn id) for the same PCN must NOT overwrite — goes to review
+    client2 = _FakeClient({"txn-2": _era_doc("PCNPAID1", paid="100.00", pr="0.00")})
+    summary = await poll_and_post_eras(
+        db_session, practice_id, client=client2, since=since, user_sub="s"
+    )
+    assert summary["matched"] == 0
+    assert summary["unmatched"] == 1
+    await db_session.refresh(claim)
+    assert claim.remittance_id == first_remittance  # unchanged
+    assert claim.insurance_paid_cents == 20000  # original payment, not overwritten
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_prefix_is_routed_to_unmatched(db_session: AsyncSession):
+    practice_id = uuid.uuid4()
+    # two postable claims sharing a prefix
+    for pcn in ("ABCDEF12345", "ABCDEF67890"):
+        c = await _seed_claim(db_session, pcn)
+        c.practice_id = practice_id
+    await db_session.commit()
+    client = _FakeClient({"txn-1": _era_doc("ABCDEF")})  # truncated prefix matches both
+    summary = await poll_and_post_eras(
+        db_session, practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+    )
+    assert summary["matched"] == 0
+    assert summary["unmatched"] == 1
+
+
+@pytest.mark.asyncio
+async def test_unique_prefix_still_matches(db_session: AsyncSession):
+    claim = await _seed_claim(db_session, "ZZZUNIQUE12345")
+    client = _FakeClient({"txn-1": _era_doc("ZZZUNIQUE")})  # unambiguous prefix
+    summary = await poll_and_post_eras(
+        db_session, claim.practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+    )
+    assert summary["matched"] == 1

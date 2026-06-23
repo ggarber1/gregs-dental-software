@@ -13,17 +13,31 @@ from app.services.era.base import ClaimPayment, ERAPayment, RemittanceClient
 from app.services.era.parser import parse_stedi_era
 from app.services.era.posting import claim_payment_fields
 
+# An ERA only posts onto a claim that was accepted and is still awaiting payment, and
+# that has not already had a remittance posted. This prevents (a) overwriting an already
+# paid/denied claim when a second or reversal ERA arrives and (b) posting onto a claim
+# that was never successfully submitted (draft / clearinghouse_rejected / submission_failed).
+# Non-matches flow to the unmatched-review queue.
+_POSTABLE_STATUSES = ("submitted", "acknowledged", "pending")
+
 
 async def _match_claim(
     session: AsyncSession, practice_id: uuid.UUID, pcn: str
 ) -> Claim | None:
-    """Match by PCN: exact first, then prefix (payers may truncate the PCN)."""
+    """Match by PCN: exact first, then prefix (payers may truncate the PCN).
+
+    Restricted to postable claims (accepted, awaiting payment, not already posted).
+    An ambiguous prefix that matches more than one claim is treated as no-match so the
+    payment is routed to manual review rather than posted onto an arbitrary claim.
+    """
     if not pcn:
         return None
     exact: Claim | None = await session.scalar(
         select(Claim).where(
             Claim.practice_id == practice_id,
             Claim.patient_control_number == pcn,
+            Claim.status.in_(_POSTABLE_STATUSES),
+            Claim.remittance_id.is_(None),
             Claim.deleted_at.is_(None),
         )
     )
@@ -31,14 +45,23 @@ async def _match_claim(
         return exact
     # Prefix: the stored claim PCN starts with the (possibly truncated) ERA value.
     # pcn is hex-safe (no SQL LIKE wildcards) — see generate_pcn() in claims/idempotency.py.
-    prefix: Claim | None = await session.scalar(
-        select(Claim).where(
-            Claim.practice_id == practice_id,
-            Claim.patient_control_number.like(f"{pcn}%"),
-            Claim.deleted_at.is_(None),
+    # Fetch up to 2: if the prefix is ambiguous, route to review rather than guess.
+    candidates = (
+        await session.scalars(
+            select(Claim)
+            .where(
+                Claim.practice_id == practice_id,
+                Claim.patient_control_number.like(f"{pcn}%"),
+                Claim.status.in_(_POSTABLE_STATUSES),
+                Claim.remittance_id.is_(None),
+                Claim.deleted_at.is_(None),
+            )
+            .limit(2)
         )
-    )
-    return prefix
+    ).all()
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
 
 
 def _post_to_claim(
