@@ -28,6 +28,8 @@ Everything a practice needs to run day-to-day before seeing a patient.
 - 🔄 Insurance — plan management ✅; eligibility checks (271) manual/sync ✅ (PR #52); async pre-appointment auto-verify + queue/badge UI + staging Checkpoint 5 pending
 - ✅ Intake forms (digital forms with patient-facing token link)
 - ✅ Medical history (versioned, with alerts bar for blood thinners/bisphosphonates/etc.)
+- 🔲 Practice Signup & Onboarding Flow — self-signup (email + practice name), email verification, guided first-run wizard (NPI, billing address, provider(s), Stedi API key entry, Stripe payment method); current auth is functional but not customer-ready
+- 🔲 SaaS Subscription Billing (Stripe) — payment method capture at signup, recurring invoice via Stripe Billing, hosted customer portal (update card, view invoices, cancel); prerequisite before any practice is charged
 
 ---
 
@@ -75,7 +77,16 @@ dependency graph and detailed sequencing.
 - ✅ **Module 7 — Claims Submission (837D) + ERA Processing (835)** — split into **7a** and **7b**, both built. **7a (claims submission, PR #57 merged):** `DentalClaimInput` → Stedi Dental Claims JSON endpoint (Stedi generates the X12; synchronous 277CA), sync submit endpoint, claims table, claim panel + worklist. Spec: `specs/2026-06-18-module-7a-claims-submission-design.md`. **7b (835 ERA ingest + auto-post, PR #58):** Stedi `Poll Transactions` → `835 ERA Report` (JSON, no raw X12) → parse → match-by-PCN onto the `claims` row (paid/patient-resp/adjustments/denial), sync `POST /era/poll` + remittances worklist + unmatched-review queue; `era_remittances`/`unmatched_era_payments` tables (migration 0033). Spec: `specs/2026-06-22-module-7b-era-ingest-design.md`. **Both live paths (claim submit + ERA pull) are unverified until a full-access Stedi key at Staging Checkpoint 5** — see "Pending Manual Verification" below. (requires 3.5; 6 optional)
 - 🔲 **Module 8 — Billing & Payments** — patient ledger (charges, payments, adjustments, running balance); patient-facing statements (email/print); insurance aging report (outstanding claims by carrier + age bucket); QuickBooks export. (requires 7)
 
-**Clearinghouse call allowance:** The $249/mo plan includes 250 clearinghouse calls/month (claims + eligibility combined). Track monthly usage per practice in the DB so we can identify practices approaching or exceeding the limit. Overage handling TBD — options are absorb the cost, throttle, or add a per-call surcharge above 250. At Stedi PAYG rates ($0.30/call), the 250-call bundle costs ~$75/mo and is already priced into the margin model. See `research/16_cost_and_scaling_model.md`.
+**Clearinghouse call allowance & overage billing:**
+
+The $249/mo plan includes 250 clearinghouse calls/month (claims + eligibility combined). At Stedi PAYG rates ($0.30/call), the 250-call bundle costs ~$75/mo and is already priced into the margin model. See `research/16_cost_and_scaling_model.md`.
+
+Concrete overage plan (not yet built):
+- **Track usage:** `clearinghouse_usage` table — one row per call (practice_id, call_type, timestamp). Monthly count queryable at billing time and surfaced in the Practice Settings UI so staff can self-monitor.
+- **Alert at 200 calls:** email the practice owner ("you've used 200 of your 250 included calls this month — overage is billed at $0.50/call").
+- **Overage billing via Stripe Metered Billing:** at month end, report `max(0, calls - 250)` units to a Stripe metered usage item on the subscription; Stripe adds the overage line to the next invoice automatically. Rate: $0.50/call (covers our $0.30 Stedi cost + $0.20 margin).
+- **No throttle:** don't cut off clinical workflows mid-month — bill the overage instead. A practice submitting 300 claims is a good problem; throttling would cost the relationship.
+- **Dependency:** Stripe subscription billing (Phase 1 above) must be live first.
 
 ---
 
@@ -190,6 +201,15 @@ Grow beyond solo practices; expand TAM.
 ### 5.3 Online Booking
 - Public-facing booking page (by procedure type, provider, time)
 - Integrates with live schedule — no double-booking
+
+### 5.4 Multi-Practice & DSO Support
+- **Organization layer** above practice: one account (owner) owns N practices; a new `organizations` table with a FK from `practices.organization_id`
+- **Billing rollup:** single Stripe subscription per org, priced per practice seat; overage tracked and billed at the org level (one invoice, one card on file)
+- **Auth scoping:** new `org_admin` role that can see all practices in the org; existing staff roles remain scoped to a single practice
+- **Cross-practice analytics** (4.7/4.8 metrics at the org level) — production, collection, no-show rates rolled up across all locations
+- **Shared providers:** a provider can be assigned to multiple practices within the same org (relevant for associate dentists who float between locations)
+- **Note:** `practice_id` is already on every table so the data model supports it; the UI, auth, and billing rollup are what need to be built. No schema migration needed to enable the feature — just add the `organizations` table and the FK.
+- **Dependency:** Validate single-practice billing and auth at scale before tackling multi-practice complexity. Also a prerequisite for 4.8 Benchmarking at meaningful scale.
 
 ---
 
@@ -371,5 +391,5 @@ implementation plan when their phase comes up.
 
 - **Phase 3 scope:** Which billing features are table stakes vs. nice-to-have? ERA + ledger + statements are probably the minimum before dropping Eaglesoft entirely for billing.
 - **Clearinghouse:** Decided — Stedi PAYG (837D dental confirmed, no per-provider fees, transparent per-call pricing). See `research/17_clearinghouse_comparison.md`. Open sub-question: overage policy above the 250-call monthly allowance (absorb, throttle, or surcharge).
-- **Multi-location practices:** Not scoped yet. `practice_id` is on every table, so the data model supports it, but the UI and billing rollup logic do not.
+- **Multi-location practices:** Scoped as Phase 5.4. `practice_id` is on every table so the data model supports it; the UI, auth, and billing rollup are what need to be built.
 - **HIPAA BAA with Anthropic:** Must be in place before ambient notes (4.1) goes to production. Start the paperwork during Phase 2 so it doesn't block 4.1.
