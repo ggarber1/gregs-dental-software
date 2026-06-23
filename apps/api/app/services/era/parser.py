@@ -44,8 +44,7 @@ def _iter_claim_payment_objs(transaction: dict[str, Any]) -> Iterator[dict[str, 
     Documented shape: transaction.detailInfo[].paymentInfo[].
     """
     for detail in transaction.get("detailInfo") or []:
-        for cp in detail.get("paymentInfo") or []:
-            yield cp
+        yield from detail.get("paymentInfo") or []
 
 
 def _parse_adjustments(cp_obj: dict[str, Any]) -> tuple[ClaimAdjustment, ...]:

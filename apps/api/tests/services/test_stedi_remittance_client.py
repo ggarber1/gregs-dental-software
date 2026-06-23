@@ -31,8 +31,14 @@ async def test_poll_filters_to_835_and_returns_ids():
 @pytest.mark.asyncio
 async def test_poll_paginates_via_next_page_token():
     pages = {
-        None: {"items": [{"transactionId": "a", "transactionSetIdentifier": "835"}], "nextPageToken": "p2"},
-        "p2": {"items": [{"transactionId": "b", "transactionSetIdentifier": "835"}], "nextPageToken": None},
+        None: {
+            "items": [{"transactionId": "a", "transactionSetIdentifier": "835"}],
+            "nextPageToken": "p2",
+        },
+        "p2": {
+            "items": [{"transactionId": "b", "transactionSetIdentifier": "835"}],
+            "nextPageToken": None,
+        },
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -62,7 +68,9 @@ async def test_fetch_era_returns_json_and_sends_key_auth():
 
 @pytest.mark.asyncio
 async def test_fetch_era_server_error_raises_retryable():
-    client = StediRemittanceClient(api_key="k", client=_client(lambda r: httpx.Response(503, json={})))
+    client = StediRemittanceClient(
+        api_key="k", client=_client(lambda r: httpx.Response(503, json={}))
+    )
     with pytest.raises(ERAFetchError) as exc:
         await client.fetch_era("txn-1")
     assert exc.value.retryable is True
@@ -70,7 +78,9 @@ async def test_fetch_era_server_error_raises_retryable():
 
 @pytest.mark.asyncio
 async def test_poll_4xx_raises_non_retryable():
-    client = StediRemittanceClient(api_key="k", client=_client(lambda r: httpx.Response(400, json={})))
+    client = StediRemittanceClient(
+        api_key="k", client=_client(lambda r: httpx.Response(400, json={}))
+    )
     with pytest.raises(ERAFetchError) as exc:
         await client.poll_transactions(datetime(2026, 6, 1, tzinfo=UTC))
     assert exc.value.retryable is False

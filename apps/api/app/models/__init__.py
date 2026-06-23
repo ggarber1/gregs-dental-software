@@ -4,10 +4,10 @@ from app.models.appointment_reminder import AppointmentReminder as AppointmentRe
 from app.models.appointment_type import AppointmentType as AppointmentType
 from app.models.audit_log import AuditLog as AuditLog
 from app.models.claim import Claim as Claim
-from app.models.era_remittance import ERARemittance as ERARemittance
-from app.models.era_remittance import UnmatchedERAPayment as UnmatchedERAPayment
 from app.models.clinical_note import ClinicalNote as ClinicalNote
 from app.models.eligibility_check import EligibilityCheck as EligibilityCheck
+from app.models.era_remittance import ERARemittance as ERARemittance
+from app.models.era_remittance import UnmatchedERAPayment as UnmatchedERAPayment
 from app.models.insurance_plan import InsurancePlan as InsurancePlan
 from app.models.intake_form import IntakeForm as IntakeForm
 from app.models.medical_history_version import MedicalHistoryVersion as MedicalHistoryVersion

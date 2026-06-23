@@ -49,12 +49,17 @@ class StediRemittanceClient(RemittanceClient):
                 try:
                     resp = await client.get(_POLL_URL, params=params, headers=headers)
                 except httpx.HTTPError as exc:
-                    raise ERAFetchError(f"Stedi poll transport error: {exc}", retryable=True) from exc
+                    raise ERAFetchError(
+                        f"Stedi poll transport error: {exc}", retryable=True
+                    ) from exc
                 if resp.status_code >= 500:
-                    raise ERAFetchError(f"Stedi poll server error {resp.status_code}", retryable=True)
+                    raise ERAFetchError(
+                        f"Stedi poll server error {resp.status_code}", retryable=True
+                    )
                 if resp.status_code >= 400:
                     raise ERAFetchError(
-                        f"Stedi poll rejected {resp.status_code}: {resp.text[:200]}", retryable=False
+                        f"Stedi poll rejected {resp.status_code}: {resp.text[:200]}",
+                        retryable=False,
                     )
                 body = resp.json()
                 for item in body.get("items") or []:
@@ -86,7 +91,8 @@ class StediRemittanceClient(RemittanceClient):
                     f"Stedi ERA rejected {resp.status_code}: {resp.text[:200]}", retryable=False
                 )
             try:
-                return resp.json()
+                data: dict[str, Any] = resp.json()
+                return data
             except ValueError as exc:
                 raise ERAFetchError(
                     f"Stedi returned non-JSON ERA body: {resp.text[:200]}", retryable=True
