@@ -80,7 +80,7 @@ async def poll_eras(request: Request) -> ERAPollSummary:
             select(PracticeModel).where(PracticeModel.id == practice_id)
         )
         await require_feature(session, practice_id, _FEATURE, practice=practice)
-        assert practice is not None
+        assert practice is not None  # require_feature 403s when the practice is missing
 
         if not practice.clearinghouse_api_key_ssm_path:
             raise _err(422, "MISSING_CLEARINGHOUSE", "Clearinghouse credentials are not configured")
