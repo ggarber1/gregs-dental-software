@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC
+from typing import cast
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
@@ -14,7 +15,7 @@ from app.core.ssm import get_ssm_parameter
 from app.models.claim import Claim as ClaimModel
 from app.models.practice import Practice as PracticeModel
 from app.routers.patients import _require_practice_scope, _require_write_role
-from app.schemas.generated import ApiError, Claim, ClaimStatus, Error
+from app.schemas.generated import Adjustment, ApiError, Claim, ClaimStatus, Error
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
     submit_claim_for_appointment,
@@ -57,6 +58,13 @@ def _to_schema(row: ClaimModel) -> Claim:
         clearinghouseClaimId=row.clearinghouse_claim_id,
         clearinghouseStatus=row.clearinghouse_status,
         submissionErrors=row.submission_errors,
+        insurancePaidCents=row.insurance_paid_cents,
+        patientResponsibilityCents=row.patient_responsibility_cents,
+        payerClaimControlNumber=row.payer_claim_control_number,
+        adjustments=cast("list[Adjustment] | None", row.adjustments),
+        denialCodes=row.denial_codes,
+        paidAt=row.paid_at.replace(tzinfo=UTC) if row.paid_at else None,
+        remittanceId=row.remittance_id,
         submittedAt=row.submitted_at.replace(tzinfo=UTC) if row.submitted_at else None,
         createdAt=(row.created_at).replace(tzinfo=UTC),
         updatedAt=(row.updated_at).replace(tzinfo=UTC),

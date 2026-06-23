@@ -49,7 +49,7 @@ def validate_claim(claim: DentalClaimInput) -> ValidationResult:
         ):
             warnings.append(f"Line {i}: {line.cdt_code} typically requires a tooth number")
 
-    if len(claim.patient_control_number) > 20:
-        errors.append("Patient control number must be 20 characters or fewer")
+    if len(claim.patient_control_number) > 17:
+        errors.append("Patient control number must be 17 characters or fewer")
 
     return ValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)

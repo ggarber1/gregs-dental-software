@@ -24,6 +24,6 @@ def test_pcn_is_deterministic_and_within_stedi_limit():
     cid = "0d2b9f3a-1c4e-4a8b-9f2a-123456789abc"
     pcn = generate_pcn(cid)
     assert pcn == generate_pcn(cid)
-    assert 1 <= len(pcn) <= 20
+    assert 1 <= len(pcn) <= 17  # Stedi: payers may truncate beyond 17 chars
     # only X12-safe chars (no reserved delimiters ~ * : ^)
     assert all(c not in "~*:^" for c in pcn)

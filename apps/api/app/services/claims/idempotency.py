@@ -22,8 +22,8 @@ def generate_claim_idempotency_key(
 def generate_pcn(claim_id: str) -> str:
     """Patient Control Number (CLM01).
 
-    Deterministic from the claim's own UUID; <= 20 chars (Stedi JSON limit) and
-    uses only X12-safe characters. The 835 ERA (Module 7b) matches payments back
-    to claims on this value.
+    Deterministic from the claim's own UUID; <= 17 chars and X12-safe. Stedi warns
+    that some payers truncate the PCN beyond 17 chars in 835 ERAs / 277CAs, which
+    breaks match-back; keeping it <= 17 makes Module 7b's ERA matching reliable.
     """
-    return claim_id.replace("-", "")[:20].upper()
+    return claim_id.replace("-", "")[:17].upper()

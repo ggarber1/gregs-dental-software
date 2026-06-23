@@ -61,6 +61,19 @@ export function ClaimPanel({ appointmentId }: { appointmentId: string }) {
                 ))}
               </ul>
             )}
+            {(latest.status === "paid" ||
+              latest.status === "partially_paid" ||
+              latest.status === "denied") && (
+              <div className="mt-2 space-y-1 text-sm">
+                <div>Insurance paid: {centsToUsd(latest.insurancePaidCents ?? 0)}</div>
+                <div>Patient responsibility: {centsToUsd(latest.patientResponsibilityCents ?? 0)}</div>
+                {latest.denialCodes && latest.denialCodes.length > 0 && (
+                  <div className="text-destructive">
+                    Denial codes: {latest.denialCodes.join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {submit.isError && (

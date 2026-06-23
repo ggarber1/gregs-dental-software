@@ -153,6 +153,11 @@ import {
   OverrideCopaySchema,
 } from "../src/schemas/copay.js";
 import { ClaimSchema, ClaimStatusSchema } from "../src/schemas/claims.js";
+import {
+  ERARemittanceSchema,
+  UnmatchedERAPaymentSchema,
+  ERAPollSummarySchema,
+} from "../src/schemas/era.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -273,6 +278,10 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   // Claims
   ClaimStatus: ClaimStatusSchema,
   Claim: ClaimSchema,
+  // ERA
+  ERARemittance: ERARemittanceSchema,
+  UnmatchedERAPayment: UnmatchedERAPaymentSchema,
+  ERAPollSummary: ERAPollSummarySchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
