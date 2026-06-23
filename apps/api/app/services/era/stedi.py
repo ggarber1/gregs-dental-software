@@ -79,16 +79,18 @@ class StediRemittanceClient(RemittanceClient):
                 resp = await client.get(url, headers=headers)
             except httpx.HTTPError as exc:
                 raise ERAFetchError(f"Stedi ERA transport error: {exc}", retryable=True) from exc
+            if resp.status_code >= 500:
+                raise ERAFetchError(f"Stedi ERA server error {resp.status_code}", retryable=True)
+            if resp.status_code >= 400:
+                raise ERAFetchError(
+                    f"Stedi ERA rejected {resp.status_code}: {resp.text[:200]}", retryable=False
+                )
+            try:
+                return resp.json()
+            except ValueError as exc:
+                raise ERAFetchError(
+                    f"Stedi returned non-JSON ERA body: {resp.text[:200]}", retryable=True
+                ) from exc
         finally:
             if owns_client:
                 await client.aclose()
-        if resp.status_code >= 500:
-            raise ERAFetchError(f"Stedi ERA server error {resp.status_code}", retryable=True)
-        if resp.status_code >= 400:
-            raise ERAFetchError(
-                f"Stedi ERA rejected {resp.status_code}: {resp.text[:200]}", retryable=False
-            )
-        try:
-            return resp.json()
-        except ValueError as exc:
-            raise ERAFetchError(f"Stedi returned non-JSON ERA body: {resp.text[:200]}", retryable=True) from exc

@@ -66,3 +66,11 @@ async def test_fetch_era_server_error_raises_retryable():
     with pytest.raises(ERAFetchError) as exc:
         await client.fetch_era("txn-1")
     assert exc.value.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_poll_4xx_raises_non_retryable():
+    client = StediRemittanceClient(api_key="k", client=_client(lambda r: httpx.Response(400, json={})))
+    with pytest.raises(ERAFetchError) as exc:
+        await client.poll_transactions(datetime(2026, 6, 1, tzinfo=UTC))
+    assert exc.value.retryable is False
