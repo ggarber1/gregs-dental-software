@@ -10,7 +10,7 @@ from app.models.appointment_procedure import AppointmentProcedure
 from app.models.ledger_entry import LedgerEntry
 
 
-class _LedgerAppointment(Protocol):
+class LedgerAppointment(Protocol):
     id: uuid.UUID
     practice_id: uuid.UUID
     patient_id: uuid.UUID
@@ -191,7 +191,7 @@ async def _live_charges_by_proc(
 
 
 async def reconcile_charges_for_appointment(
-    session: AsyncSession, appointment: _LedgerAppointment, *, user_sub: str | None = None
+    session: AsyncSession, appointment: LedgerAppointment, *, user_sub: str | None = None
 ) -> None:
     """Ensure exactly one live charge == fee_cents per live procedure of `appointment`.
 

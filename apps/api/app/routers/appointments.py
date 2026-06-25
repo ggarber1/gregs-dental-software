@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import case, func, select
@@ -26,6 +27,10 @@ from app.schemas.generated import (
     Error,
     ReminderSummary,
     UpdateAppointment,
+)
+from app.services.ledger.posting import (
+    LedgerAppointment,
+    reconcile_charges_for_appointment,
 )
 from app.services.reminders import cancel_reminders_for_appointment, stage_reminder_jobs
 from app.services.risk_scoring import PatientAppointmentHistory, compute_risk_score
@@ -684,6 +689,27 @@ async def update_appointment(
                 row, history, is_confirmed=True, lead_time_hours=lead_hours
             )
             row.no_show_risk_computed_at = datetime.now(UTC)
+
+        # Post patient-ledger charges when the visit is finalized at checkout.
+        # Soft feature gate: skip silently if the practice hasn't enabled the ledger
+        # (never block appointment completion on a billing feature flag).
+        if (
+            "status" in provided
+            and body.status == "completed"
+            and row.patient_id is not None
+        ):
+            ledger_practice = await session.scalar(
+                select(PracticeModel).where(PracticeModel.id == practice_id)
+            )
+            if ledger_practice and (getattr(ledger_practice, "features", None) or {}).get(
+                "billing_ledger"
+            ):
+                user_sub = getattr(request.state.user, "sub", None)
+                # row.patient_id is non-None here (guarded above); the model column is
+                # nullable so cast to the reconcile protocol's non-optional shape.
+                await reconcile_charges_for_appointment(
+                    session, cast(LedgerAppointment, row), user_sub=user_sub
+                )
 
         await session.commit()
 
