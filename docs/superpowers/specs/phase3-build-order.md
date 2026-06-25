@@ -28,7 +28,8 @@ Module 6 — Co-pay Calculation  (requires 3.5 procedures + 3.6 fees + 5 eligibi
 Module 7 — Claims Submission (837D) + ERA Processing (835)  (requires 3.5)
         │
         ▼
-Module 8 — Billing & Payments (ledger, statements, aging, QuickBooks export)  (requires 7)
+Module 8 — Billing & Payments  (requires 7)
+        8a — Patient Ledger (✅ built); 8b+ — statements, aging, QuickBooks export
 ```
 
 ## Build order
@@ -41,7 +42,7 @@ Module 8 — Billing & Payments (ledger, statements, aging, QuickBooks export)  
 | 4 | **6 — Co-pay Calculation** | 3.5, 3.6, 5 | — | `2026-06-16-module-6-copay-calculation-design.md` (✅ **done** — PRs #53–#56: contracted fees, per-CDT coinsurance parser, full CDT catalog, engine+service+endpoints+card. DHMO/downgrade/secondary-COB deferred per §Deferred) |
 | 5a | **7a — Claims Submission (837D)** | 3.5 (6 optional) | — | `2026-06-18-module-7a-claims-submission-design.md` (✅ built — Stedi Dental Claims JSON, sync submit slice; async/DentalXChange/MassHealth/secondary deferred per §11) |
 | 5b | **7b — ERA Processing (835)** | 7a | — | _tbd (next spec)_ |
-| 6 | **8 — Billing & Payments** | 7b | — | _tbd_ |
+| 6 | **8 — Billing & Payments** | 7b | — | `2026-06-23-module-8a-patient-ledger-design.md` (✅ 8a built — append-only ledger, auto-posted charges + ERA insurance payment/write-off, record-only patient payments, adjustments/reversals, feature-gated router + chart tab; statements/aging/QuickBooks-export + Stripe deferred to 8b+) |
 
 3.5, 3.6, and eligibility are independent and may be built in any order or
 concurrently. Everything from Module 6 on depends on 3.5 being in place.
