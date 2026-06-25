@@ -136,7 +136,6 @@ async def poll_and_post_eras(
             if claim is not None:
                 _post_to_claim(claim, cp, remittance.id, user_sub)
                 if post_to_ledger:
-                    await session.flush()  # ensure claim payment columns are set before ledger read
                     await post_insurance_remittance(
                         session, claim, remittance.id, user_sub=user_sub
                     )

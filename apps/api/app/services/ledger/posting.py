@@ -284,6 +284,9 @@ async def post_insurance_remittance(
 
     Reads the payment columns 7b set on the claim. Idempotent on
     (claim_id, remittance_id, entry_type). Only NON-PR adjustments are written off.
+
+    Flushes but does NOT commit — the caller owns the transaction boundary (the ERA
+    poll commits once per remittance). This preserves 7b's per-remittance atomicity.
     """
     posted_by = user_sub or "system"
     paid = claim.insurance_paid_cents or 0
@@ -320,4 +323,4 @@ async def post_insurance_remittance(
                 posted_by=posted_by,
             )
         )
-    await session.commit()
+    await session.flush()
