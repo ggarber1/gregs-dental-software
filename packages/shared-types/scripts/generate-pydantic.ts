@@ -158,6 +158,15 @@ import {
   UnmatchedERAPaymentSchema,
   ERAPollSummarySchema,
 } from "../src/schemas/era.js";
+import {
+  LedgerEntryTypeSchema,
+  LedgerPaymentMethodSchema,
+  LedgerEntrySchema,
+  PatientLedgerSchema,
+  RecordPaymentRequestSchema,
+  AddAdjustmentRequestSchema,
+  ReverseEntryRequestSchema,
+} from "../src/schemas/ledger.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -282,6 +291,14 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   ERARemittance: ERARemittanceSchema,
   UnmatchedERAPayment: UnmatchedERAPaymentSchema,
   ERAPollSummary: ERAPollSummarySchema,
+  // Ledger
+  LedgerEntryType: LedgerEntryTypeSchema,
+  LedgerPaymentMethod: LedgerPaymentMethodSchema,
+  LedgerEntry: LedgerEntrySchema,
+  PatientLedger: PatientLedgerSchema,
+  RecordPaymentRequest: RecordPaymentRequestSchema,
+  AddAdjustmentRequest: AddAdjustmentRequestSchema,
+  ReverseEntryRequest: ReverseEntryRequestSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
