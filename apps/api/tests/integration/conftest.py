@@ -40,6 +40,7 @@ _TEST_DB_URL = "postgresql+asyncpg://dental:dental@localhost:5432/dental_test"
 
 # Truncate in dependency-safe order; CASCADE handles any remaining FK deps.
 _TRUNCATE_TABLES = (
+    "ledger_entries",
     "unmatched_era_payments",
     "era_remittances",
     "claims",
