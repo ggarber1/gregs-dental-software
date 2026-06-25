@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.db import get_session_factory
+from app.core.features import feature_enabled
 from app.models.appointment import Appointment as AppointmentModel
 from app.models.appointment_reminder import AppointmentReminder as AppointmentReminderModel
 from app.models.appointment_type import AppointmentType as AppointmentTypeModel
@@ -701,9 +702,7 @@ async def update_appointment(
             ledger_practice = await session.scalar(
                 select(PracticeModel).where(PracticeModel.id == practice_id)
             )
-            if ledger_practice and (getattr(ledger_practice, "features", None) or {}).get(
-                "billing_ledger"
-            ):
+            if feature_enabled(ledger_practice, "billing_ledger"):
                 user_sub = getattr(request.state.user, "sub", None)
                 # row.patient_id is non-None here (guarded above); the model column is
                 # nullable so cast to the reconcile protocol's non-optional shape.

@@ -27,9 +27,10 @@ _P_KEY = "app.middleware.auth._get_public_key"
 _P_DECODE = "app.middleware.auth.jwt.decode"
 
 
-async def _seed(session: AsyncSession, *, billing_ledger: bool):
-    """Seed a practice (+admin user), patient, an in_chair appointment, and one
-    procedure (fee_cents=12000). Returns (practice, user, cognito_sub, appointment)."""
+async def _seed(session: AsyncSession, *, billing_ledger: bool, with_procedure: bool = True):
+    """Seed a practice (+admin user), patient, an in_chair appointment, and (when
+    `with_procedure`) one procedure (fee_cents=12000).
+    Returns (practice, user, cognito_sub, appointment)."""
     practice = Practice(
         id=uuid.uuid4(),
         name="Ledger Checkout Test Practice",
@@ -77,17 +78,18 @@ async def _seed(session: AsyncSession, *, billing_ledger: bool):
     session.add(appointment)
     await session.flush()
 
-    session.add(
-        AppointmentProcedure(
-            id=uuid.uuid4(),
-            practice_id=practice.id,
-            appointment_id=appointment.id,
-            patient_id=patient.id,
-            procedure_name="Periodic oral evaluation",
-            procedure_code="D0120",
-            fee_cents=12000,
+    if with_procedure:
+        session.add(
+            AppointmentProcedure(
+                id=uuid.uuid4(),
+                practice_id=practice.id,
+                appointment_id=appointment.id,
+                patient_id=patient.id,
+                procedure_name="Periodic oral evaluation",
+                procedure_code="D0120",
+                fee_cents=12000,
+            )
         )
-    )
 
     await session.commit()
     return practice, user, cognito_sub, appointment
@@ -165,3 +167,35 @@ async def test_checkout_skips_ledger_when_feature_disabled(
         .where(LedgerEntry.patient_id == appt.patient_id)
     )
     assert count == 0
+
+
+async def test_checkout_with_no_procedures_posts_no_charge(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Enabled practice + appointment with zero procedures: checkout succeeds and the
+    ledger is empty (no 500, no phantom charge)."""
+    practice, user, sub, appt = await _seed(
+        db_session, billing_ledger=True, with_procedure=False
+    )
+    headers = {"Authorization": "Bearer test-token", "X-Practice-ID": str(practice.id)}
+    h1, h2, h3 = _auth(sub, user.email)
+
+    with h1, h2, h3:
+        resp = await client.patch(
+            f"/api/v1/appointments/{appt.id}",
+            headers=mut(headers),
+            json={"status": "completed"},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "completed"
+
+        ledger_resp = await client.get(
+            f"/api/v1/patients/{appt.patient_id}/ledger",
+            headers=headers,
+        )
+
+    assert ledger_resp.status_code == 200, ledger_resp.text
+    body = ledger_resp.json()
+    assert body["balanceCents"] == 0
+    assert body["entries"] == []

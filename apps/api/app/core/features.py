@@ -10,6 +10,14 @@ from app.models.practice import Practice
 from app.schemas.generated import ApiError, Error
 
 
+def feature_enabled(practice: object | None, flag: str) -> bool:
+    """True if practice.features[flag] is truthy. Soft check — never raises.
+
+    Use this for side effects that should be skipped (not 403'd) when a feature is off.
+    """
+    return bool(practice and (getattr(practice, "features", None) or {}).get(flag))
+
+
 async def require_feature(
     session: AsyncSession,
     practice_id: uuid.UUID,
@@ -27,8 +35,7 @@ async def require_feature(
     # avoid leaking practice existence. Denying is the safe default here.
     if practice is None:
         practice = await session.scalar(select(Practice).where(Practice.id == practice_id))
-    enabled = bool(practice and (getattr(practice, "features", None) or {}).get(flag))
-    if not enabled:
+    if not feature_enabled(practice, flag):
         raise HTTPException(
             status_code=403,
             detail=ApiError(
