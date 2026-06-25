@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.appointment_procedure import AppointmentProcedure
 from app.models.ledger_entry import LedgerEntry
+
+
+class _LedgerAppointment(Protocol):
+    id: uuid.UUID
+    practice_id: uuid.UUID
+    patient_id: uuid.UUID
 
 
 async def record_patient_payment(
@@ -164,17 +170,28 @@ async def _live_charges_by_proc(
             )
         )
     ).all()
-    return {r.appointment_procedure_id: r for r in rows if r.appointment_procedure_id}
+    by_proc: dict[uuid.UUID, LedgerEntry] = {}
+    for r in rows:
+        if r.appointment_procedure_id is None:
+            continue
+        if r.appointment_procedure_id in by_proc:
+            raise RuntimeError(
+                f"invariant violation: two live charges for procedure {r.appointment_procedure_id}"
+            )
+        by_proc[r.appointment_procedure_id] = r
+    return by_proc
 
 
 async def reconcile_charges_for_appointment(
-    session: AsyncSession, appointment: Any, *, user_sub: str | None = None
+    session: AsyncSession, appointment: _LedgerAppointment, *, user_sub: str | None = None
 ) -> None:
     """Ensure exactly one live charge == fee_cents per live procedure of `appointment`.
 
     Idempotent. Posts reversing entries for stale/removed charges and new charges for
     new/changed procedures. `appointment` needs `.id`, `.practice_id`, `.patient_id`.
     """
+    # Check-then-write is best-effort like reverse_entry (single-practice 8a); a future
+    # partial unique index on appointment_procedure_id for live charges is the backstop.
     posted_by = user_sub or "system"
     procs = (
         await session.scalars(

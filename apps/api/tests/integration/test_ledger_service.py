@@ -275,3 +275,22 @@ async def test_reconcile_reverses_when_procedure_deleted(db_session: AsyncSessio
     await db_session.commit()
     await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
     assert await get_patient_balance(db_session, practice_id, patient_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_reconcile_only_touches_changed_procedure(db_session: AsyncSession):
+    practice_id, patient_id, appt_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await _seed_proc(db_session, practice_id, patient_id, appt_id, 12000)
+    p2 = await _seed_proc(db_session, practice_id, patient_id, appt_id, 8000, name="X-ray")
+    appt = SimpleNamespace(id=appt_id, practice_id=practice_id, patient_id=patient_id)
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+
+    # change only p2's fee
+    p2.fee_cents = 9000
+    await db_session.commit()
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+
+    entries, balance = await get_ledger(db_session, practice_id, patient_id)
+    assert balance == 21000  # 12000 (p1 untouched) + 9000 (p2 new)
+    # p1: 1 charge; p2: charge + reversal + new charge = 3 => 4 total
+    assert len(entries) == 4
