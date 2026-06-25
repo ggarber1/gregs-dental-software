@@ -6,6 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ledger_entry import LedgerEntry
 from app.services.ledger.balance import get_ledger, get_patient_balance
+from app.services.ledger.posting import (
+    add_manual_adjustment,
+    record_patient_payment,
+    reverse_entry,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -78,3 +83,81 @@ async def test_balance_and_ledger_read(db_session: AsyncSession):
     assert balance == 0
     assert len(entries) == 3
     assert entries[0][1] == 25000  # running balance after first charge
+
+
+@pytest.mark.asyncio
+async def test_record_patient_payment_posts_negative(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    entry = await record_patient_payment(
+        db_session, practice_id, patient_id,
+        amount_cents=5000, payment_method="card", memo="copay", posted_by="user-1",
+    )
+    assert entry.entry_type == "patient_payment"
+    assert entry.amount_cents == -5000
+    assert entry.payment_method == "card"
+    assert await get_patient_balance(db_session, practice_id, patient_id) == -5000
+
+
+@pytest.mark.asyncio
+async def test_record_patient_payment_rejects_non_positive(db_session: AsyncSession):
+    with pytest.raises(ValueError):
+        await record_patient_payment(
+            db_session, uuid.uuid4(), uuid.uuid4(),
+            amount_cents=0, payment_method="cash", memo=None, posted_by="u",
+        )
+
+
+@pytest.mark.asyncio
+async def test_add_manual_adjustment_requires_memo(db_session: AsyncSession):
+    with pytest.raises(ValueError):
+        await add_manual_adjustment(
+            db_session, uuid.uuid4(), uuid.uuid4(),
+            amount_cents=-1000, memo="", posted_by="u",
+        )
+
+
+@pytest.mark.asyncio
+async def test_add_manual_adjustment_posts(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await _add(db_session, practice_id, patient_id, "charge", 10000)
+    entry = await add_manual_adjustment(
+        db_session, practice_id, patient_id,
+        amount_cents=-1500, memo="senior discount", posted_by="user-1",
+    )
+    assert entry.entry_type == "adjustment"
+    assert entry.amount_cents == -1500
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 8500
+
+
+@pytest.mark.asyncio
+async def test_reverse_entry_mirrors_and_zeroes(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    pay = await record_patient_payment(
+        db_session, practice_id, patient_id,
+        amount_cents=5000, payment_method="cash", memo=None, posted_by="u",
+    )
+    rev = await reverse_entry(db_session, practice_id, pay.id, posted_by="u", memo="entered twice")
+    assert rev is not None
+    assert rev.amount_cents == 5000  # mirror of -5000
+    assert rev.reverses_entry_id == pay.id
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_reverse_entry_rejects_double_reverse(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    pay = await record_patient_payment(
+        db_session, practice_id, patient_id,
+        amount_cents=5000, payment_method="cash", memo=None, posted_by="u",
+    )
+    await reverse_entry(db_session, practice_id, pay.id, posted_by="u")
+    assert await reverse_entry(db_session, practice_id, pay.id, posted_by="u") is None
+
+
+@pytest.mark.asyncio
+async def test_reverse_entry_other_practice_returns_none(db_session: AsyncSession):
+    pay = await record_patient_payment(
+        db_session, uuid.uuid4(), uuid.uuid4(),
+        amount_cents=5000, payment_method="cash", memo=None, posted_by="u",
+    )
+    assert await reverse_entry(db_session, uuid.uuid4(), pay.id, posted_by="u") is None
