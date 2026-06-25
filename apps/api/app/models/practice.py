@@ -34,10 +34,11 @@ class Practice(Base, TimestampMixin):
 
     # Feature flags — each optional module is gated here.
     # e.g. {"eligibility_verification": true, "copay_estimation": false, "claims_submission": true}
+    # billing_ledger defaults ON for new practices (migration 0035); still per-practice flippable.
     features: Mapped[dict[str, bool]] = mapped_column(
         JSONB,
         nullable=False,
-        server_default="{}",
+        server_default='{"billing_ledger": true}',
     )
 
     # Hours before appointment to send each reminder window.
