@@ -1,13 +1,16 @@
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.appointment_procedure import AppointmentProcedure
 from app.models.ledger_entry import LedgerEntry
 from app.services.ledger.balance import get_ledger, get_patient_balance
 from app.services.ledger.posting import (
     add_manual_adjustment,
+    reconcile_charges_for_appointment,
     record_patient_payment,
     reverse_entry,
 )
@@ -175,3 +178,100 @@ async def test_reverse_entry_rejects_reversing_a_reversal(db_session: AsyncSessi
     assert rev is not None
     # cannot reverse a reversal entry itself
     assert await reverse_entry(db_session, practice_id, rev.id, posted_by="u") is None
+
+
+async def _ensure_appointment(session, practice_id, appointment_id):
+    """Insert the practice + appointment that appointment_procedures.appointment_id
+    FKs to, once per id (re-running for a second procedure is a no-op)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.appointment import Appointment
+    from app.models.practice import Practice
+
+    if await session.get(Appointment, appointment_id) is not None:
+        return
+    if await session.get(Practice, practice_id) is None:
+        session.add(
+            Practice(id=practice_id, name="Test Practice", timezone="America/New_York")
+        )
+        await session.flush()
+    start = datetime.now(UTC)
+    session.add(
+        Appointment(
+            id=appointment_id,
+            practice_id=practice_id,
+            start_time=start,
+            end_time=start + timedelta(minutes=30),
+        )
+    )
+    await session.commit()
+
+
+async def _seed_proc(session, practice_id, patient_id, appointment_id, fee, name="Exam"):
+    await _ensure_appointment(session, practice_id, appointment_id)
+    proc = AppointmentProcedure(
+        id=uuid.uuid4(),
+        practice_id=practice_id,
+        appointment_id=appointment_id,
+        patient_id=patient_id,
+        procedure_code="D0120",
+        procedure_name=name,
+        fee_cents=fee,
+    )
+    session.add(proc)
+    await session.commit()
+    return proc
+
+
+@pytest.mark.asyncio
+async def test_reconcile_posts_one_charge_per_procedure(db_session: AsyncSession):
+    practice_id, patient_id, appt_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await _seed_proc(db_session, practice_id, patient_id, appt_id, 12000)
+    await _seed_proc(db_session, practice_id, patient_id, appt_id, 8000, name="X-ray")
+    appt = SimpleNamespace(id=appt_id, practice_id=practice_id, patient_id=patient_id)
+
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 20000
+
+
+@pytest.mark.asyncio
+async def test_reconcile_is_idempotent(db_session: AsyncSession):
+    practice_id, patient_id, appt_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await _seed_proc(db_session, practice_id, patient_id, appt_id, 12000)
+    appt = SimpleNamespace(id=appt_id, practice_id=practice_id, patient_id=patient_id)
+
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")  # no-op
+    entries, balance = await get_ledger(db_session, practice_id, patient_id)
+    assert balance == 12000
+    assert len(entries) == 1  # not double-posted
+
+
+@pytest.mark.asyncio
+async def test_reconcile_reverses_and_reposts_on_fee_change(db_session: AsyncSession):
+    practice_id, patient_id, appt_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    proc = await _seed_proc(db_session, practice_id, patient_id, appt_id, 12000)
+    appt = SimpleNamespace(id=appt_id, practice_id=practice_id, patient_id=patient_id)
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+
+    proc.fee_cents = 15000
+    await db_session.commit()
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+
+    entries, balance = await get_ledger(db_session, practice_id, patient_id)
+    assert balance == 15000  # 12000 charge, -12000 reversal, 15000 new charge
+    assert len(entries) == 3
+
+
+@pytest.mark.asyncio
+async def test_reconcile_reverses_when_procedure_deleted(db_session: AsyncSession):
+    practice_id, patient_id, appt_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    proc = await _seed_proc(db_session, practice_id, patient_id, appt_id, 12000)
+    appt = SimpleNamespace(id=appt_id, practice_id=practice_id, patient_id=patient_id)
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+
+    from datetime import UTC, datetime
+    proc.deleted_at = datetime.now(UTC)
+    await db_session.commit()
+    await reconcile_charges_for_appointment(db_session, appt, user_sub="u")
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 0

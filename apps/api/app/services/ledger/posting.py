@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.appointment_procedure import AppointmentProcedure
 from app.models.ledger_entry import LedgerEntry
 
 
@@ -121,3 +123,93 @@ async def reverse_entry(
     await session.commit()
     await session.refresh(reversal)
     return reversal
+
+
+def _post_reversal_obj(original: LedgerEntry, posted_by: str) -> LedgerEntry:
+    """Build (but do not add) a mirror entry for `original`."""
+    return LedgerEntry(
+        id=uuid.uuid4(),
+        practice_id=original.practice_id,
+        patient_id=original.patient_id,
+        guarantor_account_id=original.guarantor_account_id,
+        entry_type=original.entry_type,
+        amount_cents=-original.amount_cents,
+        appointment_id=original.appointment_id,
+        appointment_procedure_id=original.appointment_procedure_id,
+        claim_id=original.claim_id,
+        remittance_id=original.remittance_id,
+        reverses_entry_id=original.id,
+        payment_method=original.payment_method,
+        memo=f"auto reversal of {original.id}",
+        posted_by=posted_by,
+    )
+
+
+async def _live_charges_by_proc(
+    session: AsyncSession, appointment_id: uuid.UUID
+) -> dict[uuid.UUID, LedgerEntry]:
+    """Map appointment_procedure_id -> its live (un-reversed) charge entry."""
+    reversed_ids = select(LedgerEntry.reverses_entry_id).where(
+        LedgerEntry.reverses_entry_id.isnot(None),
+        LedgerEntry.deleted_at.is_(None),
+    )
+    rows = (
+        await session.scalars(
+            select(LedgerEntry).where(
+                LedgerEntry.appointment_id == appointment_id,
+                LedgerEntry.entry_type == "charge",
+                LedgerEntry.reverses_entry_id.is_(None),
+                LedgerEntry.id.notin_(reversed_ids),
+                LedgerEntry.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    return {r.appointment_procedure_id: r for r in rows if r.appointment_procedure_id}
+
+
+async def reconcile_charges_for_appointment(
+    session: AsyncSession, appointment: Any, *, user_sub: str | None = None
+) -> None:
+    """Ensure exactly one live charge == fee_cents per live procedure of `appointment`.
+
+    Idempotent. Posts reversing entries for stale/removed charges and new charges for
+    new/changed procedures. `appointment` needs `.id`, `.practice_id`, `.patient_id`.
+    """
+    posted_by = user_sub or "system"
+    procs = (
+        await session.scalars(
+            select(AppointmentProcedure).where(
+                AppointmentProcedure.appointment_id == appointment.id,
+                AppointmentProcedure.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    proc_by_id = {p.id: p for p in procs}
+    live = await _live_charges_by_proc(session, appointment.id)
+
+    changed = False
+    # Reverse charges whose procedure was deleted or whose fee changed.
+    for proc_id, entry in live.items():
+        proc = proc_by_id.get(proc_id)
+        if proc is None or proc.fee_cents != entry.amount_cents:
+            session.add(_post_reversal_obj(entry, posted_by))
+            changed = True
+    # Post charges for procedures lacking a matching live charge.
+    for proc in procs:
+        existing = live.get(proc.id)
+        if existing is None or existing.amount_cents != proc.fee_cents:
+            session.add(
+                LedgerEntry(
+                    id=uuid.uuid4(),
+                    practice_id=appointment.practice_id,
+                    patient_id=appointment.patient_id,
+                    entry_type="charge",
+                    amount_cents=proc.fee_cents,
+                    appointment_id=appointment.id,
+                    appointment_procedure_id=proc.id,
+                    posted_by=posted_by,
+                )
+            )
+            changed = True
+    if changed:
+        await session.commit()
