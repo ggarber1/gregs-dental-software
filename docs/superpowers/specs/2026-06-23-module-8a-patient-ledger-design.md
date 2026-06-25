@@ -142,8 +142,12 @@ already-`completed` appointment.
 
 **Insurance (`post_insurance_remittance`).** Given a claim matched to a remittance (7b's
 match step): post one `insurance_payment` entry (`−insurance_paid_cents`) and, if the
-claim's contractual adjustments sum to non-zero, one `adjustment` entry (`−sum`), both
-linked to `claim_id` + `remittance_id`. Guarded by the insurance-idempotency constraint.
+claim's **non-PR contractual** adjustments sum to non-zero, one `adjustment` entry
+(`−sum`), both linked to `claim_id` + `remittance_id`. **Only non-PR adjustments are
+written off** — PR (patient-responsibility) CAS adjustments are exactly what the patient
+owes and must NOT reduce the balance. Invariant for a single primary claim:
+`charge − insurance_payment − contractual_writeoff == patient_responsibility`. Guarded by
+the insurance-idempotency constraint.
 
 **Patient payment (`record_patient_payment`).** Insert a `patient_payment` entry
 (`−amount_cents`, `payment_method`, `memo`, `posted_by`). Amount must be > 0.
