@@ -140,6 +140,7 @@ async def test_reverse_entry_mirrors_and_zeroes(db_session: AsyncSession):
     assert rev is not None
     assert rev.amount_cents == 5000  # mirror of -5000
     assert rev.reverses_entry_id == pay.id
+    assert rev.payment_method == "cash"
     assert await get_patient_balance(db_session, practice_id, patient_id) == 0
 
 
@@ -161,3 +162,16 @@ async def test_reverse_entry_other_practice_returns_none(db_session: AsyncSessio
         amount_cents=5000, payment_method="cash", memo=None, posted_by="u",
     )
     assert await reverse_entry(db_session, uuid.uuid4(), pay.id, posted_by="u") is None
+
+
+@pytest.mark.asyncio
+async def test_reverse_entry_rejects_reversing_a_reversal(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    pay = await record_patient_payment(
+        db_session, practice_id, patient_id,
+        amount_cents=5000, payment_method="cash", memo=None, posted_by="u",
+    )
+    rev = await reverse_entry(db_session, practice_id, pay.id, posted_by="u")
+    assert rev is not None
+    # cannot reverse a reversal entry itself
+    assert await reverse_entry(db_session, practice_id, rev.id, posted_by="u") is None

@@ -96,6 +96,9 @@ async def reverse_entry(
     )
     if original is None or original.reverses_entry_id is not None:
         return None
+    # Best-effort double-reverse guard (check-then-insert). Low-concurrency single-practice
+    # app makes a race negligible for 8a; a partial unique index on reverses_entry_id is the
+    # eventual DB-level backstop.
     if await _is_reversed(session, entry_id):
         return None
     reversal = LedgerEntry(
@@ -105,6 +108,7 @@ async def reverse_entry(
         guarantor_account_id=original.guarantor_account_id,
         entry_type=original.entry_type,
         amount_cents=-original.amount_cents,
+        payment_method=original.payment_method,
         appointment_id=original.appointment_id,
         appointment_procedure_id=original.appointment_procedure_id,
         claim_id=original.claim_id,
