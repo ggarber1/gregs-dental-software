@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,14 @@ class _LedgerAppointment(Protocol):
     id: uuid.UUID
     practice_id: uuid.UUID
     patient_id: uuid.UUID
+
+
+class _LedgerClaim(Protocol):
+    id: uuid.UUID
+    practice_id: uuid.UUID
+    patient_id: uuid.UUID
+    insurance_paid_cents: int | None
+    adjustments: list[dict[str, Any]] | None
 
 
 async def record_patient_payment(
@@ -230,3 +238,82 @@ async def reconcile_charges_for_appointment(
             changed = True
     if changed:
         await session.commit()
+
+
+async def _insurance_entry_exists(
+    session: AsyncSession,
+    claim_id: uuid.UUID,
+    remittance_id: uuid.UUID,
+    entry_type: str,
+) -> bool:
+    found = await session.scalar(
+        select(LedgerEntry.id).where(
+            LedgerEntry.claim_id == claim_id,
+            LedgerEntry.remittance_id == remittance_id,
+            LedgerEntry.entry_type == entry_type,
+            LedgerEntry.reverses_entry_id.is_(None),
+            LedgerEntry.deleted_at.is_(None),
+        )
+    )
+    return found is not None
+
+
+def _contractual_writeoff_cents(adjustments: list[dict[str, Any]] | None) -> int:
+    """Sum of non-PR adjustment cents (contractual write-offs the provider absorbs).
+
+    PR (patient responsibility) adjustments are what the patient owes and are NOT
+    written off, so they are excluded.
+    """
+    if not adjustments:
+        return 0
+    return sum(int(a.get("cents", 0)) for a in adjustments if a.get("group") != "PR")
+
+
+async def post_insurance_remittance(
+    session: AsyncSession,
+    claim: _LedgerClaim,
+    remittance_id: uuid.UUID,
+    *,
+    user_sub: str | None = None,
+) -> None:
+    """Post insurance payment + contractual write-off entries for a matched claim.
+
+    Reads the payment columns 7b set on the claim. Idempotent on
+    (claim_id, remittance_id, entry_type). Only NON-PR adjustments are written off.
+    """
+    posted_by = user_sub or "system"
+    paid = claim.insurance_paid_cents or 0
+    if paid and not await _insurance_entry_exists(
+        session, claim.id, remittance_id, "insurance_payment"
+    ):
+        session.add(
+            LedgerEntry(
+                id=uuid.uuid4(),
+                practice_id=claim.practice_id,
+                patient_id=claim.patient_id,
+                entry_type="insurance_payment",
+                amount_cents=-paid,
+                claim_id=claim.id,
+                remittance_id=remittance_id,
+                posted_by=posted_by,
+            )
+        )
+
+    writeoff = _contractual_writeoff_cents(claim.adjustments)
+    if writeoff and not await _insurance_entry_exists(
+        session, claim.id, remittance_id, "adjustment"
+    ):
+        session.add(
+            LedgerEntry(
+                id=uuid.uuid4(),
+                practice_id=claim.practice_id,
+                patient_id=claim.patient_id,
+                entry_type="adjustment",
+                amount_cents=-writeoff,
+                claim_id=claim.id,
+                remittance_id=remittance_id,
+                memo="contractual adjustment",
+                posted_by=posted_by,
+            )
+        )
+    await session.commit()

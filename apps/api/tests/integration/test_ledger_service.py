@@ -6,10 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.appointment_procedure import AppointmentProcedure
+from app.models.claim import Claim
 from app.models.ledger_entry import LedgerEntry
 from app.services.ledger.balance import get_ledger, get_patient_balance
 from app.services.ledger.posting import (
     add_manual_adjustment,
+    post_insurance_remittance,
     reconcile_charges_for_appointment,
     record_patient_payment,
     reverse_entry,
@@ -294,3 +296,68 @@ async def test_reconcile_only_touches_changed_procedure(db_session: AsyncSession
     assert balance == 21000  # 12000 (p1 untouched) + 9000 (p2 new)
     # p1: 1 charge; p2: charge + reversal + new charge = 3 => 4 total
     assert len(entries) == 4
+
+
+async def _seed_claim_for_ledger(session, practice_id, patient_id):
+    claim = Claim(
+        id=uuid.uuid4(),
+        practice_id=practice_id,
+        appointment_id=uuid.uuid4(),
+        patient_id=patient_id,
+        insurance_id=uuid.uuid4(),
+        provider_id=uuid.uuid4(),
+        idempotency_key=uuid.uuid4().hex,
+        patient_control_number=uuid.uuid4().hex[:12],
+        payer_id="CDLA1",
+        status="partially_paid",
+        total_charge_cents=25000,
+        insurance_paid_cents=20000,
+        patient_responsibility_cents=2000,
+        adjustments=[
+            {"group": "CO", "code": "45", "cents": 3000},   # contractual write-off
+            {"group": "PR", "code": "2", "cents": 2000},    # patient responsibility
+        ],
+    )
+    session.add(claim)
+    await session.commit()
+    return claim
+
+
+@pytest.mark.asyncio
+async def test_post_insurance_remittance_payment_and_writeoff(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await _add(db_session, practice_id, patient_id, "charge", 25000)
+    claim = await _seed_claim_for_ledger(db_session, practice_id, patient_id)
+    remittance_id = uuid.uuid4()
+
+    await post_insurance_remittance(db_session, claim, remittance_id, user_sub="u")
+
+    # 25000 charge - 20000 payment - 3000 contractual write-off = 2000 patient responsibility
+    balance = await get_patient_balance(db_session, practice_id, patient_id)
+    assert balance == claim.patient_responsibility_cents == 2000
+
+
+@pytest.mark.asyncio
+async def test_post_insurance_remittance_is_idempotent(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await _add(db_session, practice_id, patient_id, "charge", 25000)
+    claim = await _seed_claim_for_ledger(db_session, practice_id, patient_id)
+    remittance_id = uuid.uuid4()
+
+    await post_insurance_remittance(db_session, claim, remittance_id, user_sub="u")
+    await post_insurance_remittance(db_session, claim, remittance_id, user_sub="u")  # no-op
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 2000
+
+
+@pytest.mark.asyncio
+async def test_post_insurance_remittance_no_writeoff_when_only_pr(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await _add(db_session, practice_id, patient_id, "charge", 25000)
+    claim = await _seed_claim_for_ledger(db_session, practice_id, patient_id)
+    claim.adjustments = [{"group": "PR", "code": "2", "cents": 5000}]
+    claim.insurance_paid_cents = 20000
+    await db_session.commit()
+
+    await post_insurance_remittance(db_session, claim, uuid.uuid4(), user_sub="u")
+    # only the payment posts; PR is not written off -> 25000 - 20000 = 5000
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 5000
