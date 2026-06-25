@@ -266,7 +266,11 @@ def _contractual_writeoff_cents(adjustments: list[dict[str, Any]] | None) -> int
     """
     if not adjustments:
         return 0
-    return sum(int(a.get("cents", 0)) for a in adjustments if a.get("group") != "PR")
+    return sum(
+        int(a.get("cents", 0) or 0)
+        for a in adjustments
+        if isinstance(a, dict) and a.get("group") != "PR"
+    )
 
 
 async def post_insurance_remittance(

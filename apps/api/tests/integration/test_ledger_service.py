@@ -361,3 +361,36 @@ async def test_post_insurance_remittance_no_writeoff_when_only_pr(db_session: As
     await post_insurance_remittance(db_session, claim, uuid.uuid4(), user_sub="u")
     # only the payment posts; PR is not written off -> 25000 - 20000 = 5000
     assert await get_patient_balance(db_session, practice_id, patient_id) == 5000
+
+
+@pytest.mark.asyncio
+async def test_post_insurance_remittance_writes_off_oa_not_just_co(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await _add(db_session, practice_id, patient_id, "charge", 26000)
+    claim = await _seed_claim_for_ledger(db_session, practice_id, patient_id)
+    claim.adjustments = [
+        {"group": "CO", "code": "45", "cents": 3000},
+        {"group": "OA", "code": "23", "cents": 1000},
+        {"group": "PR", "code": "2", "cents": 2000},
+    ]
+    claim.insurance_paid_cents = 20000
+    claim.patient_responsibility_cents = 2000
+    await db_session.commit()
+
+    await post_insurance_remittance(db_session, claim, uuid.uuid4(), user_sub="u")
+    # 26000 - 20000 paid - 4000 (CO+OA written off, PR excluded) = 2000 = patient responsibility
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 2000
+
+
+@pytest.mark.asyncio
+async def test_post_insurance_remittance_denied_zero_paid(db_session: AsyncSession):
+    practice_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await _add(db_session, practice_id, patient_id, "charge", 25000)
+    claim = await _seed_claim_for_ledger(db_session, practice_id, patient_id)
+    claim.insurance_paid_cents = 0
+    claim.adjustments = [{"group": "CO", "code": "45", "cents": 5000}]
+    await db_session.commit()
+
+    await post_insurance_remittance(db_session, claim, uuid.uuid4(), user_sub="u")
+    # no payment entry (0 paid); CO write-off of 5000 posts -> 25000 - 5000 = 20000
+    assert await get_patient_balance(db_session, practice_id, patient_id) == 20000
