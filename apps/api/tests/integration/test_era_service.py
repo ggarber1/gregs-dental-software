@@ -9,6 +9,7 @@ from app.models.claim import Claim
 from app.models.era_remittance import UnmatchedERAPayment
 from app.services.era.base import RemittanceClient, Transaction
 from app.services.era.service import poll_and_post_eras, resolve_unmatched_payment
+from app.services.ledger.balance import get_patient_balance
 
 pytestmark = pytest.mark.integration
 
@@ -249,3 +250,47 @@ async def test_unique_prefix_still_matches(db_session: AsyncSession):
         since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
     )
     assert summary["matched"] == 1
+
+
+@pytest.mark.asyncio
+async def test_era_match_posts_ledger_insurance_entries(db_session: AsyncSession):
+    claim = await _seed_claim(db_session, "PCNLED123")
+    # gross charge already on the ledger for this patient
+    from app.models.ledger_entry import LedgerEntry
+    db_session.add(LedgerEntry(
+        id=uuid.uuid4(), practice_id=claim.practice_id, patient_id=claim.patient_id,
+        entry_type="charge", amount_cents=25000,
+    ))
+    await db_session.commit()
+
+    client = _FakeClient({"txn-1": _era_doc("PCNLED123")})  # paid 200.00
+    summary = await poll_and_post_eras(
+        db_session, claim.practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+        post_to_ledger=True,
+    )
+    assert summary["matched"] == 1
+    # 25000 charge - 20000 insurance payment = 5000 (no non-PR adjustment in _era_doc)
+    balance = await get_patient_balance(db_session, claim.practice_id, claim.patient_id)
+    assert balance == 5000
+
+
+@pytest.mark.asyncio
+async def test_era_match_skips_ledger_when_flag_off(db_session: AsyncSession):
+    claim = await _seed_claim(db_session, "PCNLED456")
+    from app.models.ledger_entry import LedgerEntry
+    db_session.add(LedgerEntry(
+        id=uuid.uuid4(), practice_id=claim.practice_id, patient_id=claim.patient_id,
+        entry_type="charge", amount_cents=25000,
+    ))
+    await db_session.commit()
+
+    client = _FakeClient({"txn-2": _era_doc("PCNLED456")})
+    summary = await poll_and_post_eras(
+        db_session, claim.practice_id, client=client,
+        since=datetime.now(UTC) - timedelta(days=30), user_sub="s",
+        post_to_ledger=False,  # default; ledger untouched
+    )
+    assert summary["matched"] == 1
+    # claim still posted (7b behavior) but NO ledger insurance entry -> charge only
+    assert await get_patient_balance(db_session, claim.practice_id, claim.patient_id) == 25000

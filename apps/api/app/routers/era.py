@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 
 from app.core.db import get_session_factory
-from app.core.features import require_feature
+from app.core.features import feature_enabled, require_feature
 from app.core.ssm import get_ssm_parameter
 from app.models.era_remittance import ERARemittance as ERARemittanceModel
 from app.models.era_remittance import UnmatchedERAPayment as UnmatchedModel
@@ -91,7 +91,12 @@ async def poll_eras(request: Request) -> ERAPollSummary:
         client = StediRemittanceClient(api_key=api_key)
         since = datetime.now(UTC) - timedelta(days=_POLL_WINDOW_DAYS)
         summary = await poll_and_post_eras(
-            session, practice_id, client=client, since=since, user_sub=user_sub
+            session,
+            practice_id,
+            client=client,
+            since=since,
+            user_sub=user_sub,
+            post_to_ledger=feature_enabled(practice, "billing_ledger"),
         )
         return ERAPollSummary(
             polled=summary["polled"],
