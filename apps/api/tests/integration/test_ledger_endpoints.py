@@ -23,7 +23,7 @@ _P_DECODE = "app.middleware.auth.jwt.decode"
 # ── Seed helper (mirrors test_era_endpoints.py _seed, plus a Patient) ─────────
 
 
-async def _seed(session: AsyncSession, ledger_enabled: bool = True):
+async def _seed(session: AsyncSession, ledger_enabled: bool = True, role: str = "admin"):
     from app.models.patient import Patient
     from app.models.practice import Practice
     from app.models.user import PracticeUser, User
@@ -49,7 +49,7 @@ async def _seed(session: AsyncSession, ledger_enabled: bool = True):
         PracticeUser(
             practice_id=practice.id,
             user_id=user.id,
-            role="admin",
+            role=role,
             is_active=True,
         )
     )
@@ -67,11 +67,11 @@ async def _seed(session: AsyncSession, ledger_enabled: bool = True):
     return practice, user, cognito_sub, patient
 
 
-def _decoded(user, cognito_sub):
+def _decoded(user, cognito_sub, groups=("admin",)):
     return {
         "sub": cognito_sub,
         "email": user.email,
-        "cognito:groups": ["admin"],
+        "cognito:groups": list(groups),
     }
 
 
@@ -146,6 +146,53 @@ class TestPaymentAndLedger:
                 json={"amountCents": -100, "paymentMethod": "cash"},
             )
         assert resp.status_code == 422, resp.text
+
+    async def test_payment_patient_not_found_404(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """POST a payment for a patient_id not in the practice → 404 PATIENT_NOT_FOUND."""
+        practice, user, sub, _patient = await _seed(db_session)
+        decoded = _decoded(user, sub)
+        headers = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice.id),
+        }
+
+        missing_patient_id = uuid.uuid4()
+        h, k, d = _auth_patches(decoded)
+        with h, k, d:
+            resp = await client.post(
+                f"/api/v1/patients/{missing_patient_id}/payments",
+                headers=mut(headers),
+                json={"amountCents": 5000, "paymentMethod": "cash"},
+            )
+        assert resp.status_code == 404, resp.text
+        assert resp.json()["error"]["code"] == "PATIENT_NOT_FOUND"
+
+    async def test_payment_non_write_role_403(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ):
+        """A read_only user (non-write role + group) is rejected from posting a payment → 403."""
+        practice, user, sub, patient = await _seed(db_session, role="read_only")
+        decoded = _decoded(user, sub, groups=("read_only",))
+        headers = {
+            "Authorization": "Bearer test-token",
+            "X-Practice-ID": str(practice.id),
+        }
+
+        h, k, d = _auth_patches(decoded)
+        with h, k, d:
+            resp = await client.post(
+                f"/api/v1/patients/{patient.id}/payments",
+                headers=mut(headers),
+                json={"amountCents": 5000, "paymentMethod": "cash"},
+            )
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["error"]["code"] == "INSUFFICIENT_ROLE"
 
     async def test_get_ledger_feature_gate_403(
         self,

@@ -19,6 +19,7 @@ export const PracticeSchema = z.object({
       eligibility_verification: z.boolean().default(false),
       copay_estimation: z.boolean().default(false),
       claims_submission: z.boolean().default(false),
+      billing_ledger: z.boolean().default(false),
     })
     .default({}),
   createdAt: z.string().datetime(),

@@ -63,6 +63,10 @@ def _entry_fields(row: LedgerEntryModel, running_balance: int) -> dict[str, Any]
 
 
 def _entry_model(row: LedgerEntryModel, running_balance: int) -> LedgerEntry:
+    # Single-entry mutation responses (payment/adjustment/reversal) pass
+    # running_balance=amount_cents as a placeholder — they do not recompute the
+    # accumulated balance. The authoritative runningBalanceCents comes only from
+    # GET /patients/{id}/ledger, which annotates every entry via get_ledger().
     return LedgerEntry(**_entry_fields(row, running_balance))
 
 
