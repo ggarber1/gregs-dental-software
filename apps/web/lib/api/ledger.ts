@@ -31,7 +31,7 @@ export interface LedgerEntry {
   reversesEntryId: string | null;
   paymentMethod: LedgerPaymentMethod | null;
   memo: string | null;
-  postedBy: string | null;
+  postedBy: string;
   postedAt: string;
 }
 
@@ -68,7 +68,7 @@ export function dollarsToCents(value: string, allowNegative: boolean): number | 
   const trimmed = value.trim();
   if (!trimmed) return null;
   const n = Number(trimmed);
-  if (Number.isNaN(n)) return null;
+  if (!Number.isFinite(n)) return null;
   if (n === 0) return null;
   if (!allowNegative && n < 0) return null;
   return Math.round(n * 100);

@@ -27,6 +27,11 @@ describe("dollarsToCents", () => {
     expect(dollarsToCents("0", false)).toBeNull();
   });
 
+  it("rejects non-finite input (Infinity/-Infinity)", () => {
+    expect(dollarsToCents("Infinity", true)).toBeNull();
+    expect(dollarsToCents("-Infinity", true)).toBeNull();
+  });
+
   it("rejects negatives when allowNegative is false (payments)", () => {
     expect(dollarsToCents("-5", false)).toBeNull();
   });
