@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Literal, cast
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -10,16 +10,10 @@ from app.core.features import require_feature
 from app.routers.patients import _require_practice_scope, _require_write_role
 from app.schemas.generated import (
     ApiError,
-    Bucket,
-    Buckets,
-    Carrier,
-    Category5,
     ClaimActionResult,
     Error,
     InsuranceARRow,
     InsuranceARSummary,
-    Status16,
-    Totals1,
 )
 from app.services.reports import insurance_ar
 
@@ -34,28 +28,31 @@ def _err(status: int, code: str, message: str) -> HTTPException:
     )
 
 
-def _row_to_schema(r: insurance_ar.WorklistRow) -> InsuranceARRow:
-    return InsuranceARRow(
-        claimId=r.claim_id,
-        claimNumber=r.claim_number,
-        patientName=r.patient_name,
-        payerId=r.payer_id,
-        carrierName=r.carrier_name,
-        category=cast(Category5, r.category),
-        billedCents=r.billed_cents,
-        estimatedInsuranceCents=r.estimated_insurance_cents,
-        insurancePaidCents=r.insurance_paid_cents,
-        shortfallCents=r.shortfall_cents,
-        hasEstimate=r.has_estimate,
-        daysOut=r.days_out,
-        bucket=cast(Bucket, r.bucket),
-        status=cast(Status16, r.status),
-        reason=r.reason,
-    )
+def _row_to_dict(r: insurance_ar.WorklistRow) -> dict[str, Any]:
+    # Keyed by the generated aliases (camelCase) for aliased fields and the bare
+    # names for the rest; category/bucket/status pass plain strings that Pydantic
+    # coerces into their enums during model_validate.
+    return {
+        "claimId": r.claim_id,
+        "claimNumber": r.claim_number,
+        "patientName": r.patient_name,
+        "payerId": r.payer_id,
+        "carrierName": r.carrier_name,
+        "category": r.category,
+        "billedCents": r.billed_cents,
+        "estimatedInsuranceCents": r.estimated_insurance_cents,
+        "insurancePaidCents": r.insurance_paid_cents,
+        "shortfallCents": r.shortfall_cents,
+        "hasEstimate": r.has_estimate,
+        "daysOut": r.days_out,
+        "bucket": r.bucket,
+        "status": r.status,
+        "reason": r.reason,
+    }
 
 
-def _buckets_to_schema(b: insurance_ar.Buckets) -> Buckets:
-    return Buckets(b0_30=b.b0_30, b31_60=b.b31_60, b61_90=b.b61_90, b90_plus=b.b90_plus)
+def _buckets_to_dict(b: insurance_ar.Buckets) -> dict[str, Any]:
+    return {"b0_30": b.b0_30, "b31_60": b.b31_60, "b61_90": b.b61_90, "b90_plus": b.b90_plus}
 
 
 @router.get("/reports/insurance-ar/claims", response_model=list[InsuranceARRow])
@@ -79,7 +76,7 @@ async def get_insurance_ar_worklist(
             status=status,
             sort=sort,
         )
-        return [_row_to_schema(r) for r in rows]
+        return [InsuranceARRow.model_validate(_row_to_dict(r)) for r in rows]
 
 
 @router.get("/reports/insurance-ar/summary", response_model=InsuranceARSummary)
@@ -89,36 +86,38 @@ async def get_insurance_ar_summary(request: Request) -> InsuranceARSummary:
         await require_feature(session, practice_id, _FEATURE)
         s = await insurance_ar.get_summary(session, practice_id)
         carriers = [
-            Carrier(
-                payerId=c.payer_id,
-                carrierName=c.carrier_name,
-                claimCount=c.claim_count,
-                buckets=_buckets_to_schema(c.buckets),
-                totalBilledCents=c.total_billed_cents,
-                expectedCents=c.expected_cents,
-                unestimatedCount=c.unestimated_count,
-                underpaidCount=c.underpaid_count,
-                problemCount=c.problem_count,
-            )
+            {
+                "payerId": c.payer_id,
+                "carrierName": c.carrier_name,
+                "claimCount": c.claim_count,
+                "buckets": _buckets_to_dict(c.buckets),
+                "totalBilledCents": c.total_billed_cents,
+                "expectedCents": c.expected_cents,
+                "unestimatedCount": c.unestimated_count,
+                "underpaidCount": c.underpaid_count,
+                "problemCount": c.problem_count,
+            }
             for c in s.carriers
         ]
-        totals = Totals1(
-            claimCount=s.totals.claim_count,
-            buckets=_buckets_to_schema(s.totals.buckets),
-            totalBilledCents=s.totals.total_billed_cents,
-            expectedCents=s.totals.expected_cents,
-            unestimatedCount=s.totals.unestimated_count,
-            underpaidCount=s.totals.underpaid_count,
-            problemCount=s.totals.problem_count,
-        )
-        return InsuranceARSummary(carriers=carriers, totals=totals)
+        totals = {
+            "claimCount": s.totals.claim_count,
+            "buckets": _buckets_to_dict(s.totals.buckets),
+            "totalBilledCents": s.totals.total_billed_cents,
+            "expectedCents": s.totals.expected_cents,
+            "unestimatedCount": s.totals.unestimated_count,
+            "underpaidCount": s.totals.underpaid_count,
+            "problemCount": s.totals.problem_count,
+        }
+        return InsuranceARSummary.model_validate({"carriers": carriers, "totals": totals})
 
 
-def _action_result(claim: object) -> ClaimActionResult:
-    return ClaimActionResult(
-        claimId=claim.id,  # type: ignore[attr-defined]
-        status=claim.status,  # type: ignore[attr-defined]
-        insuranceReviewedAt=claim.insurance_reviewed_at,  # type: ignore[attr-defined]
+def _action_result(claim: Any) -> ClaimActionResult:
+    return ClaimActionResult.model_validate(
+        {
+            "claimId": claim.id,
+            "status": claim.status,
+            "insuranceReviewedAt": claim.insurance_reviewed_at,
+        }
     )
 
 

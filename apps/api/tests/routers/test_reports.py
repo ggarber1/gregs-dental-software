@@ -15,7 +15,13 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from app.services.reports.insurance_ar import WorklistRow
+from app.services.reports.insurance_ar import (
+    ARTotals,
+    Buckets,
+    CarrierSummary,
+    Summary,
+    WorklistRow,
+)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -94,6 +100,31 @@ def _sample_row() -> WorklistRow:
     )
 
 
+def _sample_summary() -> Summary:
+    buckets = Buckets(b0_30=1000, b31_60=0, b61_90=500, b90_plus=0)
+    carrier = CarrierSummary(
+        payer_id="DELTA",
+        carrier_name="Delta Dental",
+        claim_count=2,
+        buckets=buckets,
+        total_billed_cents=1500,
+        expected_cents=1100,
+        unestimated_count=0,
+        underpaid_count=1,
+        problem_count=0,
+    )
+    totals = ARTotals(
+        claim_count=2,
+        buckets=Buckets(b0_30=1000, b31_60=0, b61_90=500, b90_plus=0),
+        total_billed_cents=1500,
+        expected_cents=1100,
+        unestimated_count=0,
+        underpaid_count=1,
+        problem_count=0,
+    )
+    return Summary(carriers=[carrier], totals=totals)
+
+
 # ── Task 8: worklist + summary ────────────────────────────────────────────────
 
 
@@ -137,6 +168,36 @@ async def test_worklist_returns_rows():
     assert body[0]["billedCents"] == 120000
 
 
+@pytest.mark.asyncio
+async def test_summary_serializes_camelcase_nested_shape():
+    """Locks the JSON alias contract against future schema regeneration."""
+    from app.main import create_app
+
+    app = create_app()
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.insurance_ar.get_summary",
+        new=AsyncMock(return_value=_sample_summary()),
+    ), patch(
+        "app.routers.reports.get_session_factory",
+        return_value=_fake_session_factory(),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/insurance-ar/summary", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["carriers"][0]["payerId"] == "DELTA"
+    assert body["carriers"][0]["buckets"]["b0_30"] == 1000
+    assert body["carriers"][0]["buckets"]["b61_90"] == 500
+    assert body["carriers"][0]["totalBilledCents"] == 1500
+    assert body["carriers"][0]["expectedCents"] == 1100
+    assert body["carriers"][0]["underpaidCount"] == 1
+    assert body["totals"]["totalBilledCents"] == 1500
+    assert body["totals"]["buckets"]["b0_30"] == 1000
+
+
 # ── Task 9: accept + appeal ───────────────────────────────────────────────────
 
 
@@ -177,7 +238,7 @@ async def test_accept_endpoint_returns_action_result():
 
 
 @pytest.mark.asyncio
-async def test_accept_endpoint_404_when_not_underpaid():
+async def test_accept_endpoint_409_when_not_underpaid():
     from app.main import create_app
 
     app = create_app()
