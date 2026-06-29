@@ -302,6 +302,7 @@ async def get_worklist(
         Claim.practice_id == practice_id,
         Claim.deleted_at.is_(None),
         Claim.status != "draft",
+        Claim.insurance_reviewed_at.is_(None),
     )
     if payer_id:
         stmt = stmt.where(Claim.payer_id == payer_id)

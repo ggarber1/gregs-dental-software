@@ -143,6 +143,13 @@ export default function InsuranceARPage() {
                     {r.reason && (
                       <span className="ml-2 text-xs text-muted-foreground">{r.reason}</span>
                     )}
+                    {r.category === "underpaid" && r.shortfallCents != null && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        est {centsToUsd(r.estimatedInsuranceCents)} · paid{" "}
+                        {centsToUsd(r.insurancePaidCents)} · −
+                        {centsToUsd(r.shortfallCents)}
+                      </div>
+                    )}
                   </TableCell>
                   {category === "underpaid" && (
                     <TableCell className="whitespace-nowrap">

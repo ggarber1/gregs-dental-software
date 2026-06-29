@@ -238,6 +238,99 @@ async def test_accept_endpoint_returns_action_result():
 
 
 @pytest.mark.asyncio
+async def test_accept_endpoint_feature_off_returns_403():
+    from app.main import create_app
+
+    app = create_app()
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature",
+        new=AsyncMock(side_effect=_feature_off()),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                f"/api/v1/reports/insurance-ar/claims/{uuid.uuid4()}/accept",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+                json={},
+            )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_appeal_endpoint_feature_off_returns_403():
+    from app.main import create_app
+
+    app = create_app()
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature",
+        new=AsyncMock(side_effect=_feature_off()),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                f"/api/v1/reports/insurance-ar/claims/{uuid.uuid4()}/appeal",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+                json={},
+            )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_appeal_endpoint_returns_action_result():
+    from app.main import create_app
+
+    app = create_app()
+    appealing_claim = MagicMock(
+        id=uuid.uuid4(),
+        status="appealing",
+        insurance_reviewed_at=None,
+    )
+    cid = appealing_claim.id
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.insurance_ar.flag_for_appeal",
+        new=AsyncMock(return_value=appealing_claim),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                f"/api/v1/reports/insurance-ar/claims/{cid}/appeal",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+                json={},
+            )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "appealing"
+
+
+@pytest.mark.asyncio
+async def test_accept_endpoint_rejects_non_write_role():
+    from app.main import create_app
+
+    app = create_app()
+    # "read_only" is not in _WRITE_ROLES ({"admin", "provider", "front_desk"})
+    with _auth_patches(role="read_only") as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                f"/api/v1/reports/insurance-ar/claims/{uuid.uuid4()}/accept",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+                json={},
+            )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_accept_endpoint_409_when_not_underpaid():
     from app.main import create_app
 
