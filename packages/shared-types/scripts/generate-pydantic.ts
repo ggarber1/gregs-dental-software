@@ -167,6 +167,14 @@ import {
   AddAdjustmentRequestSchema,
   ReverseEntryRequestSchema,
 } from "../src/schemas/ledger.js";
+import {
+  ARBucketsSchema,
+  InsuranceARRowSchema,
+  InsuranceARCarrierSummarySchema,
+  InsuranceARTotalsSchema,
+  InsuranceARSummarySchema,
+  ClaimActionResultSchema,
+} from "../src/schemas/reports.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -299,6 +307,13 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   RecordPaymentRequest: RecordPaymentRequestSchema,
   AddAdjustmentRequest: AddAdjustmentRequestSchema,
   ReverseEntryRequest: ReverseEntryRequestSchema,
+  // Insurance A/R Worklist
+  ARBuckets: ARBucketsSchema,
+  InsuranceARRow: InsuranceARRowSchema,
+  InsuranceARCarrierSummary: InsuranceARCarrierSummarySchema,
+  InsuranceARTotals: InsuranceARTotalsSchema,
+  InsuranceARSummary: InsuranceARSummarySchema,
+  ClaimActionResult: ClaimActionResultSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
