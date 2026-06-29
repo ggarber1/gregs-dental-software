@@ -1,19 +1,24 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal, cast
 
 from fastapi import APIRouter, HTTPException, Request
 
 from app.core.db import get_session_factory
 from app.core.features import require_feature
-from app.routers.patients import _require_practice_scope
+from app.routers.patients import _require_practice_scope, _require_write_role
 from app.schemas.generated import (
     ApiError,
+    Bucket,
     Buckets,
     Carrier,
+    Category5,
+    ClaimActionResult,
     Error,
     InsuranceARRow,
     InsuranceARSummary,
+    Status16,
     Totals1,
 )
 from app.services.reports import insurance_ar
@@ -36,15 +41,15 @@ def _row_to_schema(r: insurance_ar.WorklistRow) -> InsuranceARRow:
         patientName=r.patient_name,
         payerId=r.payer_id,
         carrierName=r.carrier_name,
-        category=r.category,
+        category=cast(Category5, r.category),
         billedCents=r.billed_cents,
         estimatedInsuranceCents=r.estimated_insurance_cents,
         insurancePaidCents=r.insurance_paid_cents,
         shortfallCents=r.shortfall_cents,
         hasEstimate=r.has_estimate,
         daysOut=r.days_out,
-        bucket=r.bucket,
-        status=r.status,
+        bucket=cast(Bucket, r.bucket),
+        status=cast(Status16, r.status),
         reason=r.reason,
     )
 
@@ -60,7 +65,7 @@ async def get_insurance_ar_worklist(
     payer_id: str | None = None,
     bucket: str | None = None,
     status: str | None = None,
-    sort: str = "oldest",
+    sort: Literal["oldest", "newest"] = "oldest",
 ) -> list[InsuranceARRow]:
     practice_id = _require_practice_scope(request)
     async with get_session_factory()() as session:
@@ -107,3 +112,47 @@ async def get_insurance_ar_summary(request: Request) -> InsuranceARSummary:
             problemCount=s.totals.problem_count,
         )
         return InsuranceARSummary(carriers=carriers, totals=totals)
+
+
+def _action_result(claim: object) -> ClaimActionResult:
+    return ClaimActionResult(
+        claimId=claim.id,  # type: ignore[attr-defined]
+        status=claim.status,  # type: ignore[attr-defined]
+        insuranceReviewedAt=claim.insurance_reviewed_at,  # type: ignore[attr-defined]
+    )
+
+
+@router.post(
+    "/reports/insurance-ar/claims/{claim_id}/accept",
+    response_model=ClaimActionResult,
+)
+async def accept_underpayment(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
+    practice_id = _require_practice_scope(request)
+    _require_write_role(request)
+    async with get_session_factory()() as session:
+        await require_feature(session, practice_id, _FEATURE)
+        try:
+            claim = await insurance_ar.accept_underpayment(session, practice_id, claim_id)
+        except LookupError:
+            raise _err(404, "CLAIM_NOT_FOUND", "Claim not found") from None
+        except ValueError:
+            raise _err(409, "NOT_UNDERPAID", "Claim is not currently underpaid") from None
+        return _action_result(claim)
+
+
+@router.post(
+    "/reports/insurance-ar/claims/{claim_id}/appeal",
+    response_model=ClaimActionResult,
+)
+async def flag_for_appeal(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
+    practice_id = _require_practice_scope(request)
+    _require_write_role(request)
+    async with get_session_factory()() as session:
+        await require_feature(session, practice_id, _FEATURE)
+        try:
+            claim = await insurance_ar.flag_for_appeal(session, practice_id, claim_id)
+        except LookupError:
+            raise _err(404, "CLAIM_NOT_FOUND", "Claim not found") from None
+        except ValueError:
+            raise _err(409, "NOT_UNDERPAID", "Claim is not currently underpaid") from None
+        return _action_result(claim)

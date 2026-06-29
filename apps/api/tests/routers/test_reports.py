@@ -97,6 +97,7 @@ def _sample_row() -> WorklistRow:
 # ── Task 8: worklist + summary ────────────────────────────────────────────────
 
 
+
 @pytest.mark.asyncio
 async def test_worklist_requires_feature_off_returns_403():
     from app.main import create_app
@@ -134,3 +135,65 @@ async def test_worklist_returns_rows():
     body = resp.json()
     assert body[0]["category"] == "underpaid"
     assert body[0]["billedCents"] == 120000
+
+
+# ── Task 9: accept + appeal ───────────────────────────────────────────────────
+
+
+def _accepted_claim():
+    from datetime import UTC, datetime
+
+    return MagicMock(
+        id=uuid.uuid4(),
+        status="partially_paid",
+        insurance_reviewed_at=datetime(2026, 6, 29, tzinfo=UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_accept_endpoint_returns_action_result():
+    from app.main import create_app
+
+    app = create_app()
+    claim = _accepted_claim()
+    cid = claim.id
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.insurance_ar.accept_underpayment",
+        new=AsyncMock(return_value=claim),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                f"/api/v1/reports/insurance-ar/claims/{cid}/accept",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+                json={},
+            )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "partially_paid"
+
+
+@pytest.mark.asyncio
+async def test_accept_endpoint_404_when_not_underpaid():
+    from app.main import create_app
+
+    app = create_app()
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.insurance_ar.accept_underpayment",
+        new=AsyncMock(side_effect=ValueError("not underpaid")),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                f"/api/v1/reports/insurance-ar/claims/{uuid.uuid4()}/accept",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+                json={},
+            )
+    assert resp.status_code == 409
