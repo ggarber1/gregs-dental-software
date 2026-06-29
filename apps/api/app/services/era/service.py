@@ -12,6 +12,7 @@ from app.models.era_remittance import ERARemittance, UnmatchedERAPayment
 from app.services.era.base import ClaimPayment, ERAPayment, RemittanceClient
 from app.services.era.parser import parse_stedi_era
 from app.services.era.posting import claim_payment_fields
+from app.services.ledger.posting import post_insurance_remittance
 
 # An ERA only posts onto a claim that was accepted and is still awaiting payment, and
 # that has not already had a remittance posted. This prevents (a) overwriting an already
@@ -87,6 +88,7 @@ async def poll_and_post_eras(
     client: RemittanceClient,
     since: datetime,
     user_sub: str | None,
+    post_to_ledger: bool = False,
 ) -> dict[str, Any]:
     """Poll Stedi for 835 ERAs, dedup, fetch, parse, match by PCN, and auto-post.
 
@@ -133,6 +135,10 @@ async def poll_and_post_eras(
             claim = await _match_claim(session, practice_id, cp.patient_control_number)
             if claim is not None:
                 _post_to_claim(claim, cp, remittance.id, user_sub)
+                if post_to_ledger:
+                    await post_insurance_remittance(
+                        session, claim, remittance.id, user_sub=user_sub
+                    )
                 r_matched += 1
             else:
                 session.add(

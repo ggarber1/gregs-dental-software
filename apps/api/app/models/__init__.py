@@ -10,6 +10,7 @@ from app.models.era_remittance import ERARemittance as ERARemittance
 from app.models.era_remittance import UnmatchedERAPayment as UnmatchedERAPayment
 from app.models.insurance_plan import InsurancePlan as InsurancePlan
 from app.models.intake_form import IntakeForm as IntakeForm
+from app.models.ledger_entry import LedgerEntry as LedgerEntry
 from app.models.medical_history_version import MedicalHistoryVersion as MedicalHistoryVersion
 from app.models.operatory import Operatory as Operatory
 from app.models.patient import Patient as Patient
