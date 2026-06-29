@@ -15,6 +15,7 @@ from app.models.insurance_plan import InsurancePlan
 from app.models.patient import Patient
 
 _PROBLEM_STATUSES = frozenset({"denied", "clearinghouse_rejected", "submission_failed"})
+_UNDERPAY_PCT = 95  # flag underpayment when insurance pays < 95% of the Module 6 estimate
 
 
 def age_bucket(days_out: int) -> Literal["0-30", "31-60", "61-90", "90+"]:
@@ -36,7 +37,7 @@ def is_underpaid(
     if estimated_insurance_cents <= 0:
         return False
     # Integer-cents comparison (no float): paid < 95% of estimate.
-    return 100 * insurance_paid_cents < 95 * estimated_insurance_cents
+    return 100 * insurance_paid_cents < _UNDERPAY_PCT * estimated_insurance_cents
 
 
 def classify(
