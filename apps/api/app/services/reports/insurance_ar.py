@@ -3,9 +3,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-_UNDERPAY_THRESHOLD = 0.95  # flag when insurance pays < 95% of the Module 6 estimate
 _PROBLEM_STATUSES = frozenset({"denied", "clearinghouse_rejected", "submission_failed"})
 
 
@@ -27,7 +26,8 @@ def is_underpaid(
         return False
     if estimated_insurance_cents <= 0:
         return False
-    return insurance_paid_cents < _UNDERPAY_THRESHOLD * estimated_insurance_cents
+    # Integer-cents comparison (no float): paid < 95% of estimate.
+    return 100 * insurance_paid_cents < 95 * estimated_insurance_cents
 
 
 def classify(
@@ -73,7 +73,7 @@ def reason_for(claim: Any) -> str | None:
 _BUCKET_FIELD = {"0-30": "b0_30", "31-60": "b31_60", "61-90": "b61_90", "90+": "b90_plus"}
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class WorklistRow:
     claim_id: uuid.UUID
     claim_number: str
@@ -87,7 +87,7 @@ class WorklistRow:
     shortfall_cents: int | None
     has_estimate: bool
     days_out: int
-    bucket: str
+    bucket: Literal["0-30", "31-60", "61-90", "90+"]
     status: str
     reason: str | None
 
@@ -135,6 +135,8 @@ def summarize(rows: list[WorklistRow]) -> Summary:
 
     Only AWAITING rows contribute to billed buckets / total_billed / expected;
     underpaid and problem rows are counted separately per carrier.
+    Appealing rows contribute only to claim_count (there is no appealing_count
+    on the summary by design), so they appear in totals without their own column.
     """
     by_payer: dict[str, CarrierSummary] = {}
     order: list[str] = []

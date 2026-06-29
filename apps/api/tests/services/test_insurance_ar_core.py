@@ -141,11 +141,13 @@ def test_summarize_aggregates_awaiting_by_carrier_and_bucket():
         _row("DELTA", "awaiting", "61-90", 500, estimate=400),
         _row("DELTA", "underpaid", "0-30", 999, estimate=900),   # not aged into buckets
         _row("DELTA", "problem", "0-30", 300, has_estimate=False),
+        _row("DELTA", "appealing", "0-30", 500),                 # claim_count only
         _row("METLIFE", "awaiting", "0-30", 800, estimate=None, has_estimate=False),
     ]
     summary = summarize(rows)
 
     delta = next(c for c in summary.carriers if c.payer_id == "DELTA")
+    assert delta.claim_count == 5               # awaiting x2 + underpaid + problem + appealing
     assert delta.buckets.b0_30 == 1000          # only awaiting rows counted in buckets
     assert delta.buckets.b61_90 == 500
     assert delta.total_billed_cents == 1500     # awaiting only
@@ -155,12 +157,26 @@ def test_summarize_aggregates_awaiting_by_carrier_and_bucket():
     assert delta.unestimated_count == 0         # both awaiting rows had estimates
 
     metlife = next(c for c in summary.carriers if c.payer_id == "METLIFE")
+    assert metlife.claim_count == 1
     assert metlife.total_billed_cents == 800
     assert metlife.expected_cents == 0          # no estimate -> excluded from expected
     assert metlife.unestimated_count == 1
 
     # TOTAL row across carriers
+    assert summary.totals.claim_count == 6
     assert summary.totals.total_billed_cents == 2300
     assert summary.totals.expected_cents == 1100
     assert summary.totals.underpaid_count == 1
     assert summary.totals.problem_count == 1
+    assert summary.totals.unestimated_count == 1
+
+
+def test_summarize_empty():
+    summary = summarize([])
+    assert summary.carriers == []
+    assert summary.totals.claim_count == 0
+    assert summary.totals.total_billed_cents == 0
+    assert summary.totals.expected_cents == 0
+    assert summary.totals.unestimated_count == 0
+    assert summary.totals.underpaid_count == 0
+    assert summary.totals.problem_count == 0
