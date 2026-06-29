@@ -85,6 +85,13 @@ dependency graph and detailed sequencing.
 - **Who enters procedures, and when?** Dentist, assistant, or front desk — and during the visit or at checkout? This determines whether the fee total is actually "ready" when the patient is standing at the desk.
 - **Edit-appointment modal as the checkout hub?** Should adding/editing procedures, seeing the running total, AND recording "patient paid $X" all happen inside the edit-appointment modal at checkout — rather than completing the appointment and then navigating to the patient's Ledger tab separately? (Current 8a flow is two steps: complete → Ledger tab. Dad's workflow may want it in one place.)
 
+**Make procedure entry easier — where does "add procedure" live?** Procedures are per-appointment (`appointment_procedures.appointment_id`), so the add surface should be wherever an appointment is already in context. Proposed direction (depends on the "who enters procedures" answer above):
+
+- **Two entry points for two moments:** (1) **day-of/checkout** → the edit-appointment modal from the schedule (front desk is already there when the patient finishes); (2) **patient-centric review/correction** → a new **Appointments tab** on the patient page (drill into a visit → add/edit its procedures, see completion status + the charge it generated).
+- **Do NOT put an Add button on the Procedures (history) tab** — that tab is flat cross-visit history with no appointment context, so adding there forces an awkward "which appointment?" picker. Keep it as the read-only record.
+- **Watch overlap:** a new Appointments tab (grouped by visit) is a close cousin of the existing Procedures tab (flat history) — decide whether it complements or subsumes it; avoid two tabs that feel like the same data sliced differently.
+- **Caveat:** if the *dentist* enters procedures chairside (not front desk), the primary surface may be the clinical-note/tooth-chart flow instead — so this rides on the "who enters procedures, and when" question above.
+
 **Clearinghouse call allowance & overage billing:**
 
 The $249/mo plan includes 250 clearinghouse calls/month (claims + eligibility combined). At Stedi PAYG rates ($0.30/call), the 250-call bundle costs ~$75/mo and is already priced into the margin model. See `research/16_cost_and_scaling_model.md`.
