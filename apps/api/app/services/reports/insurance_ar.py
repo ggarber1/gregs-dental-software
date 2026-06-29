@@ -351,3 +351,73 @@ async def get_worklist(
         rows = [r for r in rows if r.bucket == bucket]
     rows.sort(key=lambda r: r.days_out, reverse=(sort == "oldest"))
     return rows
+
+
+async def get_summary(
+    session: AsyncSession,
+    practice_id: uuid.UUID,
+    *,
+    now: datetime | None = None,
+) -> Summary:
+    rows = await get_worklist(session, practice_id, now=now)
+    return summarize(rows)
+
+
+async def _load_claim(
+    session: AsyncSession, practice_id: uuid.UUID, claim_id: uuid.UUID
+) -> Claim:
+    claim = await session.scalar(
+        select(Claim).where(
+            Claim.id == claim_id,
+            Claim.practice_id == practice_id,
+            Claim.deleted_at.is_(None),
+        )
+    )
+    if claim is None:
+        raise LookupError(f"claim {claim_id} not found for practice")
+    return claim
+
+
+async def _is_underpaid_claim(session: AsyncSession, claim: Claim) -> bool:
+    est = (await _estimate_map(session, {claim.appointment_id})).get(claim.appointment_id)
+    return (
+        classify(
+            status=claim.status,
+            insurance_paid_cents=claim.insurance_paid_cents,
+            estimated_insurance_cents=est,
+            insurance_reviewed_at=claim.insurance_reviewed_at,
+        )
+        == "underpaid"
+    )
+
+
+async def accept_underpayment(
+    session: AsyncSession,
+    practice_id: uuid.UUID,
+    claim_id: uuid.UUID,
+    *,
+    now: datetime | None = None,
+) -> Claim:
+    """Mark an underpaid claim reviewed/accepted (drops it from the worklist)."""
+    claim = await _load_claim(session, practice_id, claim_id)
+    if not await _is_underpaid_claim(session, claim):
+        raise ValueError("claim is not currently underpaid")
+    claim.insurance_reviewed_at = now or datetime.now(UTC)
+    await session.commit()
+    await session.refresh(claim)
+    return claim
+
+
+async def flag_for_appeal(
+    session: AsyncSession,
+    practice_id: uuid.UUID,
+    claim_id: uuid.UUID,
+) -> Claim:
+    """Triage flag only — sets status='appealing'. Does NOT submit to the carrier."""
+    claim = await _load_claim(session, practice_id, claim_id)
+    if not await _is_underpaid_claim(session, claim):
+        raise ValueError("claim is not currently underpaid")
+    claim.status = "appealing"
+    await session.commit()
+    await session.refresh(claim)
+    return claim
