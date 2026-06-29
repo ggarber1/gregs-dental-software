@@ -2,13 +2,22 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.appointment_procedure import AppointmentProcedure
+from app.models.claim import Claim
+from app.models.copay_calculation import CopayCalculation
+from app.models.insurance_plan import InsurancePlan
+from app.models.patient import Patient
 
 _PROBLEM_STATUSES = frozenset({"denied", "clearinghouse_rejected", "submission_failed"})
 
 
-def age_bucket(days_out: int) -> str:
+def age_bucket(days_out: int) -> Literal["0-30", "31-60", "61-90", "90+"]:
     if days_out <= 30:
         return "0-30"
     if days_out <= 60:
@@ -189,3 +198,156 @@ def summarize(rows: list[WorklistRow]) -> Summary:
         problem_count=sum(c.problem_count for c in carriers),
     )
     return Summary(carriers=carriers, totals=totals)
+
+
+# ---------------------------------------------------------------------------
+# DB layer
+# ---------------------------------------------------------------------------
+
+
+def _days_between(anchor: datetime, now: datetime) -> int:
+    return (now.date() - anchor.date()).days
+
+
+async def _estimate_map(
+    session: AsyncSession, appt_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """appointment_id -> estimated insurance cents.
+
+    Uses the latest copay_calculations row per appointment, falling back to
+    the sum of appointment_procedures.insurance_est_cents.
+    """
+    if not appt_ids:
+        return {}
+    out: dict[uuid.UUID, int] = {}
+    calcs = (
+        await session.scalars(
+            select(CopayCalculation)
+            .where(CopayCalculation.appointment_id.in_(appt_ids))
+            .order_by(CopayCalculation.appointment_id, CopayCalculation.created_at.desc())
+        )
+    ).all()
+    for c in calcs:
+        if c.appointment_id not in out:  # first per appt = latest (desc order)
+            out[c.appointment_id] = int(c.total_insurance_owes_cents)
+    missing = appt_ids - out.keys()
+    if missing:
+        rows = (
+            await session.execute(
+                select(
+                    AppointmentProcedure.appointment_id,
+                    func.sum(AppointmentProcedure.insurance_est_cents),
+                )
+                .where(
+                    AppointmentProcedure.appointment_id.in_(missing),
+                    AppointmentProcedure.insurance_est_cents.is_not(None),
+                )
+                .group_by(AppointmentProcedure.appointment_id)
+            )
+        ).all()
+        for appt_id, total in rows:
+            if total is not None:
+                out[appt_id] = int(total)
+    return out
+
+
+async def _patient_name_map(
+    session: AsyncSession, patient_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    if not patient_ids:
+        return {}
+    rows = (
+        await session.scalars(select(Patient).where(Patient.id.in_(patient_ids)))
+    ).all()
+    return {p.id: f"{p.first_name} {p.last_name}" for p in rows}
+
+
+async def _carrier_name_map(
+    session: AsyncSession, payer_ids: set[str]
+) -> dict[str, str]:
+    if not payer_ids:
+        return {}
+    rows = (
+        await session.scalars(
+            select(InsurancePlan).where(InsurancePlan.payer_id.in_(payer_ids))
+        )
+    ).all()
+    out: dict[str, str] = {}
+    for ip in rows:
+        out.setdefault(ip.payer_id, ip.carrier_name)
+    return out
+
+
+async def get_worklist(
+    session: AsyncSession,
+    practice_id: uuid.UUID,
+    *,
+    category: str | None = None,
+    payer_id: str | None = None,
+    bucket: str | None = None,
+    status: str | None = None,
+    sort: str = "oldest",
+    now: datetime | None = None,
+) -> list[WorklistRow]:
+    now = now or datetime.now(UTC)
+    stmt = select(Claim).where(
+        Claim.practice_id == practice_id,
+        Claim.deleted_at.is_(None),
+        Claim.status != "draft",
+    )
+    if payer_id:
+        stmt = stmt.where(Claim.payer_id == payer_id)
+    if status:
+        stmt = stmt.where(Claim.status == status)
+    claims = list((await session.scalars(stmt)).all())
+    if not claims:
+        return []
+
+    estimates = await _estimate_map(session, {c.appointment_id for c in claims})
+    patient_names = await _patient_name_map(session, {c.patient_id for c in claims})
+    carrier_names = await _carrier_name_map(session, {c.payer_id for c in claims})
+
+    rows: list[WorklistRow] = []
+    for c in claims:
+        est = estimates.get(c.appointment_id)
+        cat = classify(
+            status=c.status,
+            insurance_paid_cents=c.insurance_paid_cents,
+            estimated_insurance_cents=est,
+            insurance_reviewed_at=c.insurance_reviewed_at,
+        )
+        if cat is None:
+            continue
+        anchor = c.submitted_at or c.created_at
+        days = _days_between(anchor, now)
+        shortfall = (
+            int(est) - int(c.insurance_paid_cents)
+            if cat == "underpaid" and est is not None and c.insurance_paid_cents is not None
+            else None
+        )
+        rows.append(
+            WorklistRow(
+                claim_id=c.id,
+                claim_number=c.patient_control_number,
+                patient_name=patient_names.get(c.patient_id, "Unknown"),
+                payer_id=c.payer_id,
+                carrier_name=carrier_names.get(c.payer_id, c.payer_id),
+                category=cat,
+                billed_cents=int(c.total_charge_cents),
+                estimated_insurance_cents=est,
+                insurance_paid_cents=c.insurance_paid_cents,
+                shortfall_cents=shortfall,
+                has_estimate=est is not None,
+                days_out=days,
+                bucket=age_bucket(days),
+                status=c.status,
+                reason=reason_for(c),
+            )
+        )
+
+    if category:
+        rows = [r for r in rows if r.category == category]
+    if bucket:
+        rows = [r for r in rows if r.bucket == bucket]
+    rows.sort(key=lambda r: r.days_out, reverse=(sort == "oldest"))
+    return rows
