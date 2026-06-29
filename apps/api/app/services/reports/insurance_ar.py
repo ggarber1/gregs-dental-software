@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -66,3 +68,122 @@ def reason_for(claim: Any) -> str | None:
             return "; ".join(errs)
         return str(claim.clearinghouse_status or claim.status)
     return None
+
+
+_BUCKET_FIELD = {"0-30": "b0_30", "31-60": "b31_60", "61-90": "b61_90", "90+": "b90_plus"}
+
+
+@dataclass(frozen=True)
+class WorklistRow:
+    claim_id: uuid.UUID
+    claim_number: str
+    patient_name: str
+    payer_id: str
+    carrier_name: str
+    category: str
+    billed_cents: int
+    estimated_insurance_cents: int | None
+    insurance_paid_cents: int | None
+    shortfall_cents: int | None
+    has_estimate: bool
+    days_out: int
+    bucket: str
+    status: str
+    reason: str | None
+
+
+@dataclass
+class Buckets:
+    b0_30: int = 0
+    b31_60: int = 0
+    b61_90: int = 0
+    b90_plus: int = 0
+
+
+@dataclass
+class CarrierSummary:
+    payer_id: str
+    carrier_name: str
+    claim_count: int
+    buckets: Buckets
+    total_billed_cents: int
+    expected_cents: int
+    unestimated_count: int
+    underpaid_count: int
+    problem_count: int
+
+
+@dataclass
+class ARTotals:
+    claim_count: int
+    buckets: Buckets
+    total_billed_cents: int
+    expected_cents: int
+    unestimated_count: int
+    underpaid_count: int
+    problem_count: int
+
+
+@dataclass
+class Summary:
+    carriers: list[CarrierSummary]
+    totals: ARTotals
+
+
+def summarize(rows: list[WorklistRow]) -> Summary:
+    """Aggregate worklist rows into the carrier birds-eye + TOTAL row. Pure.
+
+    Only AWAITING rows contribute to billed buckets / total_billed / expected;
+    underpaid and problem rows are counted separately per carrier.
+    """
+    by_payer: dict[str, CarrierSummary] = {}
+    order: list[str] = []
+    for r in rows:
+        cs = by_payer.get(r.payer_id)
+        if cs is None:
+            cs = CarrierSummary(
+                payer_id=r.payer_id,
+                carrier_name=r.carrier_name,
+                claim_count=0,
+                buckets=Buckets(),
+                total_billed_cents=0,
+                expected_cents=0,
+                unestimated_count=0,
+                underpaid_count=0,
+                problem_count=0,
+            )
+            by_payer[r.payer_id] = cs
+            order.append(r.payer_id)
+        cs.claim_count += 1
+        if r.category == "underpaid":
+            cs.underpaid_count += 1
+        elif r.category == "problem":
+            cs.problem_count += 1
+        elif r.category == "awaiting":
+            setattr(
+                cs.buckets,
+                _BUCKET_FIELD[r.bucket],
+                getattr(cs.buckets, _BUCKET_FIELD[r.bucket]) + r.billed_cents,
+            )
+            cs.total_billed_cents += r.billed_cents
+            if r.has_estimate and r.estimated_insurance_cents is not None:
+                cs.expected_cents += r.estimated_insurance_cents
+            else:
+                cs.unestimated_count += 1
+
+    carriers = [by_payer[p] for p in order]
+    totals = ARTotals(
+        claim_count=sum(c.claim_count for c in carriers),
+        buckets=Buckets(
+            b0_30=sum(c.buckets.b0_30 for c in carriers),
+            b31_60=sum(c.buckets.b31_60 for c in carriers),
+            b61_90=sum(c.buckets.b61_90 for c in carriers),
+            b90_plus=sum(c.buckets.b90_plus for c in carriers),
+        ),
+        total_billed_cents=sum(c.total_billed_cents for c in carriers),
+        expected_cents=sum(c.expected_cents for c in carriers),
+        unestimated_count=sum(c.unestimated_count for c in carriers),
+        underpaid_count=sum(c.underpaid_count for c in carriers),
+        problem_count=sum(c.problem_count for c in carriers),
+    )
+    return Summary(carriers=carriers, totals=totals)

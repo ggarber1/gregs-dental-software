@@ -1,7 +1,15 @@
+import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from app.services.reports.insurance_ar import age_bucket, classify, is_underpaid, reason_for
+from app.services.reports.insurance_ar import (
+    WorklistRow,
+    age_bucket,
+    classify,
+    is_underpaid,
+    reason_for,
+    summarize,
+)
 
 
 def test_age_bucket_boundaries():
@@ -98,6 +106,61 @@ def test_reason_rejected_uses_submission_errors():
 
 
 def test_reason_none_for_non_problem():
-    claim = SimpleNamespace(status="submitted", denial_codes=None,
-                            submission_errors=None, clearinghouse_status=None)
+    claim = SimpleNamespace(
+        status="submitted",
+        denial_codes=None,
+        submission_errors=None,
+        clearinghouse_status=None,
+    )
     assert reason_for(claim) is None
+
+
+def _row(payer_id, category, bucket, billed, estimate=None, has_estimate=True):
+    return WorklistRow(
+        claim_id=uuid.uuid4(),
+        claim_number="PCN1",
+        patient_name="Jane Doe",
+        payer_id=payer_id,
+        carrier_name=payer_id,
+        category=category,
+        billed_cents=billed,
+        estimated_insurance_cents=estimate,
+        insurance_paid_cents=None,
+        shortfall_cents=None,
+        has_estimate=has_estimate,
+        days_out=10,
+        bucket=bucket,
+        status="submitted",
+        reason=None,
+    )
+
+
+def test_summarize_aggregates_awaiting_by_carrier_and_bucket():
+    rows = [
+        _row("DELTA", "awaiting", "0-30", 1000, estimate=700),
+        _row("DELTA", "awaiting", "61-90", 500, estimate=400),
+        _row("DELTA", "underpaid", "0-30", 999, estimate=900),   # not aged into buckets
+        _row("DELTA", "problem", "0-30", 300, has_estimate=False),
+        _row("METLIFE", "awaiting", "0-30", 800, estimate=None, has_estimate=False),
+    ]
+    summary = summarize(rows)
+
+    delta = next(c for c in summary.carriers if c.payer_id == "DELTA")
+    assert delta.buckets.b0_30 == 1000          # only awaiting rows counted in buckets
+    assert delta.buckets.b61_90 == 500
+    assert delta.total_billed_cents == 1500     # awaiting only
+    assert delta.expected_cents == 1100         # 700 + 400 (estimated awaiting only)
+    assert delta.underpaid_count == 1
+    assert delta.problem_count == 1
+    assert delta.unestimated_count == 0         # both awaiting rows had estimates
+
+    metlife = next(c for c in summary.carriers if c.payer_id == "METLIFE")
+    assert metlife.total_billed_cents == 800
+    assert metlife.expected_cents == 0          # no estimate -> excluded from expected
+    assert metlife.unestimated_count == 1
+
+    # TOTAL row across carriers
+    assert summary.totals.total_billed_cents == 2300
+    assert summary.totals.expected_cents == 1100
+    assert summary.totals.underpaid_count == 1
+    assert summary.totals.problem_count == 1
