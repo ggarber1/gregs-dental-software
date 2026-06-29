@@ -257,10 +257,17 @@ async def _patient_name_map(
 ) -> dict[uuid.UUID, str]:
     if not patient_ids:
         return {}
+    # Project only id + name columns — avoids loading full PHI rows (SSN, address,
+    # clinical flags). first_name/last_name are plaintext String columns
+    # (only ssn_encrypted is column-encrypted), so projection returns real names.
     rows = (
-        await session.scalars(select(Patient).where(Patient.id.in_(patient_ids)))
+        await session.execute(
+            select(Patient.id, Patient.first_name, Patient.last_name).where(
+                Patient.id.in_(patient_ids)
+            )
+        )
     ).all()
-    return {p.id: f"{p.first_name} {p.last_name}" for p in rows}
+    return {pid: f"{first} {last}" for pid, first, last in rows}
 
 
 async def _carrier_name_map(
@@ -287,7 +294,7 @@ async def get_worklist(
     payer_id: str | None = None,
     bucket: str | None = None,
     status: str | None = None,
-    sort: str = "oldest",
+    sort: Literal["oldest", "newest"] = "oldest",
     now: datetime | None = None,
 ) -> list[WorklistRow]:
     now = now or datetime.now(UTC)
@@ -346,6 +353,9 @@ async def get_worklist(
             )
         )
 
+    # category/bucket are derived (computed in Python from classify/age_bucket),
+    # so they can't be pushed into the SQL WHERE — filter post-hoc. Fine at
+    # per-practice claim volumes.
     if category:
         rows = [r for r in rows if r.category == category]
     if bucket:
@@ -367,12 +377,17 @@ async def get_summary(
 async def _load_claim(
     session: AsyncSession, practice_id: uuid.UUID, claim_id: uuid.UUID
 ) -> Claim:
+    # Row lock: accept/appeal do load -> check -> mutate -> commit. Without the
+    # lock, a concurrent accept + appeal could both pass the underpaid check and
+    # set insurance_reviewed_at AND status='appealing'. with_for_update serializes them.
     claim = await session.scalar(
-        select(Claim).where(
+        select(Claim)
+        .where(
             Claim.id == claim_id,
             Claim.practice_id == practice_id,
             Claim.deleted_at.is_(None),
         )
+        .with_for_update()
     )
     if claim is None:
         raise LookupError(f"claim {claim_id} not found for practice")
