@@ -69,6 +69,10 @@ class Claim(Base, PHIMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # --- Claim recovery (0037) ---
+    submission_history: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
+    claim_frequency_code: Mapped[str] = mapped_column(String(2), nullable=False, server_default="1")
+
     __table_args__ = (
         CheckConstraint(
             "status IN ('draft', 'submitted', 'clearinghouse_rejected', 'submission_failed', "
