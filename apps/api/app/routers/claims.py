@@ -251,10 +251,11 @@ async def write_off_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dic
             )
         except ClaimSubmissionPrereqError as exc:
             status_code = 404 if exc.code == "CLAIM_NOT_FOUND" else 422
+            details = {"errors": exc.errors} if exc.errors else None
             raise HTTPException(
                 status_code=status_code,
                 detail=ApiError(
-                    error=Error(code=exc.code, message=exc.message)
+                    error=Error(code=exc.code, message=exc.message, details=details)
                 ).model_dump(by_alias=True),
             ) from exc
 
