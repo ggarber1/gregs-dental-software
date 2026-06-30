@@ -42,6 +42,15 @@ export interface Claim {
   submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  submissionHistory: Array<{
+    attempt: number;
+    status: string;
+    denialCodes: string[] | null;
+    payerCcn: string | null;
+    submittedAt: string | null;
+  }> | null;
+  claimFrequencyCode: string;
+  insuranceReviewedAt: string | null;
 }
 
 // ── Query keys ─────────────────────────────────────────────────────────────────
