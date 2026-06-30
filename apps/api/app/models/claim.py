@@ -70,7 +70,7 @@ class Claim(Base, PHIMixin):
     )
 
     # --- Claim recovery (0037) ---
-    submission_history: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
+    submission_history: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     claim_frequency_code: Mapped[str] = mapped_column(String(2), nullable=False, server_default="1")
 
     __table_args__ = (
