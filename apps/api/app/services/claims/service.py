@@ -155,6 +155,7 @@ async def _reverse_claim_ledger_entries(
             remittance_id=entry.remittance_id,
             reverses_entry_id=entry.id,
             posted_by=user_sub or "system",
+            memo=f"reversed on resubmission of claim {claim_id}",
         )
         session.add(reversal)
 
@@ -324,18 +325,19 @@ async def resubmit_claim(
     claim.submission_history = list(claim.submission_history or []) + [snapshot]
 
     # 4. Determine frequency code and clear denial state if applicable.
-    if claim.status in {"denied", "appealing"} and claim.remittance_id is not None:
-        if post_to_ledger:
+    if claim.status in {"denied", "appealing"}:
+        frequency_code = "7"
+        original_claim_reference = claim.payer_claim_control_number
+        if post_to_ledger and claim.remittance_id is not None:
             await _reverse_claim_ledger_entries(
                 session, claim.id, claim.remittance_id, user_sub
             )
-        original_claim_reference = claim.payer_claim_control_number
         claim.remittance_id = None
         claim.insurance_paid_cents = None
         claim.patient_responsibility_cents = None
         claim.denial_codes = None
         claim.paid_at = None
-        frequency_code = "7"
+        claim.adjustments = None
     else:
         original_claim_reference = None
         frequency_code = "1"
@@ -414,9 +416,13 @@ async def resubmit_claim(
     claim.raw_response = result.raw_response
     claim.clearinghouse_claim_id = result.clearinghouse_claim_id
     claim.clearinghouse_status = result.clearinghouse_status
-    claim.status = "submitted"
-    claim.submitted_at = datetime.now(UTC)
-    claim.submission_errors = None
+    if result.accepted:
+        claim.status = "submitted"
+        claim.submitted_at = datetime.now(UTC)
+        claim.submission_errors = None
+    else:
+        claim.status = "clearinghouse_rejected"
+        claim.submission_errors = result.errors
     await session.commit()
     await session.refresh(claim)
     return claim

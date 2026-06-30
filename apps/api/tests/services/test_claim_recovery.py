@@ -170,3 +170,41 @@ async def test_resubmit_denied_uses_frequency_code_7_and_snapshots():
     assert claim.submission_history[0]["attempt"] == 1
     assert claim.submission_history[0]["status"] == "denied"
     assert claim.submission_history[0]["denial_codes"] == ["96"]
+
+
+@pytest.mark.asyncio
+async def test_resubmit_clearinghouse_rejects_sets_rejected_status():
+    """Clearinghouse rejects on resubmit → status=clearinghouse_rejected, not submitted."""
+    claim = _make_claim(status="clearinghouse_rejected")
+    session = AsyncMock()
+
+    procedures_result = AsyncMock()
+    procedures_result.all = MagicMock(return_value=[MagicMock()])
+    session.scalars = AsyncMock(return_value=procedures_result)
+    session.scalar = AsyncMock(return_value=claim)
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    with (
+        patch("app.services.claims.service._load_claim_prereqs", new=AsyncMock(return_value=_prereqs())),
+        patch("app.services.claims.service.build_claim_input", return_value=MagicMock(total_charge_cents=10000)),
+        patch("app.services.claims.service.validate_claim", return_value=MagicMock(valid=True)),
+        patch("app.services.claims.service.decrypt", return_value="decrypted-tax-id"),
+    ):
+        client = AsyncMock()
+        client.submit_dental_claim = AsyncMock(
+            return_value=MagicMock(
+                accepted=False,
+                clearinghouse_claim_id="CH999",
+                clearinghouse_status="rejected",
+                errors=["invalid NPI"],
+                raw_request={},
+                raw_response={},
+            )
+        )
+        await resubmit_claim(
+            session, claim.practice_id, claim.id, client=client, usage_indicator="T", user_sub=None
+        )
+
+    assert claim.status == "clearinghouse_rejected"
+    assert claim.submission_errors == ["invalid NPI"]
