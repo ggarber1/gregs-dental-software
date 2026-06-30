@@ -42,6 +42,7 @@ def _make_claim(
     c.insurance_paid_cents = 0 if status == "denied" else None
     c.patient_responsibility_cents = None
     c.paid_at = datetime(2026, 6, 10, tzinfo=UTC) if status == "denied" else None
+    c.insurance_reviewed_at = None
     return c
 
 
