@@ -38,6 +38,7 @@ from app.routers import (
     perio_charts,
     practice,
     providers,
+    reports,
     tooth_chart,
     treatment_plans,
     webhooks,
@@ -145,6 +146,7 @@ def create_app() -> FastAPI:
     app.include_router(copay.router)
     app.include_router(claims.router)
     app.include_router(era.router)
+    app.include_router(reports.router)
     app.include_router(ledger.router)
     app.include_router(intake.public_router)
     app.include_router(intake.staff_router)
