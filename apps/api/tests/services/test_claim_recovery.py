@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.claims.service import ClaimSubmissionPrereqError, resubmit_claim
+from app.services.claims.service import ClaimSubmissionPrereqError, resubmit_claim, write_off_claim
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -208,3 +208,77 @@ async def test_resubmit_clearinghouse_rejects_sets_rejected_status():
 
     assert claim.status == "clearinghouse_rejected"
     assert claim.submission_errors == ["invalid NPI"]
+
+
+# ── write_off_claim ────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_write_off_wrong_status_raises():
+    claim = _make_claim(status="paid")
+    session = AsyncMock()
+    session.scalar = AsyncMock(return_value=claim)
+
+    with pytest.raises(ClaimSubmissionPrereqError) as exc_info:
+        await write_off_claim(session, uuid.uuid4(), uuid.uuid4(), memo=None, user_sub=None)
+
+    assert exc_info.value.code == "CLAIM_NOT_WRITABLE"
+
+
+@pytest.mark.asyncio
+async def test_write_off_already_reviewed_raises():
+    claim = _make_claim(status="denied")
+    claim.insurance_reviewed_at = datetime(2026, 6, 20, tzinfo=UTC)
+    session = AsyncMock()
+    session.scalar = AsyncMock(return_value=claim)
+
+    with pytest.raises(ClaimSubmissionPrereqError) as exc_info:
+        await write_off_claim(session, uuid.uuid4(), uuid.uuid4(), memo=None, user_sub=None)
+
+    assert exc_info.value.code == "ALREADY_RESOLVED"
+
+
+@pytest.mark.asyncio
+async def test_write_off_posts_adjustment_and_marks_reviewed():
+    claim = _make_claim(status="denied")
+    claim.insurance_reviewed_at = None
+    session = AsyncMock()
+    # Two scalar calls: first returns claim, second returns remaining balance
+    session.scalar = AsyncMock(side_effect=[claim, 50000])
+
+    added_entries = []
+
+    def _add(obj):
+        added_entries.append(obj)
+
+    session.add = _add
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    result = await write_off_claim(session, claim.practice_id, claim.id, memo=None, user_sub="staff-sub")
+
+    assert claim.insurance_reviewed_at is not None
+    assert len(added_entries) == 1
+    entry = added_entries[0]
+    assert entry.entry_type == "adjustment"
+    assert entry.amount_cents == -50000
+    assert entry.claim_id == claim.id
+    assert entry.posted_by == "staff-sub"
+    assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_write_off_zero_balance_skips_ledger_entry():
+    claim = _make_claim(status="denied")
+    claim.insurance_reviewed_at = None
+    session = AsyncMock()
+    session.scalar = AsyncMock(side_effect=[claim, 0])
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    result = await write_off_claim(session, claim.practice_id, claim.id, memo=None, user_sub=None)
+
+    session.add.assert_not_called()
+    assert claim.insurance_reviewed_at is not None
+    assert result is None

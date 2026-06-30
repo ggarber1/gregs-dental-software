@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import decrypt
@@ -426,3 +426,67 @@ async def resubmit_claim(
     await session.commit()
     await session.refresh(claim)
     return claim
+
+
+_WRITABLE_STATUSES = {"denied", "appealing"}
+
+
+async def write_off_claim(
+    session: AsyncSession,
+    practice_id: uuid.UUID,
+    claim_id: uuid.UUID,
+    *,
+    memo: str | None,
+    user_sub: str | None,
+) -> Any:  # LedgerEntry | None
+    """Write off a denied/appealing claim: post an adjustment zeroing remaining balance.
+
+    Sets insurance_reviewed_at so the claim moves to Done in the A/R worklist.
+    Returns the new LedgerEntry, or None if the balance was already zero.
+    """
+    claim = await session.scalar(
+        select(Claim).where(
+            Claim.id == claim_id,
+            Claim.practice_id == practice_id,
+            Claim.deleted_at.is_(None),
+        )
+    )
+    if claim is None:
+        raise ClaimSubmissionPrereqError("CLAIM_NOT_FOUND", "Claim not found")
+    if claim.status not in _WRITABLE_STATUSES:
+        raise ClaimSubmissionPrereqError(
+            "CLAIM_NOT_WRITABLE",
+            f"Claim status '{claim.status}' cannot be written off",
+        )
+    if claim.insurance_reviewed_at is not None:
+        raise ClaimSubmissionPrereqError("ALREADY_RESOLVED", "Claim is already resolved")
+
+    # Compute remaining balance attributable to this claim.
+    remaining: int = await session.scalar(
+        select(func.coalesce(func.sum(LedgerEntry.amount_cents), 0)).where(
+            LedgerEntry.claim_id == claim_id,
+            LedgerEntry.deleted_at.is_(None),
+        )
+    ) or 0
+
+    entry = None
+    if remaining > 0:
+        entry = LedgerEntry(
+            id=uuid.uuid4(),
+            practice_id=claim.practice_id,
+            patient_id=claim.patient_id,
+            entry_type="adjustment",
+            amount_cents=-remaining,
+            claim_id=claim.id,
+            memo=memo or "insurance denial write-off",
+            posted_by=user_sub or "system",
+        )
+        session.add(entry)
+
+    claim.insurance_reviewed_at = datetime.now(UTC)
+    claim.last_accessed_by = user_sub
+    claim.last_accessed_at = datetime.now(UTC)
+    await session.commit()
+    if entry is not None:
+        await session.refresh(entry)
+    return entry
