@@ -35,6 +35,8 @@ def build_claim_input(
     billing_tax_id: str,
     pcn: str,
     usage_indicator: str,
+    claim_frequency_code: str = "1",
+    original_claim_reference: str | None = None,
 ) -> DentalClaimInput:
     """Assemble a DentalClaimInput from already-fetched ORM rows (pure; no DB).
 
@@ -110,4 +112,6 @@ def build_claim_input(
         patient_gender=_gender(patient.sex),
         date_of_service=service_date,
         lines=lines,
+        claim_frequency_code=claim_frequency_code,
+        original_claim_reference=original_claim_reference,
     )

@@ -27,3 +27,28 @@ def test_pcn_is_deterministic_and_within_stedi_limit():
     assert 1 <= len(pcn) <= 17  # Stedi: payers may truncate beyond 17 chars
     # only X12-safe chars (no reserved delimiters ~ * : ^)
     assert all(c not in "~*:^" for c in pcn)
+
+
+# --- attempt parameter tests ---
+
+CLAIM_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+
+def test_generate_pcn_attempt_1_unchanged():
+    # attempt=1 (default) must produce the same value as before
+    pcn = generate_pcn(CLAIM_ID)
+    assert pcn == generate_pcn(CLAIM_ID, attempt=1)
+    assert len(pcn) <= 17
+    assert pcn == pcn.upper()
+
+
+def test_generate_pcn_attempt_2_different_from_1():
+    assert generate_pcn(CLAIM_ID, attempt=2) != generate_pcn(CLAIM_ID, attempt=1)
+
+
+def test_generate_pcn_attempt_2_max_17_chars():
+    assert len(generate_pcn(CLAIM_ID, attempt=2)) <= 17
+
+
+def test_generate_pcn_attempt_deterministic():
+    assert generate_pcn(CLAIM_ID, attempt=3) == generate_pcn(CLAIM_ID, attempt=3)

@@ -19,11 +19,16 @@ def generate_claim_idempotency_key(
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def generate_pcn(claim_id: str) -> str:
+def generate_pcn(claim_id: str, attempt: int = 1) -> str:
     """Patient Control Number (CLM01).
 
-    Deterministic from the claim's own UUID; <= 17 chars and X12-safe. Stedi warns
-    that some payers truncate the PCN beyond 17 chars in 835 ERAs / 277CAs, which
-    breaks match-back; keeping it <= 17 makes Module 7b's ERA matching reliable.
+    Deterministic from the claim UUID + attempt number; <= 17 chars and X12-safe.
+    attempt=1 preserves the original derivation (UUID hex prefix) so existing
+    claims are unaffected. attempt>1 appends a version suffix so each resubmission
+    gets a distinct PCN that the new ERA can match back to.
     """
-    return claim_id.replace("-", "")[:17].upper()
+    base = claim_id.replace("-", "")
+    if attempt == 1:
+        return base[:17].upper()
+    suffix = f"V{attempt}"
+    return (base[: 17 - len(suffix)] + suffix).upper()
