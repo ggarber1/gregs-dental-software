@@ -50,5 +50,12 @@ def test_generate_pcn_attempt_2_max_17_chars():
     assert len(generate_pcn(CLAIM_ID, attempt=2)) <= 17
 
 
-def test_generate_pcn_attempt_deterministic():
-    assert generate_pcn(CLAIM_ID, attempt=3) == generate_pcn(CLAIM_ID, attempt=3)
+def test_generate_pcn_attempt_2_x12_safe():
+    pcn = generate_pcn(CLAIM_ID, attempt=2)
+    assert all(c not in "~*:^" for c in pcn)
+
+
+def test_generate_pcn_invalid_attempt_raises():
+    import pytest
+    with pytest.raises(ValueError, match="attempt must be >= 1"):
+        generate_pcn(CLAIM_ID, attempt=0)

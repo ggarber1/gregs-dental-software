@@ -20,6 +20,8 @@ def generate_claim_idempotency_key(
 
 
 def generate_pcn(claim_id: str, attempt: int = 1) -> str:
+    if attempt < 1:
+        raise ValueError(f"attempt must be >= 1, got {attempt}")
     """Patient Control Number (CLM01).
 
     Deterministic from the claim UUID + attempt number; <= 17 chars and X12-safe.
