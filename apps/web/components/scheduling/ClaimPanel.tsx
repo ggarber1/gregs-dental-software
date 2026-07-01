@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  PROBLEM_STATUSES,
   useAppointmentClaims,
   useResubmitClaim,
   useSubmitClaim,
@@ -37,13 +38,6 @@ function statusVariant(
   return "secondary";
 }
 
-const PROBLEM_STATUSES = new Set([
-  "clearinghouse_rejected",
-  "submission_failed",
-  "denied",
-  "appealing",
-]);
-
 function ReasonBlock({
   claim,
   cdtCodes,
@@ -51,7 +45,7 @@ function ReasonBlock({
   claim: Claim;
   cdtCodes: string[];
 }) {
-  if (!PROBLEM_STATUSES.has(claim.status as string)) return null;
+  if (!PROBLEM_STATUSES.has(claim.status)) return null;
 
   let reasonText: string;
   let fixIn: string | null = null;
@@ -110,7 +104,7 @@ function ActionButtons({
 }) {
   const resubmit = useResubmitClaim(claim.id, appointmentId, claim.patientId);
   const writeOff = useWriteOffClaim(claim.id, appointmentId, claim.patientId);
-  const canResubmit = PROBLEM_STATUSES.has(claim.status as string);
+  const canResubmit = PROBLEM_STATUSES.has(claim.status) && !claim.insuranceReviewedAt;
   const canWriteOff =
     (claim.status === "denied" || claim.status === "appealing") &&
     !claim.insuranceReviewedAt;

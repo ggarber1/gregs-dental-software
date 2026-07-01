@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  PROBLEM_STATUSES,
   usePatientClaims,
   useResubmitClaim,
   useWriteOffClaim,
@@ -41,13 +42,6 @@ function statusVariant(
   return "outline";
 }
 
-const PROBLEM_STATUSES = new Set([
-  "clearinghouse_rejected",
-  "submission_failed",
-  "denied",
-  "appealing",
-]);
-
 function getReasonText(claim: Claim): string {
   if (
     (claim.status === "clearinghouse_rejected" ||
@@ -65,7 +59,7 @@ function getReasonText(claim: Claim): string {
 function ClaimRow({ claim }: { claim: Claim }) {
   const resubmit = useResubmitClaim(claim.id, claim.appointmentId, claim.patientId);
   const writeOff = useWriteOffClaim(claim.id, claim.appointmentId, claim.patientId);
-  const isProblem = PROBLEM_STATUSES.has(claim.status);
+  const isProblem = PROBLEM_STATUSES.has(claim.status) && !claim.insuranceReviewedAt;
   const canWriteOff =
     (claim.status === "denied" || claim.status === "appealing") &&
     !claim.insuranceReviewedAt;

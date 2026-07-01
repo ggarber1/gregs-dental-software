@@ -318,9 +318,9 @@ async def resubmit_claim(
     snapshot = {
         "attempt": claim.submission_attempt,
         "status": claim.status,
-        "denial_codes": claim.denial_codes,
-        "payer_ccn": claim.payer_claim_control_number,
-        "submitted_at": claim.submitted_at.isoformat() if claim.submitted_at else None,
+        "denialCodes": claim.denial_codes,
+        "payerCcn": claim.payer_claim_control_number,
+        "submittedAt": claim.submitted_at.isoformat() if claim.submitted_at else None,
     }
     claim.submission_history = list(claim.submission_history or []) + [snapshot]
 
@@ -465,6 +465,7 @@ async def write_off_claim(
     remaining: int = await session.scalar(
         select(func.coalesce(func.sum(LedgerEntry.amount_cents), 0)).where(
             LedgerEntry.claim_id == claim_id,
+            LedgerEntry.practice_id == practice_id,
             LedgerEntry.deleted_at.is_(None),
         )
     ) or 0

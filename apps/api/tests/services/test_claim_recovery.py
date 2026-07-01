@@ -170,7 +170,7 @@ async def test_resubmit_denied_uses_frequency_code_7_and_snapshots():
     assert claim.submission_history is not None
     assert claim.submission_history[0]["attempt"] == 1
     assert claim.submission_history[0]["status"] == "denied"
-    assert claim.submission_history[0]["denial_codes"] == ["96"]
+    assert claim.submission_history[0]["denialCodes"] == ["96"]
 
 
 @pytest.mark.asyncio
@@ -265,6 +265,69 @@ async def test_write_off_posts_adjustment_and_marks_reviewed():
     assert entry.amount_cents == -50000
     assert entry.claim_id == claim.id
     assert entry.posted_by == "staff-sub"
+    assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_resubmit_submission_failed_uses_frequency_code_1():
+    """submission_failed → carrier never saw it → resubmit as original (freq code 1)."""
+    claim = _make_claim(status="submission_failed")
+    session = AsyncMock()
+
+    procedures_result = AsyncMock()
+    procedures_result.all = MagicMock(return_value=[MagicMock()])
+    session.scalars = AsyncMock(return_value=procedures_result)
+    session.scalar = AsyncMock(return_value=claim)
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    with (
+        patch("app.services.claims.service._load_claim_prereqs", new=AsyncMock(return_value=_prereqs())),
+        patch("app.services.claims.service.build_claim_input", return_value=MagicMock(total_charge_cents=10000)),
+        patch("app.services.claims.service.validate_claim", return_value=MagicMock(valid=True)),
+        patch("app.services.claims.service.decrypt", return_value="decrypted-tax-id"),
+    ):
+        client = AsyncMock()
+        client.submit_dental_claim = AsyncMock(
+            return_value=MagicMock(
+                accepted=True,
+                clearinghouse_claim_id="CH789",
+                clearinghouse_status="accepted",
+                errors=[],
+                raw_request={},
+                raw_response={},
+            )
+        )
+        await resubmit_claim(
+            session, claim.practice_id, claim.id, client=client, usage_indicator="T", user_sub=None
+        )
+
+    assert claim.claim_frequency_code == "1"
+    assert claim.submission_attempt == 2
+
+
+@pytest.mark.asyncio
+async def test_write_off_appealing_status():
+    """appealing status is writable; adjustment is posted and claim marked reviewed."""
+    claim = _make_claim(status="appealing")
+    claim.insurance_reviewed_at = None
+    session = AsyncMock()
+    session.scalar = AsyncMock(side_effect=[claim, 30000])
+
+    added_entries = []
+
+    def _add(obj):
+        added_entries.append(obj)
+
+    session.add = _add
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    result = await write_off_claim(session, claim.practice_id, claim.id, memo=None, user_sub="staff-sub")
+
+    assert claim.insurance_reviewed_at is not None
+    assert len(added_entries) == 1
+    assert added_entries[0].amount_cents == -30000
     assert result is not None
 
 

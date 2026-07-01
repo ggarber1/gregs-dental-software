@@ -62,6 +62,13 @@ export const claimsKeys = {
   patient: (patientId: string) => ["claims", "patient", patientId] as const,
 };
 
+export const PROBLEM_STATUSES = new Set<ClaimStatus>([
+  "clearinghouse_rejected",
+  "submission_failed",
+  "denied",
+  "appealing",
+]);
+
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
 export function useAppointmentClaims(appointmentId: string) {
@@ -95,7 +102,8 @@ export interface WriteOffResponse {
 export function useResubmitClaim(claimId: string, appointmentId: string, patientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiClient.post<Claim>(`/api/v1/claims/${claimId}/resubmit`, {}),
+    mutationFn: () =>
+      apiClient.post<Claim>(`/api/v1/claims/${claimId}/resubmit`, {}, { idempotencyKey: generateId() }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
@@ -109,7 +117,11 @@ export function useWriteOffClaim(claimId: string, appointmentId: string, patient
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (memo?: string) =>
-      apiClient.post<WriteOffResponse>(`/api/v1/claims/${claimId}/write-off`, { memo }),
+      apiClient.post<WriteOffResponse>(
+        `/api/v1/claims/${claimId}/write-off`,
+        { memo },
+        { idempotencyKey: generateId() },
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });

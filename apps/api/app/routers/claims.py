@@ -189,7 +189,7 @@ async def list_claims(
         return [_to_schema(r) for r in rows]
 
 
-@router.post("/claims/{claim_id}/resubmit")
+@router.post("/claims/{claim_id}/resubmit", response_model=Claim)
 async def resubmit_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dict:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
