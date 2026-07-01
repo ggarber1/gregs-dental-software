@@ -66,7 +66,7 @@ function ReasonBlock({
     reasonText = parsed.plain;
     fixIn = parsed.fixIn;
   } else if (claim.denialCodes && claim.denialCodes.length > 0) {
-    reasonText = formatDenialReason(claim.denialCodes, claim.payerId, cdtCodes);
+    reasonText = formatDenialReason(claim.denialCodes, "Your carrier", cdtCodes);
   } else {
     reasonText = "Denied by carrier — check with carrier for details.";
   }
