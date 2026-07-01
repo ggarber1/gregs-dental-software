@@ -100,6 +100,7 @@ export function useResubmitClaim(claimId: string, appointmentId: string, patient
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
+      void qc.invalidateQueries({ queryKey: ["reports"] });
     },
   });
 }
@@ -113,6 +114,7 @@ export function useWriteOffClaim(claimId: string, appointmentId: string, patient
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
+      void qc.invalidateQueries({ queryKey: ["reports"] });
     },
   });
 }

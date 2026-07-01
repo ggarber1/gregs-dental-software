@@ -34,6 +34,8 @@ def _row_to_dict(r: insurance_ar.WorklistRow) -> dict[str, Any]:
     # coerces into their enums during model_validate.
     return {
         "claimId": r.claim_id,
+        "appointmentId": r.appointment_id,
+        "patientId": r.patient_id,
         "claimNumber": r.claim_number,
         "patientName": r.patient_name,
         "payerId": r.payer_id,

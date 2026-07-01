@@ -104,6 +104,9 @@ def _fake_claim_row(submission_attempt: int = 2) -> MagicMock:
     m.submitted_at = now
     m.created_at = now
     m.updated_at = now
+    m.submission_history = None
+    m.claim_frequency_code = "1"
+    m.insurance_reviewed_at = None
     return m
 
 

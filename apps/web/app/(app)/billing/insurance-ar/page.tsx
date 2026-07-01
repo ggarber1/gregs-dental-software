@@ -220,8 +220,8 @@ export default function InsuranceARPage() {
                     <TableCell>
                       <ProblemRowActions
                         claimId={r.claimId}
-                        appointmentId={r.claimId}
-                        patientId={r.claimId}
+                        appointmentId={r.appointmentId}
+                        patientId={r.patientId}
                         status={r.status}
                       />
                     </TableCell>
