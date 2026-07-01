@@ -17,6 +17,7 @@ import { TreatmentPlanTab } from "@/components/patients/TreatmentPlanTab";
 import { PerioChartTab } from "@/components/patients/PerioChartTab";
 import { ProcedureHistoryTab } from "@/components/patients/ProcedureHistoryTab";
 import { LedgerTab } from "@/components/patients/LedgerTab";
+import { ClaimsTab } from "@/components/patients/ClaimsTab";
 import { IntakeReviewModal } from "@/components/patients/IntakeReviewModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -776,7 +777,7 @@ export default function PatientDetailPage() {
   const treatmentItemsByTooth = useOpenPatientTreatmentItems(patientId);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const initialTab = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart" | "treatment-plan" | "perio" | "procedure-history" | "ledger">(
+  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "tooth-chart" | "treatment-plan" | "perio" | "procedure-history" | "ledger" | "claims">(
     initialTab === "treatment-plan" ? "treatment-plan" : "overview",
   );
 
@@ -850,7 +851,7 @@ export default function PatientDetailPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 border-b border-border">
-        {(["overview", "notes", "tooth-chart", "treatment-plan", "perio", "procedure-history", "ledger"] as const).map((tab) => (
+        {(["overview", "notes", "tooth-chart", "treatment-plan", "perio", "procedure-history", "ledger", "claims"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -870,6 +871,8 @@ export default function PatientDetailPage() {
               ? "Procedures"
               : tab === "ledger"
               ? "Ledger"
+              : tab === "claims"
+              ? "Claims"
               : tab}
           </button>
         ))}
@@ -928,6 +931,11 @@ export default function PatientDetailPage() {
       {/* Ledger tab */}
       {activeTab === "ledger" && (
         <LedgerTab patientId={patientId} />
+      )}
+
+      {/* Claims tab */}
+      {activeTab === "claims" && (
+        <ClaimsTab patientId={patientId} />
       )}
     </div>
   );
