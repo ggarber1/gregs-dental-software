@@ -19,6 +19,47 @@ import {
   useInsuranceARWorklist,
   type ARCategory,
 } from "@/lib/api/reports";
+import { useResubmitClaim, useWriteOffClaim } from "@/lib/api/claims";
+
+function ProblemRowActions({
+  claimId,
+  appointmentId,
+  patientId,
+  status,
+}: {
+  claimId: string;
+  appointmentId: string;
+  patientId: string;
+  status: string;
+}) {
+  const resubmit = useResubmitClaim(claimId, appointmentId, patientId);
+  const writeOff = useWriteOffClaim(claimId, appointmentId, patientId);
+  const canWriteOff = status === "denied" || status === "appealing";
+
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        title="Correct the issue shown, then resubmit to send a new claim to the carrier"
+        onClick={() => resubmit.mutate()}
+        disabled={resubmit.isPending}
+        className="text-sm text-primary underline disabled:opacity-50"
+      >
+        {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
+      </button>
+      {canWriteOff && (
+        <button
+          type="button"
+          onClick={() => writeOff.mutate(undefined)}
+          disabled={writeOff.isPending}
+          className="ml-1 text-sm text-muted-foreground underline disabled:opacity-50"
+        >
+          {writeOff.isPending ? "Writing off…" : "Write off"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 const CATEGORIES: { key: ARCategory; label: string }[] = [
   { key: "awaiting", label: "Awaiting carrier" },
@@ -126,6 +167,9 @@ export default function InsuranceARPage() {
                 <TableHead className="text-right">Days</TableHead>
                 <TableHead>Status</TableHead>
                 {category === "underpaid" && <TableHead>Actions</TableHead>}
+                {(category === "problem" || category === "appealing") && (
+                  <TableHead>Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -170,6 +214,16 @@ export default function InsuranceARPage() {
                       >
                         Flag for appeal
                       </button>
+                    </TableCell>
+                  )}
+                  {(category === "problem" || category === "appealing") && (
+                    <TableCell>
+                      <ProblemRowActions
+                        claimId={r.claimId}
+                        appointmentId={r.appointmentId}
+                        patientId={r.patientId}
+                        status={r.status}
+                      />
                     </TableCell>
                   )}
                 </TableRow>

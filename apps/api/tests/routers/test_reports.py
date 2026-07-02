@@ -83,6 +83,8 @@ def _fake_session_factory():
 def _sample_row() -> WorklistRow:
     return WorklistRow(
         claim_id=uuid.uuid4(),
+        appointment_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
         claim_number="PCN-1",
         patient_name="Jane Doe",
         payer_id="DELTA",
