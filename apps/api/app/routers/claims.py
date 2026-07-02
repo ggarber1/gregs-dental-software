@@ -16,7 +16,7 @@ from app.core.ssm import get_ssm_parameter
 from app.models.claim import Claim as ClaimModel
 from app.models.practice import Practice as PracticeModel
 from app.routers.patients import _require_practice_scope, _require_write_role
-from app.schemas.generated import Adjustment, ApiError, Claim, ClaimStatus, Error
+from app.schemas.generated import Adjustment, ApiError, Claim, ClaimStatus, Error, SubmissionHistoryItem
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
     resubmit_claim,
@@ -71,7 +71,7 @@ def _to_schema(row: ClaimModel) -> Claim:
         submittedAt=row.submitted_at.replace(tzinfo=UTC) if row.submitted_at else None,
         createdAt=(row.created_at).replace(tzinfo=UTC),
         updatedAt=(row.updated_at).replace(tzinfo=UTC),
-        submissionHistory=row.submission_history,
+        submissionHistory=cast("list[SubmissionHistoryItem] | None", row.submission_history),
         claimFrequencyCode=row.claim_frequency_code,
         insuranceReviewedAt=(
             row.insurance_reviewed_at.replace(tzinfo=UTC) if row.insurance_reviewed_at else None
@@ -84,12 +84,15 @@ async def _get_claim_by_id(
     practice_id: uuid.UUID,
     claim_id: uuid.UUID,
 ) -> ClaimModel | None:
-    return await session.scalar(
-        select(ClaimModel).where(
-            ClaimModel.id == claim_id,
-            ClaimModel.practice_id == practice_id,
-            ClaimModel.deleted_at.is_(None),
-        )
+    return cast(
+        ClaimModel | None,
+        await session.scalar(
+            select(ClaimModel).where(
+                ClaimModel.id == claim_id,
+                ClaimModel.practice_id == practice_id,
+                ClaimModel.deleted_at.is_(None),
+            )
+        ),
     )
 
 
@@ -192,7 +195,7 @@ async def list_claims(
 
 
 @router.post("/claims/{claim_id}/resubmit", response_model=Claim)
-async def resubmit_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dict:
+async def resubmit_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dict[str, object]:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     user_sub = getattr(request.state.user, "sub", None)
@@ -234,7 +237,7 @@ async def resubmit_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dict
 
 
 @router.post("/claims/{claim_id}/write-off")
-async def write_off_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dict:
+async def write_off_claim_endpoint(claim_id: uuid.UUID, request: Request) -> dict[str, object]:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     user_sub = getattr(request.state.user, "sub", None)
