@@ -16,7 +16,14 @@ from app.core.ssm import get_ssm_parameter
 from app.models.claim import Claim as ClaimModel
 from app.models.practice import Practice as PracticeModel
 from app.routers.patients import _require_practice_scope, _require_write_role
-from app.schemas.generated import Adjustment, ApiError, Claim, ClaimStatus, Error, SubmissionHistoryItem
+from app.schemas.generated import (
+    Adjustment,
+    ApiError,
+    Claim,
+    ClaimStatus,
+    Error,
+    SubmissionHistoryItem,
+)
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
     resubmit_claim,
