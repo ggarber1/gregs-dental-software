@@ -10,7 +10,6 @@ import pytest
 
 from app.services.claims.service import ClaimSubmissionPrereqError, resubmit_claim, write_off_claim
 
-
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 
@@ -94,9 +93,11 @@ async def test_resubmit_clearinghouse_rejected_uses_frequency_code_1():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
+    prereqs_mock = AsyncMock(return_value=_prereqs())
+    claim_input_mock = MagicMock(total_charge_cents=10000)
     with (
-        patch("app.services.claims.service._load_claim_prereqs", new=AsyncMock(return_value=_prereqs())),
-        patch("app.services.claims.service.build_claim_input", return_value=MagicMock(total_charge_cents=10000)),
+        patch("app.services.claims.service._load_claim_prereqs", new=prereqs_mock),
+        patch("app.services.claims.service.build_claim_input", return_value=claim_input_mock),
         patch("app.services.claims.service.validate_claim", return_value=MagicMock(valid=True)),
         patch("app.services.claims.service.decrypt", return_value="decrypted-tax-id"),
     ):
@@ -140,10 +141,12 @@ async def test_resubmit_denied_uses_frequency_code_7_and_snapshots():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
+    prereqs_mock = AsyncMock(return_value=_prereqs())
+    claim_input_mock = MagicMock(total_charge_cents=10000)
     with (
-        patch("app.services.claims.service._load_claim_prereqs", new=AsyncMock(return_value=_prereqs())),
+        patch("app.services.claims.service._load_claim_prereqs", new=prereqs_mock),
         patch("app.services.claims.service._reverse_claim_ledger_entries", new=AsyncMock()),
-        patch("app.services.claims.service.build_claim_input", return_value=MagicMock(total_charge_cents=10000)),
+        patch("app.services.claims.service.build_claim_input", return_value=claim_input_mock),
         patch("app.services.claims.service.validate_claim", return_value=MagicMock(valid=True)),
         patch("app.services.claims.service.decrypt", return_value="decrypted-tax-id"),
     ):
@@ -186,9 +189,11 @@ async def test_resubmit_clearinghouse_rejects_sets_rejected_status():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
+    prereqs_mock = AsyncMock(return_value=_prereqs())
+    claim_input_mock = MagicMock(total_charge_cents=10000)
     with (
-        patch("app.services.claims.service._load_claim_prereqs", new=AsyncMock(return_value=_prereqs())),
-        patch("app.services.claims.service.build_claim_input", return_value=MagicMock(total_charge_cents=10000)),
+        patch("app.services.claims.service._load_claim_prereqs", new=prereqs_mock),
+        patch("app.services.claims.service.build_claim_input", return_value=claim_input_mock),
         patch("app.services.claims.service.validate_claim", return_value=MagicMock(valid=True)),
         patch("app.services.claims.service.decrypt", return_value="decrypted-tax-id"),
     ):
@@ -256,7 +261,9 @@ async def test_write_off_posts_adjustment_and_marks_reviewed():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
-    result = await write_off_claim(session, claim.practice_id, claim.id, memo=None, user_sub="staff-sub")
+    result = await write_off_claim(
+        session, claim.practice_id, claim.id, memo=None, user_sub="staff-sub"
+    )
 
     assert claim.insurance_reviewed_at is not None
     assert len(added_entries) == 1
@@ -281,9 +288,11 @@ async def test_resubmit_submission_failed_uses_frequency_code_1():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
+    prereqs_mock = AsyncMock(return_value=_prereqs())
+    claim_input_mock = MagicMock(total_charge_cents=10000)
     with (
-        patch("app.services.claims.service._load_claim_prereqs", new=AsyncMock(return_value=_prereqs())),
-        patch("app.services.claims.service.build_claim_input", return_value=MagicMock(total_charge_cents=10000)),
+        patch("app.services.claims.service._load_claim_prereqs", new=prereqs_mock),
+        patch("app.services.claims.service.build_claim_input", return_value=claim_input_mock),
         patch("app.services.claims.service.validate_claim", return_value=MagicMock(valid=True)),
         patch("app.services.claims.service.decrypt", return_value="decrypted-tax-id"),
     ):
@@ -323,7 +332,9 @@ async def test_write_off_appealing_status():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
-    result = await write_off_claim(session, claim.practice_id, claim.id, memo=None, user_sub="staff-sub")
+    result = await write_off_claim(
+        session, claim.practice_id, claim.id, memo=None, user_sub="staff-sub"
+    )
 
     assert claim.insurance_reviewed_at is not None
     assert len(added_entries) == 1

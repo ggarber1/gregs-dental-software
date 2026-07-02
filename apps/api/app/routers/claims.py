@@ -73,7 +73,9 @@ def _to_schema(row: ClaimModel) -> Claim:
         updatedAt=(row.updated_at).replace(tzinfo=UTC),
         submissionHistory=row.submission_history,
         claimFrequencyCode=row.claim_frequency_code,
-        insuranceReviewedAt=row.insurance_reviewed_at.replace(tzinfo=UTC) if row.insurance_reviewed_at else None,
+        insuranceReviewedAt=(
+            row.insurance_reviewed_at.replace(tzinfo=UTC) if row.insurance_reviewed_at else None
+        ),
     )
 
 
