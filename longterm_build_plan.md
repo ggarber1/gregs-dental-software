@@ -254,6 +254,22 @@ Some features are gated on having enough production data. Track this explicitly.
 
 ---
 
+## Needs UI / Manual Testing
+
+Features built and merged but not yet clicked through. Do these before onboarding a real practice.
+
+### Claim recovery & appeals (PR #62)
+
+- **Write-off end-to-end:** find a `denied` claim with no `insurance_reviewed_at` → click Write off on the A/R worklist → verify claim leaves the worklist → open patient Ledger tab → verify negative adjustment entry appears
+- **Written-off claim hides Resubmit:** after writing off, confirm the Resubmit button is gone in both ClaimPanel and the patient Claims tab
+- **Resubmit visibility by status:** Resubmit button present for `clearinghouse_rejected`, `submission_failed`, `denied`, `appealing`; absent for `paid`, `submitted`, `acknowledged`
+- **Patient Claims tab:** navigate to a patient with claims — verify the tab renders with correct statuses, billed amounts, and ins. paid amounts
+- **Denial reason display:** on a claim with CARC denial codes from an ERA, open ClaimPanel — verify plain-English reason text appears instead of raw codes
+
+Note: the Resubmit network call itself (Stedi 837D submission) is already tracked under Staging Checkpoint 5 below — can't verify without a full-access Stedi key.
+
+---
+
 ## Pending Manual Verification — Eligibility (Staging Checkpoint 5)
 
 The Module 5.2–5.4 eligibility *sync slice* is built and merged (PR #52), and the
