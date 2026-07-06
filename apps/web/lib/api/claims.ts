@@ -42,6 +42,15 @@ export interface Claim {
   submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  submissionHistory: Array<{
+    attempt: number;
+    status: string;
+    denialCodes: string[] | null;
+    payerCcn: string | null;
+    submittedAt: string | null;
+  }> | null;
+  claimFrequencyCode: string;
+  insuranceReviewedAt: string | null;
 }
 
 // ── Query keys ─────────────────────────────────────────────────────────────────
@@ -50,7 +59,15 @@ export const claimsKeys = {
   all: ["claims"] as const,
   list: (status?: string) => ["claims", { status: status ?? null }] as const,
   appointment: (appointmentId: string) => ["claims", "appointment", appointmentId] as const,
+  patient: (patientId: string) => ["claims", "patient", patientId] as const,
 };
+
+export const PROBLEM_STATUSES = new Set<ClaimStatus>([
+  "clearinghouse_rejected",
+  "submission_failed",
+  "denied",
+  "appealing",
+]);
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
@@ -66,6 +83,51 @@ export function useClaimsList(status?: string) {
   return useQuery({
     queryKey: claimsKeys.list(status),
     queryFn: () => apiClient.get<Claim[]>(`/api/v1/claims${query}`),
+  });
+}
+
+export function usePatientClaims(patientId: string) {
+  return useQuery({
+    queryKey: claimsKeys.patient(patientId),
+    queryFn: () =>
+      apiClient.get<Claim[]>(`/api/v1/claims?patient_id=${encodeURIComponent(patientId)}`),
+  });
+}
+
+export interface WriteOffResponse {
+  claim: Claim;
+  ledgerEntry: string | null;
+}
+
+export function useResubmitClaim(claimId: string, appointmentId: string, patientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<Claim>(`/api/v1/claims/${claimId}/resubmit`, {}, { idempotencyKey: generateId() }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
+      void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
+      void qc.invalidateQueries({ queryKey: claimsKeys.all });
+      void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+  });
+}
+
+export function useWriteOffClaim(claimId: string, appointmentId: string, patientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (memo?: string) =>
+      apiClient.post<WriteOffResponse>(
+        `/api/v1/claims/${claimId}/write-off`,
+        { memo },
+        { idempotencyKey: generateId() },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
+      void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
+      void qc.invalidateQueries({ queryKey: claimsKeys.all });
+      void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }
 

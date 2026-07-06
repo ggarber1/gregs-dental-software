@@ -118,6 +118,8 @@ def test_reason_none_for_non_problem():
 def _row(payer_id, category, bucket, billed, estimate=None, has_estimate=True):
     return WorklistRow(
         claim_id=uuid.uuid4(),
+        appointment_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
         claim_number="PCN1",
         patient_name="Jane Doe",
         payer_id=payer_id,

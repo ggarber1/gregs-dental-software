@@ -6,6 +6,8 @@ export type AgeBucket = "0-30" | "31-60" | "61-90" | "90+";
 
 export interface InsuranceARRow {
   claimId: string;
+  appointmentId: string;
+  patientId: string;
   claimNumber: string;
   patientName: string;
   payerId: string;

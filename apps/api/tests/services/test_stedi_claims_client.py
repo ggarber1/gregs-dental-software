@@ -136,3 +136,35 @@ async def test_auth_error_raises_non_retryable():
     with pytest.raises(ClaimSubmissionError) as exc:
         await client.submit_dental_claim(_CLAIM, "idem-auth")
     assert exc.value.retryable is False
+
+
+def test_stedi_payload_corrected_claim_includes_original_reference():
+    """freq_code=7 + reference → originalClaimNumber in payload."""
+    import dataclasses
+
+    claim = dataclasses.replace(
+        _CLAIM,
+        claim_frequency_code="7",
+        original_claim_reference="PAYER-REF-001",
+    )
+    client = StediClaimsClient(api_key="k")
+    payload = client.to_stedi_payload(claim)
+    assert payload["claimInformation"]["originalClaimNumber"] == "PAYER-REF-001"
+    assert payload["claimInformation"]["claimFrequencyCode"] == "7"
+
+
+def test_stedi_payload_corrected_claim_no_reference_omits_field(caplog):
+    """freq_code=7 + no reference → no originalClaimNumber, but warning logged."""
+    import dataclasses
+    import logging
+
+    claim = dataclasses.replace(
+        _CLAIM,
+        claim_frequency_code="7",
+        original_claim_reference=None,
+    )
+    client = StediClaimsClient(api_key="k")
+    with caplog.at_level(logging.WARNING, logger="app.services.claims.stedi"):
+        payload = client.to_stedi_payload(claim)
+    assert "originalClaimNumber" not in payload["claimInformation"]
+    assert any("freq_code=7" in rec.message for rec in caplog.records)

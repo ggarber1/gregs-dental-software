@@ -15,6 +15,8 @@ export type AgeBucket = z.infer<typeof AgeBucketSchema>;
 
 export const InsuranceARRowSchema = z.object({
   claimId: UuidSchema,
+  appointmentId: UuidSchema,
+  patientId: UuidSchema,
   claimNumber: z.string(),
   patientName: z.string(),
   payerId: z.string(),

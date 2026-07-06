@@ -86,6 +86,8 @@ _BUCKET_FIELD = {"0-30": "b0_30", "31-60": "b31_60", "61-90": "b61_90", "90+": "
 @dataclass(frozen=True, kw_only=True)
 class WorklistRow:
     claim_id: uuid.UUID
+    appointment_id: uuid.UUID
+    patient_id: uuid.UUID
     claim_number: str
     patient_name: str
     payer_id: str
@@ -337,6 +339,8 @@ async def get_worklist(
         rows.append(
             WorklistRow(
                 claim_id=c.id,
+                appointment_id=c.appointment_id,
+                patient_id=c.patient_id,
                 claim_number=c.patient_control_number,
                 patient_name=patient_names.get(c.patient_id, "Unknown"),
                 payer_id=c.payer_id,

@@ -57,6 +57,11 @@ class DentalClaimInput:
     # Claim
     date_of_service: date
     lines: tuple[ClaimLine, ...]
+    # Resubmission: "1" = original, "7" = corrected replacement of a prior denied claim.
+    claim_frequency_code: str = "1"
+    # For corrected claims (frequency_code="7"): the payer's original claim control number
+    # from the denial ERA. Included in the Stedi JSON payload for carrier match-back.
+    original_claim_reference: str | None = None
 
     @property
     def total_charge_cents(self) -> int:

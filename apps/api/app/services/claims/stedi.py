@@ -116,12 +116,23 @@ class StediClaimsClient(ClearinghouseClient):
                 "patientControlNumber": claim.patient_control_number,
                 "claimChargeAmount": _cents_to_dollars(claim.total_charge_cents),
                 "placeOfServiceCode": "11",
-                "claimFrequencyCode": "1",
+                "claimFrequencyCode": claim.claim_frequency_code,
                 "benefitsAssignmentCertificationIndicator": "Y",
                 "releaseInformationCode": "Y",
                 "serviceLines": service_lines,
             },
         }
+
+        claim_info = payload["claimInformation"]
+        if claim.claim_frequency_code == "7":
+            if claim.original_claim_reference:
+                claim_info["originalClaimNumber"] = claim.original_claim_reference
+            else:
+                logger.warning(
+                    "Corrected claim (freq_code=7) submitted without original_claim_reference — "
+                    "payer may reject. claim_id=%s",
+                    claim.patient_control_number,
+                )
 
         if claim.relationship_to_insured != "self":
             payload["dependent"] = {

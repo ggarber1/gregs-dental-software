@@ -43,5 +43,18 @@ export const ClaimSchema = z.object({
   submittedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  submissionHistory: z
+    .array(
+      z.object({
+        attempt: z.number().int(),
+        status: z.string(),
+        denialCodes: z.array(z.string()).nullable(),
+        payerCcn: z.string().nullable(),
+        submittedAt: z.string().nullable(),
+      })
+    )
+    .nullable(),
+  claimFrequencyCode: z.string(),
+  insuranceReviewedAt: z.string().datetime().nullable(),
 });
 export type Claim = z.infer<typeof ClaimSchema>;
