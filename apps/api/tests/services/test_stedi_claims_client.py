@@ -204,8 +204,6 @@ async def test_upload_claim_attachment_happy_path():
 async def test_upload_claim_attachment_payer_not_supported_raises():
     from unittest.mock import AsyncMock, MagicMock
 
-    from app.services.claims.base import ClaimSubmissionError
-
     error_response = MagicMock()
     error_response.status_code = 400
     error_response.json.return_value = {

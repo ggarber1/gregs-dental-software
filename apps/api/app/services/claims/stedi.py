@@ -219,7 +219,12 @@ class StediClaimsClient(ClearinghouseClient):
                 headers=headers,
             )
             if create_resp.status_code == 400:
-                body = create_resp.json()
+                try:
+                    body = create_resp.json()
+                except ValueError as exc:
+                    raise ClaimSubmissionError(
+                        f"Stedi attachment create error 400: {create_resp.text[:200]}"
+                    ) from exc
                 if body.get("code") == "TRANSACTION_TYPE_NOT_SUPPORTED":
                     raise ClaimSubmissionError(
                         body.get("message", "Payer does not support 275 attachments"),
