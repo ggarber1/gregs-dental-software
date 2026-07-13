@@ -168,3 +168,60 @@ def test_stedi_payload_corrected_claim_no_reference_omits_field(caplog):
         payload = client.to_stedi_payload(claim)
     assert "originalClaimNumber" not in payload["claimInformation"]
     assert any("freq_code=7" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_upload_claim_attachment_happy_path():
+    from unittest.mock import AsyncMock, MagicMock
+
+    create_response = MagicMock()
+    create_response.status_code = 200
+    create_response.json.return_value = {
+        "attachmentId": "stedi-att-abc123",
+        "uploadUrl": "https://s3.example.com/presigned?token=xyz",
+    }
+
+    upload_response = MagicMock()
+    upload_response.status_code = 200
+
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    mock_client.post = AsyncMock(return_value=create_response)
+    mock_client.put = AsyncMock(return_value=upload_response)
+
+    client = StediClaimsClient(api_key="test-key", client=mock_client)
+    attachment_id = await client.upload_claim_attachment(
+        file_bytes=b"fake-xray",
+        content_type="image/jpeg",
+        file_name="xray.jpg",
+    )
+
+    assert attachment_id == "stedi-att-abc123"
+    mock_client.post.assert_awaited_once()
+    mock_client.put.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_upload_claim_attachment_payer_not_supported_raises():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.claims.base import ClaimSubmissionError
+
+    error_response = MagicMock()
+    error_response.status_code = 400
+    error_response.json.return_value = {
+        "code": "TRANSACTION_TYPE_NOT_SUPPORTED",
+        "message": "Payer 12345 is not configured for Unsolicited Claim Attachment (275).",
+    }
+
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    mock_client.post = AsyncMock(return_value=error_response)
+
+    client = StediClaimsClient(api_key="test-key", client=mock_client)
+
+    with pytest.raises(ClaimSubmissionError) as exc_info:
+        await client.upload_claim_attachment(
+            file_bytes=b"fake-xray",
+            content_type="image/jpeg",
+            file_name="xray.jpg",
+        )
+    assert exc_info.value.payer_unsupported is True

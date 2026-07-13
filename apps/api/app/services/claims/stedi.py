@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 # a full-access key: receiver uses payer_id as org name; non-self subscriber
 # gender/address fall back to patient/unknown.
 _STEDI_DENTAL_CLAIMS_URL = "https://healthcare.us.stedi.com/2024-04-01/dental-claims/submission"
+_STEDI_ATTACHMENT_URL = "https://healthcare.us.stedi.com/2024-04-01/claim-attachments"
+# Verify URL against Stedi docs before first real 275 submission.
+# Derived from: https://www.stedi.com/docs/healthcare/api-reference/post-healthcare-create-claim-attachment
 _TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
 # Stedi "paymentResponsibilityLevelCode": P = primary.
@@ -194,6 +197,74 @@ class StediClaimsClient(ClearinghouseClient):
             raw_request=payload,
             raw_response=body,
         )
+
+
+    async def upload_claim_attachment(
+        self, file_bytes: bytes, content_type: str, file_name: str
+    ) -> str:
+        """Create a Stedi claim attachment and upload the file bytes.
+
+        Returns the Stedi attachmentId to include in the 837D reportInformation.
+        Raises ClaimSubmissionError(payer_unsupported=True) when the payer
+        returns TRANSACTION_TYPE_NOT_SUPPORTED.
+        """
+        headers = {"Authorization": f"Key {self._api_key}"}
+        client = self._client or httpx.AsyncClient(timeout=_TIMEOUT)
+        owns_client = self._client is None
+        try:
+            # Step 1: create attachment record, get presigned upload URL
+            create_resp = await client.post(
+                _STEDI_ATTACHMENT_URL,
+                json={"contentType": content_type, "fileName": file_name},
+                headers=headers,
+            )
+            if create_resp.status_code == 400:
+                body = create_resp.json()
+                if body.get("code") == "TRANSACTION_TYPE_NOT_SUPPORTED":
+                    raise ClaimSubmissionError(
+                        body.get("message", "Payer does not support 275 attachments"),
+                        payer_unsupported=True,
+                    )
+                raise ClaimSubmissionError(
+                    f"Stedi attachment create error {create_resp.status_code}:"
+                    f" {create_resp.text[:200]}"
+                )
+            if create_resp.status_code >= 400:
+                raise ClaimSubmissionError(
+                    f"Stedi attachment create failed {create_resp.status_code}",
+                    retryable=create_resp.status_code >= 500,
+                )
+
+            data = create_resp.json()
+            attachment_id: str = data["attachmentId"]
+            upload_url: str = data["uploadUrl"]
+
+            # Step 2: PUT file bytes to the presigned URL
+            upload_resp = await client.put(
+                upload_url,
+                content=file_bytes,
+                headers={"Content-Type": content_type},
+            )
+            if upload_resp.status_code >= 400:
+                raise ClaimSubmissionError(
+                    f"Stedi attachment upload failed {upload_resp.status_code}",
+                    retryable=True,
+                )
+
+            return attachment_id
+        except ClaimSubmissionError:
+            raise
+        except httpx.TimeoutException as exc:
+            raise ClaimSubmissionError(
+                f"Stedi attachment timeout: {exc}", retryable=True
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise ClaimSubmissionError(
+                f"Stedi attachment transport error: {exc}", retryable=True
+            ) from exc
+        finally:
+            if owns_client:
+                await client.aclose()
 
 
 def _relationship_code(relationship: str) -> str:

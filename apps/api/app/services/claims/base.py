@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -68,6 +68,14 @@ class DentalClaimInput:
         return sum(line.fee_cents for line in self.lines)
 
 
+@dataclass(frozen=True, kw_only=True)
+class AttachmentRef:
+    attachment_type: str   # xray | photo | perio_narrative | lab_rx | other
+    pwk01_code: str        # B4 | DA | DG | 77 | OB
+    stedi_attachment_id: str | None     # set when payer supports 275
+    attachment_control_number: str | None  # set in fallback path
+
+
 @dataclass(frozen=True)
 class ClaimResult:
     accepted: bool
@@ -76,6 +84,10 @@ class ClaimResult:
     errors: list[str]
     raw_request: dict[str, Any]
     raw_response: dict[str, Any]
+    # Attachment submission outcome (populated when attachments were attempted)
+    attachments_sent: int = 0
+    attachments_manual: list[str] = field(default_factory=list)
+    payer_supports_275: bool = True
 
 
 class ClaimSubmissionError(Exception):
@@ -85,9 +97,10 @@ class ClaimSubmissionError(Exception):
     'submission_failed' and the same idempotency key may be retried safely.
     """
 
-    def __init__(self, message: str, *, retryable: bool = False):
+    def __init__(self, message: str, *, retryable: bool = False, payer_unsupported: bool = False):
         super().__init__(message)
         self.retryable = retryable
+        self.payer_unsupported = payer_unsupported
 
 
 class ClearinghouseClient(ABC):
@@ -95,3 +108,10 @@ class ClearinghouseClient(ABC):
     async def submit_dental_claim(
         self, claim: DentalClaimInput, idempotency_key: str
     ) -> ClaimResult: ...
+
+    @abstractmethod
+    async def upload_claim_attachment(
+        self, file_bytes: bytes, content_type: str, file_name: str
+    ) -> str:
+        """Upload a file to the clearinghouse and return the attachment ID."""
+        ...
