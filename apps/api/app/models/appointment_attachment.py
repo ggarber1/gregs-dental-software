@@ -8,15 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, PHIMixin
 
-_VALID_CONTENT_TYPES = (
-    "image/jpeg",
-    "image/png",
-    "application/pdf",
-    "image/tiff",
-    "text/plain",
-)
-_VALID_ATTACHMENT_TYPES = ("xray", "photo", "perio_narrative", "lab_rx", "other")
-
 # Maps attachment_type to the Stedi PWK01 attachmentReportTypeCode
 ATTACHMENT_TYPE_TO_PWK01: dict[str, str] = {
     "xray": "B4",
