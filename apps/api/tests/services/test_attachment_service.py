@@ -19,7 +19,6 @@ class _FakeAppt:
 
 # ── upload_attachment ──────────────────────────────────────────────────────────
 
-@pytest.mark.asyncio
 async def test_upload_attachment_happy_path():
     from unittest.mock import AsyncMock
 
@@ -52,12 +51,15 @@ async def test_upload_attachment_happy_path():
     mock_put.assert_called_once()
     call_kwargs = mock_put.call_args
     assert call_kwargs[0][0] == "test-bucket"
+    s3_key = call_kwargs[0][1]
+    assert s3_key.startswith(f"{practice_id}/appointments/{appointment_id}/")
+    assert s3_key.endswith("/xray.jpg")
     assert "image/jpeg" in call_kwargs[0][3]
     mock_session.add.assert_called_once()
     mock_session.commit.assert_awaited_once()
+    assert result is not None
 
 
-@pytest.mark.asyncio
 async def test_upload_attachment_unsupported_content_type_raises():
     from unittest.mock import AsyncMock
 
@@ -85,7 +87,6 @@ async def test_upload_attachment_unsupported_content_type_raises():
     assert exc_info.value.status_code == 422
 
 
-@pytest.mark.asyncio
 async def test_upload_attachment_wrong_practice_raises():
     from unittest.mock import AsyncMock
 

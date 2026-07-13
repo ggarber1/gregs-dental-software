@@ -124,6 +124,6 @@ async def delete_attachment(
     if row is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
     settings = get_settings()
-    delete_object(settings.s3_bucket_phi_documents, row.s3_key)
     row.deleted_at = datetime.now(UTC)
     await session.commit()
+    delete_object(settings.s3_bucket_phi_documents, row.s3_key)
