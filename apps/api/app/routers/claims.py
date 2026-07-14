@@ -20,12 +20,17 @@ from app.schemas.generated import (
     Adjustment,
     ApiError,
     Claim,
+    Claim1,
     ClaimStatus,
     Error,
     SubmissionHistoryItem,
 )
+from app.schemas.generated import (
+    ClaimSubmissionResult as ClaimSubmissionResultSchema,
+)
 from app.services.claims.service import (
     ClaimSubmissionPrereqError,
+    ClaimSubmissionResult,
     resubmit_claim,
     submit_claim_for_appointment,
     write_off_claim,
@@ -103,8 +108,14 @@ async def _get_claim_by_id(
     )
 
 
-@router.post("/appointments/{appointment_id}/claim", status_code=201, response_model=Claim)
-async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
+@router.post(
+    "/appointments/{appointment_id}/claim",
+    status_code=201,
+    response_model=ClaimSubmissionResultSchema,
+)
+async def submit_claim(
+    appointment_id: uuid.UUID, request: Request
+) -> ClaimSubmissionResultSchema:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     user_sub = getattr(request.state.user, "sub", None)
@@ -124,7 +135,7 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
 
         client = StediClaimsClient(api_key=api_key)
         try:
-            result = await submit_claim_for_appointment(
+            result: ClaimSubmissionResult = await submit_claim_for_appointment(
                 session,
                 practice_id,
                 appointment_id,
@@ -141,7 +152,12 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
                     error=Error(code=exc.code, message=exc.message, details=details)
                 ).model_dump(by_alias=True),
             ) from exc
-        return _to_schema(result.claim)
+        return ClaimSubmissionResultSchema(
+            claim=Claim1(**_to_schema(result.claim).model_dump()),
+            attachmentsSentElectronically=result.attachments_sent_electronically,
+            attachmentsManual=result.attachments_manual,
+            payerSupports275=result.payer_supports_275,
+        )
 
 
 @router.get("/appointments/{appointment_id}/claim", response_model=list[Claim])

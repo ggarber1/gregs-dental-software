@@ -194,9 +194,11 @@ class TestSubmitClaim:
 
         assert resp.status_code == 201, resp.text
         body = resp.json()
-        assert body["status"] == "submitted"
-        assert body["totalChargeCents"] == 20000
-        assert body["clearinghouseClaimId"] == "txn-1"
+        assert body["claim"]["status"] == "submitted"
+        assert body["claim"]["totalChargeCents"] == 20000
+        assert body["claim"]["clearinghouseClaimId"] == "txn-1"
+        assert body["attachmentsSentElectronically"] == 0
+        assert body["payerSupports275"] is True
 
     async def test_feature_gate_403(
         self,
@@ -298,7 +300,7 @@ class TestGetClaims:
         ):
             post_resp = await client.post(_claim_url(appt.id), headers=mut(headers))
         assert post_resp.status_code == 201, post_resp.text
-        claim_id = post_resp.json()["id"]
+        claim_id = post_resp.json()["claim"]["id"]
 
         # GET /appointments/{appt_id}/claim — list should contain the new claim
         with (
@@ -379,7 +381,7 @@ class TestGetClaims:
         ):
             post_resp = await client.post(_claim_url(appt_a.id), headers=mut(headers_a))
         assert post_resp.status_code == 201, post_resp.text
-        claim_id = post_resp.json()["id"]
+        claim_id = post_resp.json()["claim"]["id"]
 
         # Seed practice B (its own user).
         practice_b, _appt_b, user_b, sub_b = await _seed(db_session)
