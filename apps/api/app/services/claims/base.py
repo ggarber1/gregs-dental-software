@@ -62,6 +62,7 @@ class DentalClaimInput:
     # For corrected claims (frequency_code="7"): the payer's original claim control number
     # from the denial ERA. Included in the Stedi JSON payload for carrier match-back.
     original_claim_reference: str | None = None
+    attachment_refs: tuple[AttachmentRef, ...] = ()
 
     @property
     def total_charge_cents(self) -> int:

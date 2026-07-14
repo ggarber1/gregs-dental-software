@@ -38,6 +38,11 @@ class _FakeClient(ClearinghouseClient):
             raw_response={"transactionId": "txn-1"},
         )
 
+    async def upload_claim_attachment(
+        self, file_bytes: bytes, content_type: str, file_name: str
+    ) -> str:
+        return "fake-attachment-id"
+
 
 # ── Seed helper (mirrored exactly from test_claims_service.py) ────────────────
 

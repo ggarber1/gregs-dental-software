@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,10 +19,12 @@ from app.models.patient import Patient
 from app.models.patient_insurance import PatientInsurance
 from app.models.practice import Practice
 from app.models.provider import Provider
-from app.services.claims.base import ClaimSubmissionError, ClearinghouseClient
+from app.services.claims.base import AttachmentRef, ClaimSubmissionError, ClearinghouseClient
 from app.services.claims.builder import build_claim_input
 from app.services.claims.idempotency import generate_claim_idempotency_key, generate_pcn
 from app.services.claims.validator import validate_claim
+
+logger = logging.getLogger(__name__)
 
 
 class ClaimSubmissionPrereqError(Exception):
@@ -32,6 +35,14 @@ class ClaimSubmissionPrereqError(Exception):
         self.code = code
         self.message = message
         self.errors = errors or []
+
+
+@dataclass
+class ClaimSubmissionResult:
+    claim: Claim
+    attachments_sent_electronically: int
+    attachments_manual: list[str]
+    payer_supports_275: bool
 
 
 @dataclass
@@ -168,7 +179,7 @@ async def submit_claim_for_appointment(
     client: ClearinghouseClient,
     usage_indicator: str,
     user_sub: str | None,
-) -> Claim:
+) -> ClaimSubmissionResult:
     prereqs = await _load_claim_prereqs(session, practice_id, appointment_id)
     appt = prereqs.appt
     insurance = prereqs.insurance
@@ -192,7 +203,12 @@ async def submit_claim_for_appointment(
         )
     )
     if existing is not None:
-        return existing
+        return ClaimSubmissionResult(
+            claim=existing,
+            attachments_sent_electronically=0,
+            attachments_manual=[],
+            payer_supports_275=True,
+        )
 
     # 4. Load procedures.
     procedures = (
@@ -205,6 +221,68 @@ async def submit_claim_for_appointment(
     ).all()
     if not procedures:
         raise ClaimSubmissionPrereqError("NO_PROCEDURES", "Appointment has no procedures")
+
+    # 4b. Auto-generate perio narrative (idempotent) and collect attachment refs.
+    from app.core.config import get_settings
+    from app.core.s3 import get_object_bytes
+    from app.models.appointment_attachment import ATTACHMENT_TYPE_TO_PWK01
+    from app.services.attachments.service import (
+        generate_perio_narrative,
+        list_attachments,
+    )
+
+    await generate_perio_narrative(
+        session, practice_id=practice_id, appointment_id=appointment_id
+    )
+    attachments = await list_attachments(
+        session, practice_id=practice_id, appointment_id=appointment_id
+    )
+
+    attachment_refs: list[AttachmentRef] = []
+    attachments_sent = 0
+    attachments_manual: list[str] = []
+    payer_supports_275 = True
+    _settings = get_settings()
+
+    for att in attachments:
+        pwk01 = ATTACHMENT_TYPE_TO_PWK01.get(att.attachment_type, "OB")
+        try:
+            file_bytes = get_object_bytes(_settings.s3_bucket_phi_documents, att.s3_key)
+            stedi_id = await client.upload_claim_attachment(
+                file_bytes=file_bytes,
+                content_type=att.content_type,
+                file_name=att.file_name,
+            )
+            attachment_refs.append(
+                AttachmentRef(
+                    attachment_type=att.attachment_type,
+                    pwk01_code=pwk01,
+                    stedi_attachment_id=stedi_id,
+                    attachment_control_number=None,
+                )
+            )
+            attachments_sent += 1
+        except ClaimSubmissionError as exc:
+            if exc.payer_unsupported:
+                payer_supports_275 = False
+                # Fall back: all attachments get control numbers, none sent electronically
+                attachment_refs = [
+                    AttachmentRef(
+                        attachment_type=a.attachment_type,
+                        pwk01_code=ATTACHMENT_TYPE_TO_PWK01.get(a.attachment_type, "OB"),
+                        stedi_attachment_id=None,
+                        attachment_control_number=str(a.id),
+                    )
+                    for a in attachments
+                ]
+                attachments_manual = [a.file_name for a in attachments]
+                attachments_sent = 0
+                break
+            # Transport error for this one attachment — skip it, log
+            logger.warning(
+                "Failed to upload attachment %s to Stedi: %s", att.id, exc
+            )
+            attachments_manual.append(att.file_name)
 
     # 5. Build and validate the claim input.
     claim_id = uuid.uuid4()
@@ -220,6 +298,7 @@ async def submit_claim_for_appointment(
         billing_tax_id=billing_tax_id,
         pcn=pcn,
         usage_indicator=usage_indicator,
+        attachment_refs=attachment_refs,
     )
 
     validation = validate_claim(claim_input)
@@ -260,7 +339,12 @@ async def submit_claim_for_appointment(
         claim.submission_errors = [str(exc)]
         await session.commit()
         await session.refresh(claim)
-        return claim
+        return ClaimSubmissionResult(
+            claim=claim,
+            attachments_sent_electronically=attachments_sent,
+            attachments_manual=attachments_manual,
+            payer_supports_275=payer_supports_275,
+        )
 
     # 8. Apply result.
     claim.raw_submission = result.raw_request
@@ -275,7 +359,12 @@ async def submit_claim_for_appointment(
         claim.submission_errors = result.errors
     await session.commit()
     await session.refresh(claim)
-    return claim
+    return ClaimSubmissionResult(
+        claim=claim,
+        attachments_sent_electronically=attachments_sent,
+        attachments_manual=attachments_manual,
+        payer_supports_275=payer_supports_275,
+    )
 
 
 _RESUBMITTABLE_STATUSES = {"clearinghouse_rejected", "submission_failed", "denied", "appealing"}

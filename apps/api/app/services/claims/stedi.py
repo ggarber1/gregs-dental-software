@@ -146,6 +146,22 @@ class StediClaimsClient(ClearinghouseClient):
                 "relationshipToSubscriber": _relationship_code(claim.relationship_to_insured),
             }
 
+        if claim.attachment_refs:
+            report_infos = []
+            for ref in claim.attachment_refs:
+                info: dict[str, Any] = {
+                    "attachmentReportTypeCode": ref.pwk01_code,
+                    "attachmentTransmissionCode": "EL",
+                }
+                if ref.stedi_attachment_id:
+                    info["attachmentId"] = ref.stedi_attachment_id
+                elif ref.attachment_control_number:
+                    info["attachmentControlNumber"] = ref.attachment_control_number
+                report_infos.append(info)
+            payload["claimInformation"].setdefault(
+                "claimSupplementalInformation", {}
+            )["reportInformations"] = report_infos
+
         return payload
 
     async def submit_dental_claim(
