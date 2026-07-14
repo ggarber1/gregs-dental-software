@@ -124,7 +124,7 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
 
         client = StediClaimsClient(api_key=api_key)
         try:
-            claim = await submit_claim_for_appointment(
+            result = await submit_claim_for_appointment(
                 session,
                 practice_id,
                 appointment_id,
@@ -141,7 +141,7 @@ async def submit_claim(appointment_id: uuid.UUID, request: Request) -> Claim:
                     error=Error(code=exc.code, message=exc.message, details=details)
                 ).model_dump(by_alias=True),
             ) from exc
-        return _to_schema(claim)
+        return _to_schema(result.claim)
 
 
 @router.get("/appointments/{appointment_id}/claim", response_model=list[Claim])

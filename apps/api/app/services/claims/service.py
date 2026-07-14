@@ -9,8 +9,11 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.encryption import decrypt
+from app.core.s3 import get_object_bytes
 from app.models.appointment import Appointment
+from app.models.appointment_attachment import ATTACHMENT_TYPE_TO_PWK01
 from app.models.appointment_procedure import AppointmentProcedure
 from app.models.claim import Claim
 from app.models.insurance_plan import InsurancePlan
@@ -19,6 +22,7 @@ from app.models.patient import Patient
 from app.models.patient_insurance import PatientInsurance
 from app.models.practice import Practice
 from app.models.provider import Provider
+from app.services.attachments.service import generate_perio_narrative, list_attachments
 from app.services.claims.base import AttachmentRef, ClaimSubmissionError, ClearinghouseClient
 from app.services.claims.builder import build_claim_input
 from app.services.claims.idempotency import generate_claim_idempotency_key, generate_pcn
@@ -223,14 +227,6 @@ async def submit_claim_for_appointment(
         raise ClaimSubmissionPrereqError("NO_PROCEDURES", "Appointment has no procedures")
 
     # 4b. Auto-generate perio narrative (idempotent) and collect attachment refs.
-    from app.core.config import get_settings
-    from app.core.s3 import get_object_bytes
-    from app.models.appointment_attachment import ATTACHMENT_TYPE_TO_PWK01
-    from app.services.attachments.service import (
-        generate_perio_narrative,
-        list_attachments,
-    )
-
     await generate_perio_narrative(
         session, practice_id=practice_id, appointment_id=appointment_id
     )
