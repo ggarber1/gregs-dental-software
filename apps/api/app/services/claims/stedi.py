@@ -27,9 +27,8 @@ logger = logging.getLogger(__name__)
 # a full-access key: receiver uses payer_id as org name; non-self subscriber
 # gender/address fall back to patient/unknown.
 _STEDI_DENTAL_CLAIMS_URL = "https://healthcare.us.stedi.com/2024-04-01/dental-claims/submission"
-_STEDI_ATTACHMENT_URL = "https://healthcare.us.stedi.com/2024-04-01/claim-attachments"
-# Verify URL against Stedi docs before first real 275 submission.
-# Derived from: https://www.stedi.com/docs/healthcare/api-reference/post-healthcare-create-claim-attachment
+# https://www.stedi.com/docs/healthcare/api-reference/post-healthcare-create-claim-attachment
+_STEDI_ATTACHMENT_URL = "https://claims.us.stedi.com/2025-03-07/claim-attachments/file"
 _TIMEOUT = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
 
 # Stedi "paymentResponsibilityLevelCode": P = primary.
@@ -216,7 +215,7 @@ class StediClaimsClient(ClearinghouseClient):
 
 
     async def upload_claim_attachment(
-        self, file_bytes: bytes, content_type: str, file_name: str
+        self, file_bytes: bytes, content_type: str
     ) -> str:
         """Create a Stedi claim attachment and upload the file bytes.
 
@@ -231,7 +230,7 @@ class StediClaimsClient(ClearinghouseClient):
             # Step 1: create attachment record, get presigned upload URL
             create_resp = await client.post(
                 _STEDI_ATTACHMENT_URL,
-                json={"contentType": content_type, "fileName": file_name},
+                json={"contentType": content_type},
                 headers=headers,
             )
             if create_resp.status_code == 400:

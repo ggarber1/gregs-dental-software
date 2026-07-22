@@ -30,6 +30,11 @@ from app.services.claims.validator import validate_claim
 
 logger = logging.getLogger(__name__)
 
+# Stedi 275 only accepts these MIME types; text/plain must go via the manual fallback path.
+_STEDI_SUPPORTED_TYPES = frozenset(
+    ["application/pdf", "image/tiff", "image/jpeg", "image/jpg", "image/png"]
+)
+
 
 class ClaimSubmissionPrereqError(Exception):
     """A prerequisite for building/submitting a claim is missing or invalid."""
@@ -242,12 +247,23 @@ async def submit_claim_for_appointment(
 
     for att in attachments:
         pwk01 = ATTACHMENT_TYPE_TO_PWK01.get(att.attachment_type, "OB")
+        if att.content_type not in _STEDI_SUPPORTED_TYPES:
+            # File type not supported by Stedi 275 — include as control-number reference
+            attachment_refs.append(
+                AttachmentRef(
+                    attachment_type=att.attachment_type,
+                    pwk01_code=pwk01,
+                    stedi_attachment_id=None,
+                    attachment_control_number=str(att.id),
+                )
+            )
+            attachments_manual.append(att.file_name)
+            continue
         try:
             file_bytes = get_object_bytes(_settings.s3_bucket_phi_documents, att.s3_key)
             stedi_id = await client.upload_claim_attachment(
                 file_bytes=file_bytes,
                 content_type=att.content_type,
-                file_name=att.file_name,
             )
             attachment_refs.append(
                 AttachmentRef(

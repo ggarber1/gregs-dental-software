@@ -39,7 +39,7 @@ class _FakeClient(ClearinghouseClient):
         )
 
     async def upload_claim_attachment(
-        self, file_bytes: bytes, content_type: str, file_name: str
+        self, file_bytes: bytes, content_type: str
     ) -> str:
         return "fake-attachment-id"
 

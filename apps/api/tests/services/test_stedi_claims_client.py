@@ -192,7 +192,6 @@ async def test_upload_claim_attachment_happy_path():
     attachment_id = await client.upload_claim_attachment(
         file_bytes=b"fake-xray",
         content_type="image/jpeg",
-        file_name="xray.jpg",
     )
 
     assert attachment_id == "stedi-att-abc123"
@@ -220,6 +219,5 @@ async def test_upload_claim_attachment_payer_not_supported_raises():
         await client.upload_claim_attachment(
             file_bytes=b"fake-xray",
             content_type="image/jpeg",
-            file_name="xray.jpg",
         )
     assert exc_info.value.payer_unsupported is True

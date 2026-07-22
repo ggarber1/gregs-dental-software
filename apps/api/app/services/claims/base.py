@@ -112,7 +112,7 @@ class ClearinghouseClient(ABC):
 
     @abstractmethod
     async def upload_claim_attachment(
-        self, file_bytes: bytes, content_type: str, file_name: str
+        self, file_bytes: bytes, content_type: str
     ) -> str:
         """Upload a file to the clearinghouse and return the attachment ID."""
         ...

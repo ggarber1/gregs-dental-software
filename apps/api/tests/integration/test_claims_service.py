@@ -39,7 +39,7 @@ class _FakeClient(ClearinghouseClient):
         return self._result
 
     async def upload_claim_attachment(
-        self, file_bytes: bytes, content_type: str, file_name: str
+        self, file_bytes: bytes, content_type: str
     ) -> str:
         return "fake-attachment-id"
 
@@ -163,7 +163,7 @@ class _RaisingClient(ClearinghouseClient):
         raise ClaimSubmissionError("Stedi timeout", retryable=True)
 
     async def upload_claim_attachment(
-        self, file_bytes: bytes, content_type: str, file_name: str
+        self, file_bytes: bytes, content_type: str
     ) -> str:
         return "fake-attachment-id"
 
