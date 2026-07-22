@@ -86,7 +86,10 @@ export function AttachmentPanel({ appointmentId }: { appointmentId: string }) {
           accept={ACCEPTED_MIME}
           multiple
           className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.currentTarget.value = "";
+          }}
         />
         <Button
           variant="outline"
