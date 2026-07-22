@@ -259,6 +259,17 @@ Some features are gated on having enough production data. Track this explicitly.
 
 Features built and merged but not yet clicked through. Do these before onboarding a real practice.
 
+### Claim attachments (PR #63)
+
+- **Upload flow:** open an appointment modal in edit mode → AttachmentPanel visible → click "Add files" → select a JPEG → confirm type defaults to "X-ray", filename and size display, "Uploading…" state appears then resolves
+- **Re-upload same file:** after uploading, select the same file again — confirm the `onChange` fires (file input resets after each selection)
+- **Perio narrative row:** upload a perio narrative (auto-generated or manual) → confirm no delete button appears on that row
+- **PDF and TIFF acceptance:** confirm the file picker accepts `.pdf` and `.tif`/`.tiff`; confirm `.txt` is rejected at the picker (accept attribute)
+- **Delete:** upload a file → click delete → confirm row disappears; verify DB soft-delete (`deleted_at` set) and S3 object gone
+- **ClaimPanel result — electronic:** submit a claim for an appointment with an attached JPEG → confirm the "N file(s) sent electronically" line appears in ClaimPanel
+- **ClaimPanel result — manual fallback:** simulate or trigger the payer-unsupported path → confirm the amber "Upload manually" warning with file list appears
+- **Perio auto-narrative on submit:** create an appointment with a D4341 procedure and a PerioChart → submit claim → confirm a `perio_narrative` attachment row appears in AttachmentPanel after submission
+
 ### Claim recovery & appeals (PR #62)
 
 - **Write-off end-to-end:** find a `denied` claim with no `insurance_reviewed_at` → click Write off on the A/R worklist → verify claim leaves the worklist → open patient Ledger tab → verify negative adjustment entry appears
@@ -268,6 +279,25 @@ Features built and merged but not yet clicked through. Do these before onboardin
 - **Denial reason display:** on a claim with CARC denial codes from an ERA, open ClaimPanel — verify plain-English reason text appears instead of raw codes
 
 Note: the Resubmit network call itself (Stedi 837D submission) is already tracked under Staging Checkpoint 5 below — can't verify without a full-access Stedi key.
+
+---
+
+## Pending Manual Verification — S3 PHI Document Bucket
+
+`app/core/s3.py` (`put_object`, `get_object_bytes`, `delete_object`) was introduced for
+claim attachments and is unit-tested with mocked boto3, but has **never been exercised
+against a real bucket**. This is independent of the Stedi key — just needs the staging
+S3 bucket and ECS task IAM role to exist.
+
+**To do (when staging infra is live):**
+1. Confirm the PHI documents bucket name is set in SSM / env (`S3_BUCKET_PHI_DOCUMENTS`).
+2. Upload a test file via the attachment endpoint (POST `/appointments/{id}/attachments`)
+   and verify the S3 object lands under the expected key (`attachments/{practice_id}/{uuid}/{filename}`).
+3. Fetch via GET `/appointments/{id}/attachments` — confirm the ORM row is returned.
+4. Delete via DELETE endpoint — confirm `deleted_at` is set in the DB and the S3 object
+   is gone (check via `aws s3 ls` or the AWS console).
+5. Confirm SSE-S3 (`AES256`) server-side encryption is set on the uploaded object
+   (`aws s3api head-object --bucket <bucket> --key <key>` → `ServerSideEncryption: AES256`).
 
 ---
 
