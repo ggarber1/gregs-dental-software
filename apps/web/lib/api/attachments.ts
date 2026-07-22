@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiClient, generateId } from "@/lib/api-client";
+import { ApiError, apiClient, generateId } from "@/lib/api-client";
 import { getAccessToken, getPracticeId } from "@/lib/auth/cookies";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -84,7 +84,15 @@ export function useUploadAttachment(appointmentId: string) {
         { method: "POST", headers, body: formData },
       );
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status}`);
+        if (response.status === 401 && typeof window !== "undefined") {
+          window.location.href = "/login";
+          return undefined as unknown as AppointmentAttachment;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const errorBody: unknown = await response
+          .json()
+          .catch(() => ({ error: { code: "UNKNOWN", message: response.statusText } }));
+        throw new ApiError(response.status, errorBody);
       }
       return response.json() as Promise<AppointmentAttachment>;
     },
