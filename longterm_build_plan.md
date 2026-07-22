@@ -351,6 +351,23 @@ function for easy correction. At **Staging Checkpoint 5**, with the full-access 
 `python apps/api/scripts/stedi_era_smoke.py` to verify the live ERA shape (and confirm PCN
 match-back end-to-end against a claim submitted in step 2 above).
 
+**Module 8c (Claim Attachments / 275) is blocked the same way.** The claim attachment
+endpoint (`POST https://claims.us.stedi.com/2025-03-07/claim-attachments/file`) and the
+presigned S3 `uploadUrl` it returns have **no test/sandbox mode** — a smoke run with a
+test-mode key will hit the same `403 access_denied` as the 837D endpoint. The full live
+path (S3 upload → `attachmentId` → `reportInformations` in the 837D payload → accepted
+claim that the payer links to the attachment) is unverifiable until a full-access key is
+available. The code is unit-tested with mocked httpx. **Action items:**
+1. Ask Stedi whether they can provide synthetic attachment test data or a test payer that
+   supports 275 attachments — similar to the mock enrollment/eligibility test data they
+   supply for 270/271 (`apps/api/scripts/stedi_eligibility_smoke.py`). File a support
+   ticket or contact the Stedi partnership team.
+2. At Staging Checkpoint 5 (full-access key), upload a real file (PDF X-ray), confirm
+   `attachmentId` is returned and the presigned PUT succeeds, then submit a D2392 claim
+   that references it and confirm the payer links the attachment to the claim.
+3. Verify the payer-unsupported fallback path (control-number ref in `reportInformations`
+   instead of `attachmentId`) with a payer known to reject 275 electronic attachments.
+
 ---
 
 ## Deferred Follow-Ups & Backlog
@@ -387,6 +404,7 @@ here.
 | MassHealth/Medicaid claims (`payer_type`, `claim_filing_code=MA`, DentaQuest enrollment) | Module 7a spec §11 | When a MassHealth practice onboards |
 | Secondary / COB claims (837D COB loops) | Module 7a spec §11 | Now unblocked (7b ERA provides primary EOB data); demand-driven when a practice needs secondary billing |
 | Multiple rendering providers per appointment; queryable `claim_service_lines` | Module 7a spec §11 | Demand-driven |
+| **Contact Stedi for 275 / 837D test data** — no sandbox mode exists for claim submission or attachments (unlike eligibility 270/271). Ask Stedi support / partnership if they can supply a test payer + synthetic claim data so we can smoke-test the full attachment upload → `attachmentId` → 837D → accepted-claim round-trip before going live. Bundle with Staging Checkpoint 5 prep. | "Pending Manual Verification" section above | Before onboarding any practice that submits claims with attachments |
 | Solicited attachments (277 RFA → 275 response) — payer requests docs after claim is submitted; provider responds with a 275 referencing the 277 RFA | `specs/2026-07-06-claim-attachments-design.md` §out-of-scope | Demand-driven; Stedi API only supports unsolicited 275 today |
 | Prior authorization (278) — pre-approval request + response before performing high-value procedures (implants, bone grafts, osseous surgery); auth number flows onto the 837D | `specs/2026-07-06-claim-attachments-design.md` §out-of-scope | When a practice doing implants/perio surgery needs pre-auth workflow with major carriers |
 | Secondary / COB claim attachments (primary EOB as 275 attachment on the secondary 837D) | `specs/2026-07-06-claim-attachments-design.md` §out-of-scope | Depends on secondary COB claims being built first (see row above) |
