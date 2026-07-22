@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { AlertTriangle, Send, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +14,7 @@ import {
   useSubmitClaim,
   useWriteOffClaim,
   type Claim,
+  type ClaimSubmissionResult,
 } from "@/lib/api/claims";
 import { formatDenialReason } from "@/lib/carc-codes";
 import { formatSubmissionError } from "@/lib/submission-error-hints";
@@ -150,6 +153,7 @@ export function ClaimPanel({
   const { data: claims = [], isLoading } = useAppointmentClaims(appointmentId);
   const submit = useSubmitClaim(appointmentId);
   const latest = claims[0];
+  const [lastResult, setLastResult] = useState<ClaimSubmissionResult | null>(null);
 
   return (
     <Card>
@@ -159,7 +163,7 @@ export function ClaimPanel({
           <Button
             size="sm"
             disabled={submit.isPending}
-            onClick={() => submit.mutate()}
+            onClick={() => submit.mutate(undefined, { onSuccess: (res) => setLastResult(res) })}
           >
             <Send className="mr-2 h-4 w-4" />
             Submit Claim
@@ -225,6 +229,27 @@ export function ClaimPanel({
             Submission failed. Check that the practice NPI, tax ID, taxonomy,
             and clearinghouse credentials are configured, and that the
             appointment has procedures.
+          </p>
+        )}
+        {/* Manual upload warning — shown when payer doesn't support electronic 275 */}
+        {lastResult && !lastResult.payerSupports275 && lastResult.attachmentsManual.length > 0 && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="font-medium">Send attachments manually</p>
+            <p className="mt-1 text-xs">
+              This carrier doesn&apos;t support electronic attachments. Upload these files
+              through the carrier&apos;s provider portal:
+            </p>
+            <ul className="mt-1 list-disc pl-4 text-xs">
+              {lastResult.attachmentsManual.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {lastResult?.payerSupports275 && lastResult.attachmentsSentElectronically > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {lastResult.attachmentsSentElectronically} attachment
+            {lastResult.attachmentsSentElectronically !== 1 ? "s" : ""} sent electronically.
           </p>
         )}
       </CardContent>
