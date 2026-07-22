@@ -240,8 +240,8 @@ export function ClaimPanel({
               through the carrier&apos;s provider portal:
             </p>
             <ul className="mt-1 list-disc pl-4 text-xs">
-              {lastResult.attachmentsManual.map((name) => (
-                <li key={name}>{name}</li>
+              {lastResult.attachmentsManual.map((name, idx) => (
+                <li key={`${idx}-${name}`}>{name}</li>
               ))}
             </ul>
           </div>
