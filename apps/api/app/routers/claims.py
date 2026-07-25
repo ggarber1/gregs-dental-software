@@ -153,7 +153,7 @@ async def submit_claim(
                 ).model_dump(by_alias=True),
             ) from exc
         return ClaimSubmissionResultSchema(
-            claim=Claim1(**_to_schema(result.claim).model_dump()),
+            claim=Claim1(**_to_schema(result.claim).model_dump(by_alias=True)),
             attachmentsSentElectronically=result.attachments_sent_electronically,
             attachmentsManual=result.attachments_manual,
             payerSupports275=result.payer_supports_275,
