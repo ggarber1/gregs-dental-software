@@ -76,7 +76,8 @@ dependency graph and detailed sequencing.
 - ✅ **Module 6 — Co-pay Calculation** (PRs #53–#56: contracted fees, per-CDT coinsurance parser, full CDT catalog, engine + service + endpoints + estimate card). This is the "insurance estimation (coverage % per plan per CDT code)" line. DHMO / alternate-benefit downgrade / secondary-COB deferred per spec §Deferred.
 - ✅ **Module 7 — Claims Submission (837D) + ERA Processing (835)** — split into **7a** and **7b**, both built. **7a (claims submission, PR #57 merged):** `DentalClaimInput` → Stedi Dental Claims JSON endpoint (Stedi generates the X12; synchronous 277CA), sync submit endpoint, claims table, claim panel + worklist. Spec: `specs/2026-06-18-module-7a-claims-submission-design.md`. **7b (835 ERA ingest + auto-post, PR #58):** Stedi `Poll Transactions` → `835 ERA Report` (JSON, no raw X12) → parse → match-by-PCN onto the `claims` row (paid/patient-resp/adjustments/denial), sync `POST /era/poll` + remittances worklist + unmatched-review queue; `era_remittances`/`unmatched_era_payments` tables (migration 0033). Spec: `specs/2026-06-22-module-7b-era-ingest-design.md`. **Both live paths (claim submit + ERA pull) are unverified until a full-access Stedi key at Staging Checkpoint 5** — see "Pending Manual Verification" below. (requires 3.5; 6 optional)
 - 🔄 **Module 8 — Billing & Payments** — split into **8a** and **8b+**. **8a (patient ledger, built):** append-only `ledger_entries` table (migration 0034) + ledger service computing running balance and posting entries — auto-posted charges on appointment checkout, insurance payment + non-PR contractual write-off from ERA, record-only patient payments (Stripe card processing deferred), manual adjustments, and reversals; feature-gated `billing_ledger` router (GET ledger / POST payments / POST adjustments / POST reverse); patient-chart Ledger tab; all hooks (checkout + ERA poll) soft-gated on `billing_ledger`. Spec: `specs/2026-06-23-module-8a-patient-ledger-design.md`. **8b+ (🔲 remainder):** patient-facing statements (email/print), QuickBooks export, full guarantor/family accounts, and Stripe card processing. (requires 7)
-  - **8b first slice — Insurance A/R Worklist (aging + underpayment) — ✅ BUILT, PR #61** (spec: `specs/2026-06-29-module-8b-insurance-ar-design.md`; plan: `plans/2026-06-29-module-8b-insurance-ar.md`). Read-mostly worklist over `claims` + the Module 6 estimate: **awaiting-carrier** (aged, chase oldest first), **underpaid** (auto-detected when insurance pays >5% below the Module 6 estimate → Accept / Flag-for-appeal), **problem** (denied/rejected/failed with Stedi reason), and a manual **appealing** triage state. Plus a birds-eye carrier × age-bucket summary. Classification keys off the numbers, not the (possibly-wrong) `paid`/`partially_paid` status label. One migration (`claims.insurance_reviewed_at`). **Underpayment detection folded in** (the high-value half of reconciliation); overpayment/refund reconciliation + patient-aging/statements remain follow-on siblings. **Claim recovery & appeals — ✅ BUILT, PR #62** (resubmission + write-off + patient Claims tab + A/R worklist actions + CARC lookup; spec: `specs/2026-06-01-pricing-model-design.md`). 275 claim attachments for formal appeals remain deferred (demand-driven).
+  - **8b first slice — Insurance A/R Worklist (aging + underpayment) — ✅ BUILT, PR #61** (spec: `specs/2026-06-29-module-8b-insurance-ar-design.md`; plan: `plans/2026-06-29-module-8b-insurance-ar.md`). Read-mostly worklist over `claims` + the Module 6 estimate: **awaiting-carrier** (aged, chase oldest first), **underpaid** (auto-detected when insurance pays >5% below the Module 6 estimate → Accept / Flag-for-appeal), **problem** (denied/rejected/failed with Stedi reason), and a manual **appealing** triage state. Plus a birds-eye carrier × age-bucket summary. Classification keys off the numbers, not the (possibly-wrong) `paid`/`partially_paid` status label. One migration (`claims.insurance_reviewed_at`). **Underpayment detection folded in** (the high-value half of reconciliation); overpayment/refund reconciliation + patient-aging/statements remain follow-on siblings. **Claim recovery & appeals — ✅ BUILT, PR #62** (resubmission + write-off + patient Claims tab + A/R worklist actions + CARC lookup; spec: `specs/2026-06-01-pricing-model-design.md`).
+- ✅ **Claim attachments (275) — BUILT, PR #63** — S3-backed file uploads on appointments; Stedi 275 electronic transmission bundled with 837D; perio chart auto-narrative for D4xxx procedures; payer fallback (attachmentControlNumber reference + manual portal prompt for unsupported payers). Live Stedi 275 path unverified until Staging Checkpoint 5 (no sandbox mode; see "Pending Manual Verification" below). UI not yet clicked through (see "Needs UI / Manual Testing"). Deferred: solicited attachments (277 RFA → 275), prior authorization (278), secondary/COB claim attachments. Spec: `specs/2026-07-06-claim-attachments-design.md`. (requires 7a)
 
 **Open checkout/payment workflow questions — discuss with dad (gates 8b UX):**
 
@@ -258,6 +259,17 @@ Some features are gated on having enough production data. Track this explicitly.
 
 Features built and merged but not yet clicked through. Do these before onboarding a real practice.
 
+### Claim attachments (PR #63)
+
+- **Upload flow:** open an appointment modal in edit mode → AttachmentPanel visible → click "Add files" → select a JPEG → confirm type defaults to "X-ray", filename and size display, "Uploading…" state appears then resolves
+- **Re-upload same file:** after uploading, select the same file again — confirm the `onChange` fires (file input resets after each selection)
+- **Perio narrative row:** upload a perio narrative (auto-generated or manual) → confirm no delete button appears on that row
+- **PDF and TIFF acceptance:** confirm the file picker accepts `.pdf` and `.tif`/`.tiff`; confirm `.txt` is rejected at the picker (accept attribute)
+- **Delete:** upload a file → click delete → confirm row disappears; verify DB soft-delete (`deleted_at` set) and S3 object gone
+- **ClaimPanel result — electronic:** submit a claim for an appointment with an attached JPEG → confirm the "N file(s) sent electronically" line appears in ClaimPanel
+- **ClaimPanel result — manual fallback:** simulate or trigger the payer-unsupported path → confirm the amber "Upload manually" warning with file list appears
+- **Perio auto-narrative on submit:** create an appointment with a D4341 procedure and a PerioChart → submit claim → confirm a `perio_narrative` attachment row appears in AttachmentPanel after submission
+
 ### Claim recovery & appeals (PR #62)
 
 - **Write-off end-to-end:** find a `denied` claim with no `insurance_reviewed_at` → click Write off on the A/R worklist → verify claim leaves the worklist → open patient Ledger tab → verify negative adjustment entry appears
@@ -267,6 +279,25 @@ Features built and merged but not yet clicked through. Do these before onboardin
 - **Denial reason display:** on a claim with CARC denial codes from an ERA, open ClaimPanel — verify plain-English reason text appears instead of raw codes
 
 Note: the Resubmit network call itself (Stedi 837D submission) is already tracked under Staging Checkpoint 5 below — can't verify without a full-access Stedi key.
+
+---
+
+## Pending Manual Verification — S3 PHI Document Bucket
+
+`app/core/s3.py` (`put_object`, `get_object_bytes`, `delete_object`) was introduced for
+claim attachments and is unit-tested with mocked boto3, but has **never been exercised
+against a real bucket**. This is independent of the Stedi key — just needs the staging
+S3 bucket and ECS task IAM role to exist.
+
+**To do (when staging infra is live):**
+1. Confirm the PHI documents bucket name is set in SSM / env (`S3_BUCKET_PHI_DOCUMENTS`).
+2. Upload a test file via the attachment endpoint (POST `/appointments/{id}/attachments`)
+   and verify the S3 object lands under the expected key (`attachments/{practice_id}/{uuid}/{filename}`).
+3. Fetch via GET `/appointments/{id}/attachments` — confirm the ORM row is returned.
+4. Delete via DELETE endpoint — confirm `deleted_at` is set in the DB and the S3 object
+   is gone (check via `aws s3 ls` or the AWS console).
+5. Confirm SSE-S3 (`AES256`) server-side encryption is set on the uploaded object
+   (`aws s3api head-object --bucket <bucket> --key <key>` → `ServerSideEncryption: AES256`).
 
 ---
 
@@ -350,6 +381,23 @@ function for easy correction. At **Staging Checkpoint 5**, with the full-access 
 `python apps/api/scripts/stedi_era_smoke.py` to verify the live ERA shape (and confirm PCN
 match-back end-to-end against a claim submitted in step 2 above).
 
+**Module 8c (Claim Attachments / 275) is blocked the same way.** The claim attachment
+endpoint (`POST https://claims.us.stedi.com/2025-03-07/claim-attachments/file`) and the
+presigned S3 `uploadUrl` it returns have **no test/sandbox mode** — a smoke run with a
+test-mode key will hit the same `403 access_denied` as the 837D endpoint. The full live
+path (S3 upload → `attachmentId` → `reportInformations` in the 837D payload → accepted
+claim that the payer links to the attachment) is unverifiable until a full-access key is
+available. The code is unit-tested with mocked httpx. **Action items:**
+1. Ask Stedi whether they can provide synthetic attachment test data or a test payer that
+   supports 275 attachments — similar to the mock enrollment/eligibility test data they
+   supply for 270/271 (`apps/api/scripts/stedi_eligibility_smoke.py`). File a support
+   ticket or contact the Stedi partnership team.
+2. At Staging Checkpoint 5 (full-access key), upload a real file (PDF X-ray), confirm
+   `attachmentId` is returned and the presigned PUT succeeds, then submit a D2392 claim
+   that references it and confirm the payer links the attachment to the claim.
+3. Verify the payer-unsupported fallback path (control-number ref in `reportInformations`
+   instead of `attachmentId`) with a payer known to reject 275 electronic attachments.
+
 ---
 
 ## Deferred Follow-Ups & Backlog
@@ -385,7 +433,11 @@ here.
 | 277CA webhook + 276/277 status-polling worker | Module 7a spec §11 | With the async worker; 7b ERA is the authoritative paid/denied source |
 | MassHealth/Medicaid claims (`payer_type`, `claim_filing_code=MA`, DentaQuest enrollment) | Module 7a spec §11 | When a MassHealth practice onboards |
 | Secondary / COB claims (837D COB loops) | Module 7a spec §11 | Now unblocked (7b ERA provides primary EOB data); demand-driven when a practice needs secondary billing |
-| Multiple rendering providers per appointment; queryable `claim_service_lines`; claim attachments (275) | Module 7a spec §11 | Demand-driven |
+| Multiple rendering providers per appointment; queryable `claim_service_lines` | Module 7a spec §11 | Demand-driven |
+| **Contact Stedi for 275 / 837D test data** — no sandbox mode exists for claim submission or attachments (unlike eligibility 270/271). Ask Stedi support / partnership if they can supply a test payer + synthetic claim data so we can smoke-test the full attachment upload → `attachmentId` → 837D → accepted-claim round-trip before going live. Bundle with Staging Checkpoint 5 prep. | "Pending Manual Verification" section above | Before onboarding any practice that submits claims with attachments |
+| Solicited attachments (277 RFA → 275 response) — payer requests docs after claim is submitted; provider responds with a 275 referencing the 277 RFA | `specs/2026-07-06-claim-attachments-design.md` §out-of-scope | Demand-driven; Stedi API only supports unsolicited 275 today |
+| Prior authorization (278) — pre-approval request + response before performing high-value procedures (implants, bone grafts, osseous surgery); auth number flows onto the 837D | `specs/2026-07-06-claim-attachments-design.md` §out-of-scope | When a practice doing implants/perio surgery needs pre-auth workflow with major carriers |
+| Secondary / COB claim attachments (primary EOB as 275 attachment on the secondary 837D) | `specs/2026-07-06-claim-attachments-design.md` §out-of-scope | Depends on secondary COB claims being built first (see row above) |
 | ✅ **Claim recovery & appeals — BUILT, PR #62** (`specs/2026-06-01-pricing-model-design.md`; plan: `plans/2026-06-30-claim-recovery-appeals.md`). Resubmission (freq code 1 for clearinghouse-rejected/failed; freq code 7 corrected-claim for denied/appealing with prior attempt snapshotted in `submission_history` JSONB); optional ledger reversal of ERA entries on resubmission; write-off (adjustment entry zeroing remaining balance + sets `insurance_reviewed_at`); `POST /claims/{id}/resubmit` + `POST /claims/{id}/write-off` endpoints; patient Claims tab; Resubmit/Write-off buttons in ClaimPanel and insurance A/R worklist Problem/Appealing rows; CARC code lookup + submission-error hints for plain-English denial display. **Resolved discrepancy:** CO/OA write-offs from the ERA are posted independently of insurance payments (two separate if-blocks in `era/ledger/posting.py`) — a denied claim that posted write-offs gets those reversed on resubmission when `billing_ledger` is enabled. **Remaining:** 275 claim attachments for formal appeal documentation (demand-driven, low priority). | Module 8b design (2026-06-29) | ✅ Built |
 | **Module 8b sibling reports (next up after PR #61).** (a) **Reconciliation worklist** — once an ERA posts, compare estimated insurance vs. actual `insurance_paid_cents` and surface the ledger adjustment (the dentist's checkout-then-reconcile step 2); reuses 8b's estimate-resolution logic. (b) **Patient aging + statements** — patient-grouped A/R from the Module 8a ledger → email/print statements (the "patient didn't pay at checkout, bill them" path). (c) **Overpayment/refund** handling. Above all three, a practice A/R dashboard (insurance owes $X / patients owe $Y). | Module 8b design (2026-06-29) | Reconciliation first (highest revenue value); patient aging/statements next |
 | **Observability story (NOT built — flagged 2026-06-29).** No real monitoring/alerting yet. Highest priority: **Stedi health** — failure/error-rate spike alerts across all call types, a distinct **auth-failure** alert (dead/expired key), cost/volume anomaly (retry storms), and claim **rejection-rate** spikes. Plus revenue-cycle SLOs (claims aged past N days, ERA unmatched-queue growth, eligibility failure rate); app/infra basics (API 5xx + p50/p95/p99 latency, DB pool/slow-query/migration-failure, worker queue depth + dead-letter); and **HIPAA** PHI-access audit logging + auth-failure alerting. Open stack decision: CloudWatch alarms+logs vs Datadog/Sentry; SNS→email/Slack/PagerDuty sink; request/trace IDs threaded through Stedi calls. Deserves its own spec. | Greg, 2026-06-29 (Module 8b session); ties to `research/16_cost_and_scaling_model.md` + AWS BAA | Before onboarding the first real practice (HIPAA audit + Stedi alerting); revisit each Stedi-touching module |

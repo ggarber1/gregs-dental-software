@@ -99,6 +99,13 @@ export interface WriteOffResponse {
   ledgerEntry: string | null;
 }
 
+export interface ClaimSubmissionResult {
+  claim: Claim;
+  attachmentsSentElectronically: number;
+  attachmentsManual: string[];
+  payerSupports275: boolean;
+}
+
 export function useResubmitClaim(claimId: string, appointmentId: string, patientId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -135,12 +142,17 @@ export function useSubmitClaim(appointmentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiClient.post<Claim>(`/api/v1/appointments/${appointmentId}/claim`, {}, {
-        idempotencyKey: generateId(),
-      }),
+      apiClient.post<ClaimSubmissionResult>(
+        `/api/v1/appointments/${appointmentId}/claim`,
+        {},
+        { idempotencyKey: generateId() },
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
+      void qc.invalidateQueries({
+        queryKey: ["attachments", "appointment", appointmentId],
+      });
     },
   });
 }
