@@ -37,7 +37,7 @@ def _to_schema(row: AttachmentModel) -> AppointmentAttachment:
         fileName=row.file_name,
         fileSizeBytes=row.file_size_bytes,
         contentType=row.content_type,
-        attachmentType=AttachmentType(row.attachment_type),  # type: ignore[arg-type]
+        attachmentType=AttachmentType(row.attachment_type),
         uploadedBy=row.uploaded_by,
         createdAt=row.created_at.replace(tzinfo=UTC),
     )
