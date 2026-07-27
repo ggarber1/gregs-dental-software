@@ -30,7 +30,7 @@ def upgrade() -> None:
             "automation_config",
             JSONB,
             nullable=False,
-            server_default="{}",
+            server_default=sa.text("'{}'"),
         ),
     )
 
