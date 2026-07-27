@@ -174,6 +174,9 @@ import {
   InsuranceARTotalsSchema,
   InsuranceARSummarySchema,
   ClaimActionResultSchema,
+  ReconciliationLabelSchema,
+  ReconciliationRowSchema,
+  ARSummarySchema,
 } from "../src/schemas/reports.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
@@ -314,6 +317,10 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   InsuranceARTotals: InsuranceARTotalsSchema,
   InsuranceARSummary: InsuranceARSummarySchema,
   ClaimActionResult: ClaimActionResultSchema,
+  // ERA Reconciliation
+  ReconciliationLabel: ReconciliationLabelSchema,
+  ReconciliationRow: ReconciliationRowSchema,
+  ARSummary: ARSummarySchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
