@@ -48,11 +48,47 @@ export interface InsuranceARSummary {
   totals: Omit<InsuranceARCarrierSummary, "payerId" | "carrierName">;
 }
 
+export type ReconciliationLabel =
+  | "overpaid"
+  | "within_tolerance"
+  | "matched"
+  | "no_estimate";
+
+export interface ReconciliationRow {
+  claimId: string;
+  appointmentId: string;
+  patientId: string;
+  claimNumber: string;
+  patientName: string;
+  payerId: string;
+  carrierName: string;
+  reconLabel: ReconciliationLabel;
+  billedCents: number;
+  estimatedInsuranceCents: number | null;
+  insurancePaidCents: number;
+  varianceCents: number | null;
+  hasEstimate: boolean;
+  patientBalanceCents: number;
+  daysSinceEra: number;
+  reconciliationConfirmedAt: string | null;
+}
+
+export interface ARSummary {
+  insuranceArTotalCents: number;
+  patientArTotalCents: number;
+  claimsNeedingAttention: number;
+  reconciliationPendingCount: number;
+  eraReconciliationMode: "auto" | "confirm";
+}
+
 export const reportsKeys = {
   all: ["reports"] as const,
   worklist: (category?: string) =>
     ["reports", "insurance-ar", "worklist", { category: category ?? null }] as const,
   summary: ["reports", "insurance-ar", "summary"] as const,
+  reconciliation: (confirmed?: boolean) =>
+    ["reports", "reconciliation", { confirmed: confirmed ?? null }] as const,
+  arSummary: ["reports", "ar-summary"] as const,
 };
 
 export function useInsuranceARWorklist(category?: ARCategory) {
@@ -94,6 +130,40 @@ export function useAcceptUnderpayment() {
 
 export function useFlagForAppeal() {
   return useClaimAction("appeal");
+}
+
+export function useReconciliationWorklist(confirmed?: boolean) {
+  const query =
+    confirmed !== undefined ? `?confirmed=${confirmed}` : "";
+  return useQuery({
+    queryKey: reportsKeys.reconciliation(confirmed),
+    queryFn: () =>
+      apiClient.get<ReconciliationRow[]>(
+        `/api/v1/reports/reconciliation/claims${query}`,
+      ),
+  });
+}
+
+export function useConfirmReconciliation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (claimId: string) =>
+      apiClient.post(
+        `/api/v1/reports/reconciliation/claims/${claimId}/confirm`,
+        {},
+        { idempotencyKey: generateId() },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: reportsKeys.all });
+    },
+  });
+}
+
+export function useARSummary() {
+  return useQuery({
+    queryKey: reportsKeys.arSummary,
+    queryFn: () => apiClient.get<ARSummary>("/api/v1/reports/ar-summary"),
+  });
 }
 
 export function centsToUsd(cents: number | null): string {
