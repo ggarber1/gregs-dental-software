@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,6 +23,8 @@ from app.services.reports.insurance_ar import (
     Summary,
     WorklistRow,
 )
+from app.services.reports.reconciliation import ARSummaryData
+from app.services.reports.reconciliation import ReconciliationRow as ReconRow
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -353,3 +356,220 @@ async def test_accept_endpoint_409_when_not_underpaid():
                 json={},
             )
     assert resp.status_code == 409
+
+
+# ── Reconciliation endpoint tests ────────────────────────────────────────────
+
+
+def _recon_row(**kw) -> ReconRow:
+    defaults = dict(
+        claim_id=uuid.uuid4(),
+        appointment_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
+        claim_number="CLM001",
+        patient_name="Jane Doe",
+        payer_id="DELTA",
+        carrier_name="Delta Dental",
+        recon_label="overpaid",
+        billed_cents=100000,
+        estimated_insurance_cents=80000,
+        insurance_paid_cents=85000,
+        variance_cents=5000,
+        has_estimate=True,
+        patient_balance_cents=15000,
+        days_since_era=5,
+        reconciliation_confirmed_at=None,
+    )
+    defaults.update(kw)
+    return ReconRow(**defaults)
+
+
+@pytest.mark.asyncio
+async def test_get_reconciliation_worklist_happy_path():
+    from app.main import create_app
+
+    app = create_app()
+    row = _recon_row()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch(
+            "app.routers.reports.require_feature",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.routers.reports.reconciliation.get_reconciliation_worklist",
+            new=AsyncMock(return_value=[row]),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get(
+                "/api/v1/reports/reconciliation/claims", headers=headers
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["reconLabel"] == "overpaid"
+    assert data[0]["varianceCents"] == 5000
+
+
+@pytest.mark.asyncio
+async def test_get_reconciliation_worklist_confirmed_filter():
+    from app.main import create_app
+
+    app = create_app()
+    mock_get = AsyncMock(return_value=[])
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.get_reconciliation_worklist",
+            new=mock_get,
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            await client.get(
+                "/api/v1/reports/reconciliation/claims?confirmed=false", headers=headers
+            )
+    mock_get.assert_called_once()
+    _, kwargs = mock_get.call_args
+    assert kwargs["confirmed"] is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_reconciliation_success():
+    from app.main import create_app
+
+    app = create_app()
+    claim = MagicMock()
+    claim.id = uuid.uuid4()
+    claim.status = "paid"
+    claim.insurance_reviewed_at = None
+    claim.reconciliation_confirmed_at = datetime(2026, 7, 25, 12, 0, tzinfo=UTC)
+    with (
+        _auth_patches(role="front_desk") as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.confirm_reconciliation",
+            new=AsyncMock(return_value=claim),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                f"/api/v1/reports/reconciliation/claims/{claim.id}/confirm",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert resp.status_code == 200
+    assert resp.json()["claimId"] == str(claim.id)
+
+
+@pytest.mark.asyncio
+async def test_confirm_reconciliation_not_found():
+    from app.main import create_app
+
+    app = create_app()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.confirm_reconciliation",
+            new=AsyncMock(side_effect=LookupError("not found")),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                f"/api/v1/reports/reconciliation/claims/{uuid.uuid4()}/confirm",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_confirm_reconciliation_already_confirmed():
+    from app.main import create_app
+
+    app = create_app()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.confirm_reconciliation",
+            new=AsyncMock(side_effect=ValueError("claim already confirmed")),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                f"/api/v1/reports/reconciliation/claims/{uuid.uuid4()}/confirm",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_ar_summary_happy_path():
+    from app.main import create_app
+
+    app = create_app()
+    summary = ARSummaryData(
+        insurance_ar_total_cents=500000,
+        patient_ar_total_cents=75000,
+        claims_needing_attention=3,
+        reconciliation_pending_count=2,
+        era_reconciliation_mode="confirm",
+    )
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.get_ar_summary",
+            new=AsyncMock(return_value=summary),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/api/v1/reports/ar-summary", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["insuranceArTotalCents"] == 500000
+    assert data["reconciliationPendingCount"] == 2
+    assert data["eraReconciliationMode"] == "confirm"
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_feature_gate():
+    from app.main import create_app
+
+    app = create_app()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch(
+            "app.routers.reports.require_feature",
+            new=AsyncMock(side_effect=_feature_off()),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            r1 = await client.get(
+                "/api/v1/reports/reconciliation/claims", headers=headers
+            )
+            r2 = await client.get("/api/v1/reports/ar-summary", headers=headers)
+    assert r1.status_code == 403
+    assert r2.status_code == 403
