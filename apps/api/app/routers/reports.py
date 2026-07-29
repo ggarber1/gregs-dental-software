@@ -129,31 +129,13 @@ def _action_result(claim: Any) -> ClaimActionResult:
     "/reports/insurance-ar/claims/{claim_id}/accept",
     response_model=ClaimActionResult,
 )
-async def accept_underpayment(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
+async def write_off_underpayment(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     async with get_session_factory()() as session:
         await require_feature(session, practice_id, _FEATURE)
         try:
-            claim = await insurance_ar.accept_underpayment(session, practice_id, claim_id)
-        except LookupError:
-            raise _err(404, "CLAIM_NOT_FOUND", "Claim not found") from None
-        except ValueError:
-            raise _err(409, "NOT_UNDERPAID", "Claim is not currently underpaid") from None
-        return _action_result(claim)
-
-
-@router.post(
-    "/reports/insurance-ar/claims/{claim_id}/appeal",
-    response_model=ClaimActionResult,
-)
-async def flag_for_appeal(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
-    practice_id = _require_practice_scope(request)
-    _require_write_role(request)
-    async with get_session_factory()() as session:
-        await require_feature(session, practice_id, _FEATURE)
-        try:
-            claim = await insurance_ar.flag_for_appeal(session, practice_id, claim_id)
+            claim = await insurance_ar.write_off_underpayment(session, practice_id, claim_id)
         except LookupError:
             raise _err(404, "CLAIM_NOT_FOUND", "Claim not found") from None
         except ValueError:

@@ -52,9 +52,9 @@ def test_classify_draft_excluded():
     assert _classify("draft") is None
 
 
-def test_classify_appealing_first_even_with_payment():
-    # appealing wins even though there's a prior payment that looks underpaid
-    assert _classify("appealing", paid=200, estimate=1000) == "appealing"
+def test_classify_appealing_folded_into_problem():
+    # appealing is treated as problem — same queue, same actions
+    assert _classify("appealing", paid=200, estimate=1000) == "problem"
 
 
 def test_classify_problem_statuses():

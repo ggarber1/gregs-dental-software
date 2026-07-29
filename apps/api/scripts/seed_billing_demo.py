@@ -19,13 +19,12 @@ Run from apps/api:
 
 import asyncio
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_engine
-
 
 PRACTICE_ID = uuid.UUID("d6c98183-fd13-4dd3-addd-33f0fd9a3a41")
 PROVIDER_ID = uuid.UUID("ca99bde0-77eb-4e8f-938f-09e6d4d3b823")
@@ -59,7 +58,8 @@ PAYERS = [
     ("UNITED-DEMO", "United Healthcare"),
 ]
 
-# Each scenario: (patient_idx, payer_idx, status, billed, estimate, paid, paid_days_ago, sub_days_ago, notes)
+# Each scenario:
+# (patient_idx, payer_idx, status, billed, estimate, paid, paid_days_ago, sub_days_ago, notes)
 SCENARIOS = [
     # --- Awaiting (submitted, no ERA) ---
     (0, 0, "submitted",  35000, 28000, None,  None, 14, "routine cleaning + exam"),
@@ -92,7 +92,11 @@ async def seed(session: AsyncSession) -> None:
     # ------------------------------------------------------------------
     demo_claim_ids = (
         await session.execute(
-            text("SELECT id FROM claims WHERE patient_control_number LIKE 'DEMO%' AND practice_id = :pr"),
+            text(
+                "SELECT id FROM claims"
+                " WHERE patient_control_number LIKE 'DEMO%'"
+                " AND practice_id = :pr"
+            ),
             {"pr": str(PRACTICE_ID)},
         )
     ).scalars().all()
@@ -102,7 +106,11 @@ async def seed(session: AsyncSession) -> None:
             {"ids": list(demo_claim_ids)},
         )
         await session.execute(
-            text("DELETE FROM copay_calculations WHERE appointment_id IN (SELECT appointment_id FROM claims WHERE id = ANY(:ids))"),
+            text(
+                "DELETE FROM copay_calculations"
+                " WHERE appointment_id IN"
+                " (SELECT appointment_id FROM claims WHERE id = ANY(:ids))"
+            ),
             {"ids": list(demo_claim_ids)},
         )
         await session.execute(
@@ -111,7 +119,10 @@ async def seed(session: AsyncSession) -> None:
         )
     # Wipe demo patients (tagged by last_name prefix 'Demo-')
     await session.execute(
-        text("DELETE FROM appointments WHERE patient_id IN (SELECT id FROM patients WHERE last_name LIKE 'Demo-%' AND practice_id = :pr)"),
+        text(
+            "DELETE FROM appointments WHERE patient_id IN"
+            " (SELECT id FROM patients WHERE last_name LIKE 'Demo-%' AND practice_id = :pr)"
+        ),
         {"pr": str(PRACTICE_ID)},
     )
     await session.execute(
@@ -166,7 +177,9 @@ async def seed(session: AsyncSession) -> None:
     # ------------------------------------------------------------------
     # 3. Insert appointments, claims, copay calcs, ledger entries
     # ------------------------------------------------------------------
-    for i, (pat_idx, payer_idx, status, billed, estimate, paid, paid_ago, sub_ago, _) in enumerate(SCENARIOS):
+    for i, (pat_idx, payer_idx, status, billed, estimate, paid, paid_ago, sub_ago, _) in (
+        enumerate(SCENARIOS)
+    ):
         patient_id = PATIENTS[pat_idx]["id"]
         payer_id, _ = PAYERS[payer_idx]
         appt_id = str(uuid.uuid4())

@@ -18,7 +18,6 @@ import {
   centsToUsd,
   useInsuranceARWorklist,
   useAcceptUnderpayment,
-  useFlagForAppeal,
   useReconciliationWorklist,
   useConfirmReconciliation,
   useARSummary,
@@ -34,7 +33,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "awaiting", label: "Awaiting" },
   { key: "underpaid", label: "Underpaid" },
   { key: "problem", label: "Problem" },
-  { key: "appealing", label: "Appealing" },
   { key: "reconciled", label: "Reconciled" },
 ];
 
@@ -92,8 +90,7 @@ function AllTab() {
 
 function ARTab({ category }: { category: ARCategory }) {
   const { data: rows, isLoading } = useInsuranceARWorklist(category);
-  const accept = useAcceptUnderpayment();
-  const appeal = useFlagForAppeal();
+  const writeOff = useAcceptUnderpayment();
   const list = rows ?? [];
 
   if (isLoading) return <LoadingSpinner />;
@@ -119,10 +116,8 @@ function ARTab({ category }: { category: ARCategory }) {
           <ARRow
             key={r.claimId}
             row={r}
-            onAccept={() => accept.mutate(r.claimId)}
-            onAppeal={() => appeal.mutate(r.claimId)}
-            accepting={accept.isPending}
-            appealing={appeal.isPending}
+            onWriteOff={() => writeOff.mutate(r.claimId)}
+            writingOff={writeOff.isPending}
           />
         ))}
       </TableBody>
@@ -132,19 +127,15 @@ function ARTab({ category }: { category: ARCategory }) {
 
 function ARRow({
   row,
-  onAccept,
-  onAppeal,
-  accepting,
-  appealing,
+  onWriteOff,
+  writingOff,
 }: {
   row: InsuranceARRow;
-  onAccept: () => void;
-  onAppeal: () => void;
-  accepting: boolean;
-  appealing: boolean;
+  onWriteOff: () => void;
+  writingOff: boolean;
 }) {
   const resubmit = useResubmitClaim(row.claimId, row.appointmentId, row.patientId);
-  const writeOff = useWriteOffClaim(row.claimId, row.appointmentId, row.patientId);
+  const writeOffClaim = useWriteOffClaim(row.claimId, row.appointmentId, row.patientId);
 
   return (
     <TableRow>
@@ -160,24 +151,23 @@ function ARRow({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onAccept}
-              disabled={accepting}
+              onClick={() => resubmit.mutate()}
+              disabled={resubmit.isPending}
               className="text-sm text-primary underline disabled:opacity-50"
             >
-              Accept
+              {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
             </button>
             <button
               type="button"
-              onClick={onAppeal}
-              disabled={appealing}
-              title="Triage flag only — does not submit to the carrier"
+              onClick={onWriteOff}
+              disabled={writingOff}
               className="text-sm text-muted-foreground underline disabled:opacity-50"
             >
-              Flag for appeal
+              {writingOff ? "Writing off…" : "Write off"}
             </button>
           </div>
         )}
-        {(row.category === "problem" || row.category === "appealing") && (
+        {row.category === "problem" && (
           <div className="flex gap-2">
             <button
               type="button"
@@ -187,16 +177,14 @@ function ARRow({
             >
               {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
             </button>
-            {(row.status === "denied" || row.status === "appealing") && (
-              <button
-                type="button"
-                onClick={() => writeOff.mutate(undefined)}
-                disabled={writeOff.isPending}
-                className="text-sm text-muted-foreground underline disabled:opacity-50"
-              >
-                {writeOff.isPending ? "Writing off…" : "Write off"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => writeOffClaim.mutate(undefined)}
+              disabled={writeOffClaim.isPending}
+              className="text-sm text-muted-foreground underline disabled:opacity-50"
+            >
+              {writeOffClaim.isPending ? "Writing off…" : "Write off"}
+            </button>
           </div>
         )}
         {row.reason && (
@@ -438,8 +426,7 @@ function ClaimsPageInner() {
       {activeTab === "all" && <AllTab />}
       {(activeTab === "awaiting" ||
         activeTab === "underpaid" ||
-        activeTab === "problem" ||
-        activeTab === "appealing") && <ARTab category={activeTab} />}
+        activeTab === "problem") && <ARTab category={activeTab} />}
       {activeTab === "reconciled" && <ReconciledTab mode={mode} />}
     </div>
   );
