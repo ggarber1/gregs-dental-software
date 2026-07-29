@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -403,6 +404,12 @@ function ClaimsPageInner() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      <Link
+        href="/billing"
+        className="self-start text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        ← Billing
+      </Link>
       <PageHeader title="Claims" description="Insurance claims and A/R management." />
 
       <div className="flex gap-1 border-b border-border">
