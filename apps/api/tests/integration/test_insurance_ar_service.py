@@ -6,10 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim
 from app.services.reports.insurance_ar import (
-    accept_underpayment,
-    flag_for_appeal,
     get_summary,
     get_worklist,
+    write_off_underpayment,
 )
 
 pytestmark = pytest.mark.integration
@@ -151,7 +150,7 @@ async def test_worklist_filters_by_category(db_session: AsyncSession):
     rows = await get_worklist(db_session, practice_id, category="problem", now=_NOW)
     assert len(rows) == 1
     assert rows[0].category == "problem"
-    assert rows[0].reason == "denied: 45"
+    assert rows[0].reason == "denied — exceeds contracted rate"
 
 
 @pytest.mark.asyncio
@@ -257,14 +256,16 @@ async def test_get_summary_reconciles_with_worklist(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_accept_underpayment_marks_reviewed_and_drops_off(db_session: AsyncSession):
+async def test_write_off_underpayment_marks_reviewed_and_drops_off(db_session: AsyncSession):
     practice_id = uuid.uuid4()
-    # underpaid: paid 200 with a procedure-estimate of 1000 (>5% below)
     appt_id = uuid.uuid4()
+    await _seed_appointment(db_session, practice_id, appt_id)
+    patient = await _seed_patient(db_session, practice_id, "Test", "Patient")
     claim = await _claim(
         db_session,
         practice_id,
         appointment_id=appt_id,
+        patient_id=patient.id,
         status="partially_paid",
         insurance_paid_cents=20000,
         total_charge_cents=120000,
@@ -274,44 +275,31 @@ async def test_accept_underpayment_marks_reviewed_and_drops_off(db_session: Asyn
     rows = await get_worklist(db_session, practice_id, now=_NOW)
     assert [r.category for r in rows] == ["underpaid"]
 
-    updated = await accept_underpayment(db_session, practice_id, claim.id, now=_NOW)
+    updated = await write_off_underpayment(db_session, practice_id, claim.id, now=_NOW)
     assert updated.insurance_reviewed_at is not None
     rows_after = await get_worklist(db_session, practice_id, now=_NOW)
     assert rows_after == []
 
 
 @pytest.mark.asyncio
-async def test_flag_for_appeal_moves_to_appealing(db_session: AsyncSession):
+async def test_appealing_claims_appear_in_problem_bucket(db_session: AsyncSession):
     practice_id = uuid.uuid4()
-    appt_id = uuid.uuid4()
-    claim = await _claim(
-        db_session,
-        practice_id,
-        appointment_id=appt_id,
-        status="partially_paid",
-        insurance_paid_cents=20000,
-        total_charge_cents=120000,
-    )
-    await _seed_estimate(db_session, appt_id, 100000)
-
-    updated = await flag_for_appeal(db_session, practice_id, claim.id)
-    assert updated.status == "appealing"
+    await _claim(db_session, practice_id, status="appealing")
     rows = await get_worklist(db_session, practice_id, now=_NOW)
-    assert [r.category for r in rows] == ["appealing"]
+    assert [r.category for r in rows] == ["problem"]
+    assert rows[0].reason == "pending appeal"
 
 
 @pytest.mark.asyncio
-async def test_actions_reject_claim_not_underpaid(db_session: AsyncSession):
+async def test_write_off_rejects_claim_not_underpaid(db_session: AsyncSession):
     practice_id = uuid.uuid4()
     claim = await _claim(db_session, practice_id, status="submitted")  # awaiting, not underpaid
     with pytest.raises(ValueError):
-        await accept_underpayment(db_session, practice_id, claim.id, now=_NOW)
-    with pytest.raises(ValueError):
-        await flag_for_appeal(db_session, practice_id, claim.id)
+        await write_off_underpayment(db_session, practice_id, claim.id, now=_NOW)
 
 
 @pytest.mark.asyncio
-async def test_actions_reject_other_practice(db_session: AsyncSession):
+async def test_write_off_rejects_other_practice(db_session: AsyncSession):
     practice_id = uuid.uuid4()
     other = uuid.uuid4()
     claim = await _claim(
@@ -322,4 +310,4 @@ async def test_actions_reject_other_practice(db_session: AsyncSession):
         total_charge_cents=120000,
     )
     with pytest.raises(LookupError):
-        await accept_underpayment(db_session, other, claim.id, now=_NOW)
+        await write_off_underpayment(db_session, other, claim.id, now=_NOW)
