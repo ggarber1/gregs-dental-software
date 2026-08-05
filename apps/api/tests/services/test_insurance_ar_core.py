@@ -105,6 +105,16 @@ def test_reason_rejected_uses_submission_errors():
     assert reason_for(claim) == "Missing tooth number"
 
 
+def test_reason_appealing_returns_pending_appeal():
+    claim = SimpleNamespace(
+        status="appealing",
+        denial_codes=None,
+        submission_errors=None,
+        clearinghouse_status=None,
+    )
+    assert reason_for(claim) == "pending appeal"
+
+
 def test_reason_none_for_non_problem():
     claim = SimpleNamespace(
         status="submitted",

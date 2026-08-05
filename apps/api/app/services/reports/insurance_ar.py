@@ -76,6 +76,8 @@ def reason_for(claim: Any) -> str | None:
         if errs:
             return "; ".join(errs)
         return str(claim.clearinghouse_status or claim.status)
+    if claim.status == "appealing":
+        return "pending appeal"
     return None
 
 
