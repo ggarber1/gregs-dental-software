@@ -169,14 +169,16 @@ function ARRow({
         )}
         {row.category === "problem" && (
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => resubmit.mutate()}
-              disabled={resubmit.isPending}
-              className="text-sm text-primary underline disabled:opacity-50"
-            >
-              {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
-            </button>
+            {row.status !== "appealing" && (
+              <button
+                type="button"
+                onClick={() => resubmit.mutate()}
+                disabled={resubmit.isPending}
+                className="text-sm text-primary underline disabled:opacity-50"
+              >
+                {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => writeOffClaim.mutate(undefined)}
