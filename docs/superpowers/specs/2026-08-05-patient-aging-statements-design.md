@@ -55,7 +55,7 @@ Patients with `balance_cents ≤ 0` are excluded from the worklist entirely. A s
 
 ## 3. API Endpoints
 
-All statement endpoints are gated on the existing `billing_ledger` feature flag. The aging worklist endpoint uses the `claims_submission` flag, consistent with other A/R reports.
+All endpoints in this module are gated on the existing `billing_ledger` feature flag. The patient aging worklist is a ledger-derived report (not claims-derived), so it uses `billing_ledger` rather than `claims_submission`.
 
 ### 3.1 Patient Aging Worklist
 
