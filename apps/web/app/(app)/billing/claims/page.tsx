@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -136,6 +136,12 @@ function ARRow({
 }) {
   const resubmit = useResubmitClaim(row.claimId, row.appointmentId, row.patientId);
   const writeOffClaim = useWriteOffClaim(row.claimId, row.appointmentId, row.patientId);
+  const [confirmingResubmit, setConfirmingResubmit] = useState(false);
+
+  function handleResubmitConfirmed() {
+    setConfirmingResubmit(false);
+    resubmit.mutate();
+  }
 
   return (
     <TableRow>
@@ -151,11 +157,11 @@ function ARRow({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => resubmit.mutate()}
+              onClick={() => setConfirmingResubmit(true)}
               disabled={resubmit.isPending}
               className="text-sm text-primary underline disabled:opacity-50"
             >
-              {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
+              Resubmit
             </button>
             <button
               type="button"
@@ -171,11 +177,11 @@ function ARRow({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => resubmit.mutate()}
+              onClick={() => setConfirmingResubmit(true)}
               disabled={resubmit.isPending}
               className="text-sm text-primary underline disabled:opacity-50"
             >
-              {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
+              Resubmit
             </button>
             <button
               type="button"
@@ -185,6 +191,30 @@ function ARRow({
             >
               {writeOffClaim.isPending ? "Writing off…" : "Write off"}
             </button>
+          </div>
+        )}
+        {confirmingResubmit && (
+          <div className="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs">
+            <p className="mb-1.5 text-amber-800">
+              Fix the issue in the patient or insurance record first, then confirm.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleResubmitConfirmed}
+                disabled={resubmit.isPending}
+                className="font-medium text-primary underline disabled:opacity-50"
+              >
+                {resubmit.isPending ? "Resubmitting…" : "Confirm resubmit"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingResubmit(false)}
+                className="text-muted-foreground underline"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
         {row.reason && (

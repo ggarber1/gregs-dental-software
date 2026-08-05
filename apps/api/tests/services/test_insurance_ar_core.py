@@ -92,7 +92,14 @@ def test_classify_reviewed_drops_to_done():
 def test_reason_denied_uses_codes():
     claim = SimpleNamespace(status="denied", denial_codes=["45", "B7"],
                             submission_errors=None, clearinghouse_status=None)
-    assert reason_for(claim) == "denied: 45, B7"
+    # 45 maps to a known description; B7 is unknown so falls back to "code B7"
+    assert reason_for(claim) == "denied — exceeds contracted rate · code B7"
+
+
+def test_reason_denied_no_codes():
+    claim = SimpleNamespace(status="denied", denial_codes=None,
+                            submission_errors=None, clearinghouse_status=None)
+    assert reason_for(claim) == "denied — contact payer for details"
 
 
 def test_reason_rejected_uses_submission_errors():

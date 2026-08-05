@@ -66,16 +66,41 @@ def classify(
     return None  # paid as expected, or no estimate, or already reviewed
 
 
+_CARC: dict[str, str] = {
+    "1": "patient deductible",
+    "2": "patient coinsurance",
+    "3": "patient copay",
+    "4": "inconsistent with patient age",
+    "5": "inconsistent with patient gender",
+    "6": "duplicate claim",
+    "18": "duplicate claim",
+    "26": "before coverage start date",
+    "27": "after coverage end date",
+    "29": "filing time limit expired",
+    "45": "exceeds contracted rate",
+    "50": "primary insurance responsibility",
+    "96": "non-covered service",
+    "97": "included in another service",
+    "119": "benefit maximum reached",
+    "133": "missing required information",
+    "197": "prior authorization required",
+    "204": "not covered under plan",
+    "256": "not covered per contract",
+}
+
+
 def reason_for(claim: Any) -> str | None:
-    """Human-ish reason for a problem claim (raw X12 codes; friendly map is a follow-up)."""
     if claim.status == "denied":
         codes = list(claim.denial_codes or [])
-        return f"denied: {', '.join(codes)}" if codes else "denied"
+        if not codes:
+            return "denied — contact payer for details"
+        parts = [_CARC.get(c, f"code {c}") for c in codes]
+        return "denied — " + " · ".join(parts)
     if claim.status in ("clearinghouse_rejected", "submission_failed"):
         errs = list(claim.submission_errors or [])
         if errs:
             return "; ".join(errs)
-        return str(claim.clearinghouse_status or claim.status)
+        return str(claim.clearinghouse_status or "clearinghouse rejected")
     if claim.status == "appealing":
         return "pending appeal"
     return None

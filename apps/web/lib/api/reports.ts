@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, generateId } from "@/lib/api-client";
+import { toast } from "sonner";
 
-export type ARCategory = "awaiting" | "underpaid" | "problem" | "appealing";
+import { apiClient, ApiError, generateId } from "@/lib/api-client";
+
+export type ARCategory = "awaiting" | "underpaid" | "problem";
 export type AgeBucket = "0-30" | "31-60" | "61-90" | "90+";
 
 export interface InsuranceARRow {
@@ -108,28 +110,32 @@ export function useInsuranceARSummary() {
   });
 }
 
-function useClaimAction(action: "accept" | "appeal") {
+function apiErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { error?: { message?: string } } | null;
+    return body?.error?.message ?? `Unexpected error (${err.status})`;
+  }
+  return "Something went wrong. Please try again.";
+}
+
+export function useAcceptUnderpayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (claimId: string) =>
       apiClient.post(
-        `/api/v1/reports/insurance-ar/claims/${claimId}/${action}`,
+        `/api/v1/reports/insurance-ar/claims/${claimId}/accept`,
         {},
         { idempotencyKey: generateId() },
       ),
     onSuccess: () => {
+      toast.success("Underpayment written off.");
       void qc.invalidateQueries({ queryKey: reportsKeys.all });
       void qc.invalidateQueries({ queryKey: ["claims"] });
     },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
+    },
   });
-}
-
-export function useAcceptUnderpayment() {
-  return useClaimAction("accept");
-}
-
-export function useFlagForAppeal() {
-  return useClaimAction("appeal");
 }
 
 export function useReconciliationWorklist(confirmed?: boolean) {
@@ -154,7 +160,11 @@ export function useConfirmReconciliation() {
         { idempotencyKey: generateId() },
       ),
     onSuccess: () => {
+      toast.success("Reconciliation confirmed.");
       void qc.invalidateQueries({ queryKey: reportsKeys.all });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 }
