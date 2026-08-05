@@ -99,7 +99,7 @@ def test_reason_denied_uses_codes():
 def test_reason_denied_no_codes():
     claim = SimpleNamespace(status="denied", denial_codes=None,
                             submission_errors=None, clearinghouse_status=None)
-    assert reason_for(claim) == "denied — contact payer for details"
+    assert reason_for(claim) == "denied — contact the carrier for details"
 
 
 def test_reason_rejected_uses_submission_errors():

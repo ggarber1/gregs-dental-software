@@ -93,7 +93,7 @@ def reason_for(claim: Any) -> str | None:
     if claim.status == "denied":
         codes = list(claim.denial_codes or [])
         if not codes:
-            return "denied — contact payer for details"
+            return "denied — contact the carrier for details"
         parts = [_CARC.get(c, f"code {c}") for c in codes]
         return "denied — " + " · ".join(parts)
     if claim.status in ("clearinghouse_rejected", "submission_failed"):
