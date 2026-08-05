@@ -12,6 +12,7 @@ from app.models.appointment_procedure import AppointmentProcedure
 from app.models.claim import Claim
 from app.models.copay_calculation import CopayCalculation
 from app.models.insurance_plan import InsurancePlan
+from app.models.ledger_entry import LedgerEntry
 from app.models.patient import Patient
 
 _PROBLEM_STATUSES = frozenset({"denied", "clearinghouse_rejected", "submission_failed"})
@@ -54,9 +55,7 @@ def classify(
     """
     if status == "draft":
         return None  # never sent
-    if status == "appealing":
-        return "appealing"
-    if status in _PROBLEM_STATUSES:
+    if status in _PROBLEM_STATUSES or status == "appealing":
         return "problem"
     if insurance_paid_cents is None:
         return "awaiting"
@@ -67,16 +66,43 @@ def classify(
     return None  # paid as expected, or no estimate, or already reviewed
 
 
+_CARC: dict[str, str] = {
+    "1": "patient deductible",
+    "2": "patient coinsurance",
+    "3": "patient copay",
+    "4": "inconsistent with patient age",
+    "5": "inconsistent with patient gender",
+    "6": "duplicate claim",
+    "18": "duplicate claim",
+    "26": "before coverage start date",
+    "27": "after coverage end date",
+    "29": "filing time limit expired",
+    "45": "exceeds contracted rate",
+    "50": "primary insurance responsibility",
+    "96": "non-covered service",
+    "97": "included in another service",
+    "119": "benefit maximum reached",
+    "133": "missing required information",
+    "197": "prior authorization required",
+    "204": "not covered under plan",
+    "256": "not covered per contract",
+}
+
+
 def reason_for(claim: Any) -> str | None:
-    """Human-ish reason for a problem claim (raw X12 codes; friendly map is a follow-up)."""
     if claim.status == "denied":
         codes = list(claim.denial_codes or [])
-        return f"denied: {', '.join(codes)}" if codes else "denied"
+        if not codes:
+            return "denied — contact the carrier for details"
+        parts = [_CARC.get(c, f"code {c}") for c in codes]
+        return "denied — " + " · ".join(parts)
     if claim.status in ("clearinghouse_rejected", "submission_failed"):
         errs = list(claim.submission_errors or [])
         if errs:
             return "; ".join(errs)
-        return str(claim.clearinghouse_status or claim.status)
+        return str(claim.clearinghouse_status or "clearinghouse rejected")
+    if claim.status == "appealing":
+        return "pending appeal"
     return None
 
 
@@ -412,33 +438,44 @@ async def _is_underpaid_claim(session: AsyncSession, claim: Claim) -> bool:
     )
 
 
-async def accept_underpayment(
+async def write_off_underpayment(
     session: AsyncSession,
     practice_id: uuid.UUID,
     claim_id: uuid.UUID,
     *,
     now: datetime | None = None,
 ) -> Claim:
-    """Mark an underpaid claim reviewed/accepted (drops it from the worklist)."""
+    """Write off the insurance shortfall: post a negative adjustment and mark reviewed.
+
+    Posts an adjustment ledger entry for -(estimate - paid), zeroing out the
+    shortfall on the patient's ledger. Sets insurance_reviewed_at to drop the
+    claim from the underpaid worklist.
+    """
     claim = await _load_claim(session, practice_id, claim_id)
-    if not await _is_underpaid_claim(session, claim):
+    est = (await _estimate_map(session, {claim.appointment_id})).get(claim.appointment_id)
+    if not classify(
+        status=claim.status,
+        insurance_paid_cents=claim.insurance_paid_cents,
+        estimated_insurance_cents=est,
+        insurance_reviewed_at=claim.insurance_reviewed_at,
+    ) == "underpaid":
         raise ValueError("claim is not currently underpaid")
+
+    shortfall = (est or 0) - (claim.insurance_paid_cents or 0)
+    if shortfall > 0:
+        session.add(
+            LedgerEntry(
+                practice_id=practice_id,
+                patient_id=claim.patient_id,
+                claim_id=claim.id,
+                entry_type="adjustment",
+                amount_cents=-shortfall,
+                memo="insurance underpayment write-off",
+                posted_at=now or datetime.now(UTC),
+            )
+        )
+
     claim.insurance_reviewed_at = now or datetime.now(UTC)
-    await session.commit()
-    await session.refresh(claim)
-    return claim
-
-
-async def flag_for_appeal(
-    session: AsyncSession,
-    practice_id: uuid.UUID,
-    claim_id: uuid.UUID,
-) -> Claim:
-    """Triage flag only — sets status='appealing'. Does NOT submit to the carrier."""
-    claim = await _load_claim(session, practice_id, claim_id)
-    if not await _is_underpaid_claim(session, claim):
-        raise ValueError("claim is not currently underpaid")
-    claim.status = "appealing"
     await session.commit()
     await session.refresh(claim)
     return claim

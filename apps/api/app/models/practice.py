@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CheckConstraint, String, Text
 from sqlalchemy.dialects.postgresql import BYTEA, JSONB
@@ -47,6 +47,15 @@ class Practice(Base, TimestampMixin):
         JSONB,
         nullable=False,
         server_default="[48, 24]",
+    )
+
+    # Per-module automation parameters. Each feature reads its key with a fallback
+    # to a module-level constant. Keys are added without migrations.
+    # e.g. {"era_reconciliation_mode": "confirm"}
+    automation_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default="{}",
     )
 
     # Clearinghouse — SSM path only, never store the key directly.

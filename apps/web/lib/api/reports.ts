@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, generateId } from "@/lib/api-client";
+import { toast } from "sonner";
 
-export type ARCategory = "awaiting" | "underpaid" | "problem" | "appealing";
+import { apiClient, ApiError, generateId } from "@/lib/api-client";
+
+export type ARCategory = "awaiting" | "underpaid" | "problem";
 export type AgeBucket = "0-30" | "31-60" | "61-90" | "90+";
 
 export interface InsuranceARRow {
@@ -48,11 +50,47 @@ export interface InsuranceARSummary {
   totals: Omit<InsuranceARCarrierSummary, "payerId" | "carrierName">;
 }
 
+export type ReconciliationLabel =
+  | "overpaid"
+  | "within_tolerance"
+  | "matched"
+  | "no_estimate";
+
+export interface ReconciliationRow {
+  claimId: string;
+  appointmentId: string;
+  patientId: string;
+  claimNumber: string;
+  patientName: string;
+  payerId: string;
+  carrierName: string;
+  reconLabel: ReconciliationLabel;
+  billedCents: number;
+  estimatedInsuranceCents: number | null;
+  insurancePaidCents: number;
+  varianceCents: number | null;
+  hasEstimate: boolean;
+  patientBalanceCents: number;
+  daysSinceEra: number;
+  reconciliationConfirmedAt: string | null;
+}
+
+export interface ARSummary {
+  insuranceArTotalCents: number;
+  patientArTotalCents: number;
+  claimsNeedingAttention: number;
+  reconciliationPendingCount: number;
+  eraReconciliationMode: "auto" | "confirm";
+}
+
 export const reportsKeys = {
   all: ["reports"] as const,
   worklist: (category?: string) =>
     ["reports", "insurance-ar", "worklist", { category: category ?? null }] as const,
   summary: ["reports", "insurance-ar", "summary"] as const,
+  reconciliation: (confirmed?: boolean) =>
+    ["reports", "reconciliation", { confirmed: confirmed ?? null }] as const,
+  arSummary: ["reports", "ar-summary"] as const,
 };
 
 export function useInsuranceARWorklist(category?: ARCategory) {
@@ -72,28 +110,70 @@ export function useInsuranceARSummary() {
   });
 }
 
-function useClaimAction(action: "accept" | "appeal") {
+function apiErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { error?: { message?: string } } | null;
+    return body?.error?.message ?? `Unexpected error (${err.status})`;
+  }
+  return "Something went wrong. Please try again.";
+}
+
+export function useAcceptUnderpayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (claimId: string) =>
       apiClient.post(
-        `/api/v1/reports/insurance-ar/claims/${claimId}/${action}`,
+        `/api/v1/reports/insurance-ar/claims/${claimId}/accept`,
         {},
         { idempotencyKey: generateId() },
       ),
     onSuccess: () => {
+      toast.success("Underpayment written off.");
       void qc.invalidateQueries({ queryKey: reportsKeys.all });
       void qc.invalidateQueries({ queryKey: ["claims"] });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 }
 
-export function useAcceptUnderpayment() {
-  return useClaimAction("accept");
+export function useReconciliationWorklist(confirmed?: boolean) {
+  const query =
+    confirmed !== undefined ? `?confirmed=${confirmed}` : "";
+  return useQuery({
+    queryKey: reportsKeys.reconciliation(confirmed),
+    queryFn: () =>
+      apiClient.get<ReconciliationRow[]>(
+        `/api/v1/reports/reconciliation/claims${query}`,
+      ),
+  });
 }
 
-export function useFlagForAppeal() {
-  return useClaimAction("appeal");
+export function useConfirmReconciliation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (claimId: string) =>
+      apiClient.post(
+        `/api/v1/reports/reconciliation/claims/${claimId}/confirm`,
+        {},
+        { idempotencyKey: generateId() },
+      ),
+    onSuccess: () => {
+      toast.success("Reconciliation confirmed.");
+      void qc.invalidateQueries({ queryKey: reportsKeys.all });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
+    },
+  });
+}
+
+export function useARSummary() {
+  return useQuery({
+    queryKey: reportsKeys.arSummary,
+    queryFn: () => apiClient.get<ARSummary>("/api/v1/reports/ar-summary"),
+  });
 }
 
 export function centsToUsd(cents: number | null): string {

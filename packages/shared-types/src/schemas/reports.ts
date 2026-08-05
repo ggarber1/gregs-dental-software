@@ -75,3 +75,40 @@ export const ClaimActionResultSchema = z.object({
   insuranceReviewedAt: z.string().datetime().nullable(),
 });
 export type ClaimActionResult = z.infer<typeof ClaimActionResultSchema>;
+
+export const ReconciliationLabelSchema = z.enum([
+  "overpaid",
+  "within_tolerance",
+  "matched",
+  "no_estimate",
+]);
+export type ReconciliationLabel = z.infer<typeof ReconciliationLabelSchema>;
+
+export const ReconciliationRowSchema = z.object({
+  claimId: UuidSchema,
+  appointmentId: UuidSchema,
+  patientId: UuidSchema,
+  claimNumber: z.string(),
+  patientName: z.string(),
+  payerId: z.string(),
+  carrierName: z.string(),
+  reconLabel: ReconciliationLabelSchema,
+  billedCents: z.number().int(),
+  estimatedInsuranceCents: z.number().int().nullable(),
+  insurancePaidCents: z.number().int(),
+  varianceCents: z.number().int().nullable(),
+  hasEstimate: z.boolean(),
+  patientBalanceCents: z.number().int(),
+  daysSinceEra: z.number().int(),
+  reconciliationConfirmedAt: z.string().datetime().nullable(),
+});
+export type ReconciliationRow = z.infer<typeof ReconciliationRowSchema>;
+
+export const ARSummarySchema = z.object({
+  insuranceArTotalCents: z.number().int(),
+  patientArTotalCents: z.number().int(),
+  claimsNeedingAttention: z.number().int(),
+  reconciliationPendingCount: z.number().int(),
+  eraReconciliationMode: z.enum(["auto", "confirm"]),
+});
+export type ARSummary = z.infer<typeof ARSummarySchema>;

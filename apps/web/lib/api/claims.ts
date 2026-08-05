@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { apiClient, generateId } from "@/lib/api-client";
+import { apiClient, ApiError, generateId } from "@/lib/api-client";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -99,16 +100,28 @@ export interface WriteOffResponse {
   ledgerEntry: string | null;
 }
 
+function apiErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { error?: { message?: string } } | null;
+    return body?.error?.message ?? `Unexpected error (${err.status})`;
+  }
+  return "Something went wrong. Please try again.";
+}
+
 export function useResubmitClaim(claimId: string, appointmentId: string, patientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
       apiClient.post<Claim>(`/api/v1/claims/${claimId}/resubmit`, {}, { idempotencyKey: generateId() }),
     onSuccess: () => {
+      toast.success("Claim resubmitted — moved to Awaiting.");
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
       void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 }
@@ -123,10 +136,14 @@ export function useWriteOffClaim(claimId: string, appointmentId: string, patient
         { idempotencyKey: generateId() },
       ),
     onSuccess: () => {
+      toast.success("Claim written off.");
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
       void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 }
