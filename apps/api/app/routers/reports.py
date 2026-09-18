@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.core.db import get_session_factory
 from app.core.features import require_feature
@@ -15,12 +15,15 @@ from app.schemas.generated import (
     Error,
     InsuranceARRow,
     InsuranceARSummary,
+    PatientAgingRow,
     ReconciliationRow,
 )
-from app.services.reports import insurance_ar, reconciliation
+from app.services.reports import insurance_ar, patient_aging, reconciliation
 
 router = APIRouter(prefix="/api/v1", tags=["reports"])
 _FEATURE = "claims_submission"
+# Patient aging is ledger-derived, not claims-derived, so it gates on the ledger flag.
+_LEDGER_FEATURE = "billing_ledger"
 
 
 def _err(status: int, code: str, message: str) -> HTTPException:
@@ -57,6 +60,20 @@ def _row_to_dict(r: insurance_ar.WorklistRow) -> dict[str, Any]:
 
 def _buckets_to_dict(b: insurance_ar.Buckets) -> dict[str, Any]:
     return {"b0_30": b.b0_30, "b31_60": b.b31_60, "b61_90": b.b61_90, "b90_plus": b.b90_plus}
+
+
+def _aging_row_to_dict(r: patient_aging.PatientAgingRow) -> dict[str, Any]:
+    return {
+        "patientId": r.patient_id,
+        "patientName": r.patient_name,
+        "email": r.email,
+        "balanceCents": r.aging.balance_cents,
+        "buckets": _buckets_to_dict(r.aging.buckets),
+        "creditsCents": r.aging.credits_cents,
+        "oldestChargeAt": r.aging.oldest_charge_at,
+        "lastStatementAt": r.last_statement_at,
+        "lastStatementMethod": r.last_statement_method,
+    }
 
 
 @router.get("/reports/insurance-ar/claims", response_model=list[InsuranceARRow])
@@ -219,3 +236,18 @@ async def get_ar_summary(request: Request) -> ARSummary:
                 "eraReconciliationMode": data.era_reconciliation_mode,
             }
         )
+
+
+@router.get("/reports/patient-aging", response_model=list[PatientAgingRow])
+async def get_patient_aging(
+    request: Request,
+    sort_by: patient_aging.SortBy = "balance",
+    min_balance_cents: int = Query(patient_aging.DEFAULT_MIN_BALANCE_CENTS, ge=0),
+) -> list[PatientAgingRow]:
+    practice_id = _require_practice_scope(request)
+    async with get_session_factory()() as session:
+        await require_feature(session, practice_id, _LEDGER_FEATURE)
+        rows = await patient_aging.get_patient_aging_worklist(
+            session, practice_id, min_balance_cents=min_balance_cents, sort_by=sort_by
+        )
+        return [PatientAgingRow.model_validate(_aging_row_to_dict(r)) for r in rows]

@@ -23,6 +23,7 @@ from app.services.reports.insurance_ar import (
     Summary,
     WorklistRow,
 )
+from app.services.reports.patient_aging import AgingBreakdown, PatientAgingRow
 from app.services.reports.reconciliation import ARSummaryData
 from app.services.reports.reconciliation import ReconciliationRow as ReconRow
 
@@ -522,3 +523,113 @@ async def test_reconciliation_feature_gate():
             r2 = await client.get("/api/v1/reports/ar-summary", headers=headers)
     assert r1.status_code == 403
     assert r2.status_code == 403
+
+
+# ── GET /reports/patient-aging ────────────────────────────────────────────────
+
+
+def _aging_row(**overrides):
+    base = dict(
+        patient_id=uuid.uuid4(),
+        patient_name="Jane Smith",
+        email="jane@example.com",
+        aging=AgingBreakdown(
+            buckets=Buckets(b0_30=5000, b31_60=5000, b61_90=3000, b90_plus=2000),
+            credits_cents=-1000,
+            balance_cents=14000,
+            oldest_charge_at=datetime(2026, 5, 1, tzinfo=UTC),
+        ),
+        last_statement_at=datetime(2026, 7, 1, 10, 0, tzinfo=UTC),
+        last_statement_method="email",
+    )
+    base.update(overrides)
+    return PatientAgingRow(**base)
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_returns_rows_with_buckets():
+    from app.main import app
+
+    row = _aging_row()
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.patient_aging.get_patient_aging_worklist",
+        new=AsyncMock(return_value=[row]),
+    ) as worklist, patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/api/v1/reports/patient-aging?sort_by=last_statement&min_balance_cents=1",
+                headers=headers,
+            )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["patientId"] == str(row.patient_id)
+    assert body[0]["patientName"] == "Jane Smith"
+    assert body[0]["balanceCents"] == 14000
+    assert body[0]["creditsCents"] == -1000
+    assert body[0]["buckets"] == {"b0_30": 5000, "b31_60": 5000, "b61_90": 3000, "b90_plus": 2000}
+    assert body[0]["lastStatementMethod"] == "email"
+    assert body[0]["lastStatementAt"].startswith("2026-07-01T10:00:00")
+    kwargs = worklist.call_args.kwargs
+    assert kwargs["sort_by"] == "last_statement"
+    assert kwargs["min_balance_cents"] == 1
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_null_statement_fields():
+    from app.main import app
+
+    row = _aging_row(last_statement_at=None, last_statement_method=None, email=None)
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.patient_aging.get_patient_aging_worklist",
+        new=AsyncMock(return_value=[row]),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/patient-aging", headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()[0]["lastStatementAt"] is None
+    assert resp.json()[0]["lastStatementMethod"] is None
+    assert resp.json()[0]["email"] is None
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_gated_on_billing_ledger():
+    from app.main import app
+
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(side_effect=_feature_off())
+    ) as gate, patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/patient-aging", headers=headers)
+
+    assert resp.status_code == 403
+    assert gate.call_args.args[2] == "billing_ledger"
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_rejects_bad_sort():
+    from app.main import app
+
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/patient-aging?sort_by=name", headers=headers)
+
+    assert resp.status_code == 422
