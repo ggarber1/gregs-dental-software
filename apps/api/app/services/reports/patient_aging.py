@@ -10,11 +10,20 @@ small-practice statement layout and avoids FIFO attribution.
 
 from __future__ import annotations
 
+import uuid
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Literal, Protocol
+from datetime import UTC, datetime
+from typing import Any, Literal, Protocol
 
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.ledger_entry import LedgerEntry
+from app.models.patient import Patient
+from app.models.patient_statement import PatientStatement
+from app.services.ledger.balance import get_unreversed_entries, unreversed_entry_where
 from app.services.reports.insurance_ar import Buckets, age_bucket, days_between
 
 DEFAULT_MIN_BALANCE_CENTS = 500
@@ -76,3 +85,122 @@ def bucket_ledger_entries(entries: Sequence[_EntryLike], *, now: datetime) -> Ag
         balance_cents=charges + credits,
         oldest_charge_at=oldest,
     )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PatientAgingRow:
+    patient_id: uuid.UUID
+    patient_name: str
+    email: str | None
+    aging: AgingBreakdown
+    last_statement_at: datetime | None
+    last_statement_method: str | None
+
+
+async def _patient_contact_map(
+    session: AsyncSession, practice_id: uuid.UUID, patient_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, str | None]]:
+    """patient_id -> (display name, email) for live patients in this practice.
+
+    Projects only the columns needed — avoids loading full PHI rows.
+    """
+    rows = (
+        await session.execute(
+            select(Patient.id, Patient.first_name, Patient.last_name, Patient.email).where(
+                Patient.id.in_(patient_ids),
+                Patient.practice_id == practice_id,
+                Patient.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    return {pid: (f"{first} {last}", email) for pid, first, last, email in rows}
+
+
+async def _last_statement_map(
+    session: AsyncSession, practice_id: uuid.UUID, patient_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, tuple[datetime, str]]:
+    """patient_id -> (generated_at, delivery_method) of the most recent statement."""
+    rows = (
+        await session.execute(
+            select(
+                PatientStatement.patient_id,
+                PatientStatement.generated_at,
+                PatientStatement.delivery_method,
+            )
+            .where(
+                PatientStatement.practice_id == practice_id,
+                PatientStatement.patient_id.in_(patient_ids),
+                PatientStatement.deleted_at.is_(None),
+            )
+            # Both DESC: DISTINCT ON only needs patient_id grouped, and a single
+            # backward scan of (practice_id, patient_id, generated_at) satisfies it.
+            .order_by(PatientStatement.patient_id.desc(), PatientStatement.generated_at.desc())
+            .distinct(PatientStatement.patient_id)
+        )
+    ).all()
+    return {pid: (generated_at, method) for pid, generated_at, method in rows}
+
+
+def _sort_key(sort_by: SortBy) -> Any:
+    if sort_by == "oldest_charge":
+        # Oldest debt first; rows with no charge (all-credit) last.
+        return lambda r: (
+            (0, r.aging.oldest_charge_at.timestamp()) if r.aging.oldest_charge_at else (1, 0.0)
+        )
+    if sort_by == "last_statement":
+        # Never-billed first, then the longest since last statement.
+        return lambda r: (1, r.last_statement_at.timestamp()) if r.last_statement_at else (0, 0.0)
+    return lambda r: -r.aging.balance_cents
+
+
+async def get_patient_aging_worklist(
+    session: AsyncSession,
+    practice_id: uuid.UUID,
+    *,
+    min_balance_cents: int = DEFAULT_MIN_BALANCE_CENTS,
+    sort_by: SortBy = "balance",
+    now: datetime | None = None,
+) -> list[PatientAgingRow]:
+    """Every live patient owing at least `min_balance_cents`, with aging breakdown
+    and last-statement metadata. Patients with a zero or credit balance never appear."""
+    now = now or datetime.now(UTC)
+    threshold = max(min_balance_cents, 1)
+
+    balance_rows = (
+        await session.execute(
+            select(LedgerEntry.patient_id, func.sum(LedgerEntry.amount_cents))
+            .where(LedgerEntry.practice_id == practice_id, *unreversed_entry_where())
+            .group_by(LedgerEntry.patient_id)
+            .having(func.sum(LedgerEntry.amount_cents) >= threshold)
+        )
+    ).all()
+    patient_ids = {pid for pid, _ in balance_rows}
+    if not patient_ids:
+        return []
+
+    contacts = await _patient_contact_map(session, practice_id, patient_ids)
+    patient_ids = {pid for pid in patient_ids if pid in contacts}
+    if not patient_ids:
+        return []
+
+    by_patient: dict[uuid.UUID, list[LedgerEntry]] = defaultdict(list)
+    for entry in await get_unreversed_entries(session, practice_id, patient_ids):
+        by_patient[entry.patient_id].append(entry)
+    last = await _last_statement_map(session, practice_id, patient_ids)
+
+    rows: list[PatientAgingRow] = []
+    for pid in patient_ids:
+        name, email = contacts[pid]
+        stmt = last.get(pid)
+        rows.append(
+            PatientAgingRow(
+                patient_id=pid,
+                patient_name=name,
+                email=email,
+                aging=bucket_ledger_entries(by_patient[pid], now=now),
+                last_statement_at=stmt[0] if stmt else None,
+                last_statement_method=stmt[1] if stmt else None,
+            )
+        )
+    rows.sort(key=_sort_key(sort_by))
+    return rows
