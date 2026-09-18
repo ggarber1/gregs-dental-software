@@ -17,6 +17,16 @@ RUN uv sync --frozen --no-dev --no-install-project
 # ── Runtime ───────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
+# WeasyPrint (statement PDFs) needs Pango + HarfBuzz + a base font at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 \
+        libpangoft2-1.0-0 \
+        libharfbuzz0b \
+        libharfbuzz-subset0 \
+        fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 # Non-root user for security
 RUN groupadd -r app && useradd -r -g app app
 
