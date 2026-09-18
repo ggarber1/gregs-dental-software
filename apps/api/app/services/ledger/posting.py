@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.appointment_procedure import AppointmentProcedure
 from app.models.ledger_entry import LedgerEntry
+from app.services.ledger.balance import unreversed_entry_where
 
 
 class LedgerAppointment(Protocol):
@@ -163,18 +164,12 @@ async def _live_charges_by_proc(
     session: AsyncSession, appointment_id: uuid.UUID
 ) -> dict[uuid.UUID, LedgerEntry]:
     """Map appointment_procedure_id -> its live (un-reversed) charge entry."""
-    reversed_ids = select(LedgerEntry.reverses_entry_id).where(
-        LedgerEntry.reverses_entry_id.isnot(None),
-        LedgerEntry.deleted_at.is_(None),
-    )
     rows = (
         await session.scalars(
             select(LedgerEntry).where(
                 LedgerEntry.appointment_id == appointment_id,
                 LedgerEntry.entry_type == "charge",
-                LedgerEntry.reverses_entry_id.is_(None),
-                LedgerEntry.id.notin_(reversed_ids),
-                LedgerEntry.deleted_at.is_(None),
+                *unreversed_entry_where(),
             )
         )
     ).all()
