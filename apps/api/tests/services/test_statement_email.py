@@ -56,8 +56,25 @@ async def test_builds_mime_with_pdf_attachment():
     assert len(attachments) == 1
     assert attachments[0].get_content_type() == "application/pdf"
     assert attachments[0].get_payload(decode=True) == b"%PDF-1.7 fake"
+    assert attachments[0].get_content_disposition() == "attachment"
+    assert attachments[0]["Content-Transfer-Encoding"] == "base64"
     bodies = {p.get_content_type() for p in parsed.walk() if not p.is_multipart()}
     assert {"text/plain", "text/html"} <= bodies
+
+
+async def test_from_name_sets_display_name():
+    client = MagicMock()
+    client.send_raw_email.return_value = {"MessageId": "msg-456"}
+    with (
+        patch("app.services.email.get_settings", return_value=_settings()),
+        patch("app.services.email.boto3.client", return_value=client),
+    ):
+        await _send(from_name="Sunrise Dental")
+
+    kwargs = client.send_raw_email.call_args.kwargs
+    assert kwargs["Source"] == "Sunrise Dental <billing@sunrise.test>"
+    parsed = email.message_from_bytes(kwargs["RawMessage"]["Data"])
+    assert parsed["From"] == "Sunrise Dental <billing@sunrise.test>"
 
 
 async def test_skips_when_ses_unconfigured():

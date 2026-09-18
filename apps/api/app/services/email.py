@@ -1,3 +1,6 @@
+import asyncio
+import email.policy
+import email.utils
 import logging
 from email.message import EmailMessage
 
@@ -63,8 +66,7 @@ async def send_email_with_attachment(
     text_body: str,
     attachment_bytes: bytes,
     attachment_filename: str,
-    attachment_maintype: str = "application",
-    attachment_subtype: str = "pdf",
+    from_name: str | None = None,
 ) -> str | None:
     """Send a MIME email with one attachment via SES SendRawEmail.
 
@@ -82,16 +84,22 @@ async def send_email_with_attachment(
         )
         return None
 
-    msg = EmailMessage()
+    source = (
+        email.utils.formataddr((from_name, settings.ses_from_address))
+        if from_name
+        else settings.ses_from_address
+    )
+
+    msg = EmailMessage(policy=email.policy.SMTP)
     msg["Subject"] = subject
-    msg["From"] = settings.ses_from_address
+    msg["From"] = source
     msg["To"] = to
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
     msg.add_attachment(
         attachment_bytes,
-        maintype=attachment_maintype,
-        subtype=attachment_subtype,
+        maintype="application",
+        subtype="pdf",
         filename=attachment_filename,
     )
 
@@ -101,7 +109,7 @@ async def send_email_with_attachment(
         endpoint_url=settings.aws_endpoint_url or None,
     )
     kwargs: dict[str, object] = {
-        "Source": settings.ses_from_address,
+        "Source": source,
         "Destinations": [to],
         "RawMessage": {"Data": msg.as_bytes()},
     }
@@ -109,7 +117,7 @@ async def send_email_with_attachment(
         kwargs["ConfigurationSetName"] = settings.ses_configuration_set
 
     try:
-        response = client.send_raw_email(**kwargs)
+        response = await asyncio.to_thread(client.send_raw_email, **kwargs)
     except (BotoCoreError, ClientError) as exc:
         raise RuntimeError(f"SES send_raw_email failed: {exc}") from exc
 
