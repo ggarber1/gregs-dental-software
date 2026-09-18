@@ -116,7 +116,9 @@ class TestPatientAgingWorklist:
     async def test_buckets_ordering_and_exclusions(self, db_session: AsyncSession):
         practice = await _seed_practice(db_session)
         big = await _seed_patient(db_session, practice.id, first="Big", last="Balance")
-        small = await _seed_patient(db_session, practice.id, first="Small", last="Balance")
+        small = await _seed_patient(
+            db_session, practice.id, first="Small", last="Balance", email=None
+        )
         zero = await _seed_patient(db_session, practice.id, first="Zero", last="Balance")
         credit = await _seed_patient(db_session, practice.id, first="Credit", last="Balance")
 
@@ -185,6 +187,7 @@ class TestPatientAgingWorklist:
         assert b.aging.oldest_charge_at == _NOW - timedelta(days=100)
         assert b.last_statement_at is None
         assert b.last_statement_method is None
+        assert rows[1].email is None
 
     async def test_min_balance_is_inclusive(self, db_session: AsyncSession):
         practice = await _seed_practice(db_session)
@@ -250,13 +253,18 @@ class TestPatientAgingWorklist:
         await _post(
             db_session, practice.id, stale.id, entry_type="charge", amount_cents=2000, days_ago=50
         )
-        for pid, days in ((recent.id, 2), (stale.id, 30)):
+        # recent has two statements; the newer (email, 2d) must win over the older (download, 25d)
+        for pid, days, method in (
+            (recent.id, 2, "email"),
+            (recent.id, 25, "download"),
+            (stale.id, 30, "email"),
+        ):
             db_session.add(
                 PatientStatement(
                     id=uuid.uuid4(),
                     practice_id=practice.id,
                     patient_id=pid,
-                    delivery_method="email",
+                    delivery_method=method,
                     balance_cents=1,
                     aging_snapshot={"b0_30": 1, "b31_60": 0, "b61_90": 0, "b90_plus": 0},
                     generated_at=_NOW - timedelta(days=days),

@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -141,16 +141,26 @@ async def _last_statement_map(
     return {pid: (generated_at, method) for pid, generated_at, method in rows}
 
 
-def _sort_key(sort_by: SortBy) -> Any:
+_SortKey = Callable[["PatientAgingRow"], tuple[int, float, str, str]]
+
+
+def _sort_key(sort_by: SortBy) -> _SortKey:
+    """Deterministic ordering: every mode breaks ties on (patient_name, patient_id)."""
     if sort_by == "oldest_charge":
         # Oldest debt first; rows with no charge (all-credit) last.
         return lambda r: (
-            (0, r.aging.oldest_charge_at.timestamp()) if r.aging.oldest_charge_at else (1, 0.0)
+            (0, r.aging.oldest_charge_at.timestamp(), r.patient_name, str(r.patient_id))
+            if r.aging.oldest_charge_at
+            else (1, 0.0, r.patient_name, str(r.patient_id))
         )
     if sort_by == "last_statement":
         # Never-billed first, then the longest since last statement.
-        return lambda r: (1, r.last_statement_at.timestamp()) if r.last_statement_at else (0, 0.0)
-    return lambda r: -r.aging.balance_cents
+        return lambda r: (
+            (1, r.last_statement_at.timestamp(), r.patient_name, str(r.patient_id))
+            if r.last_statement_at
+            else (0, 0.0, r.patient_name, str(r.patient_id))
+        )
+    return lambda r: (0, -float(r.aging.balance_cents), r.patient_name, str(r.patient_id))
 
 
 async def get_patient_aging_worklist(
