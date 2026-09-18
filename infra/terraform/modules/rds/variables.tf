@@ -33,6 +33,16 @@ variable "instance_class" {
   default = "db.t4g.micro"
 }
 
+variable "deletion_protection" {
+  type    = bool
+  default = true
+}
+
+variable "skip_final_snapshot" {
+  type    = bool
+  default = false
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
