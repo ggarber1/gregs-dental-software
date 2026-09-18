@@ -90,7 +90,7 @@ async def send_email_with_attachment(
         else settings.ses_from_address
     )
 
-    msg = EmailMessage(policy=email.policy.SMTP)
+    msg = EmailMessage(policy=email.policy.SMTP.clone(cte_type="7bit"))
     msg["Subject"] = subject
     msg["From"] = source
     msg["To"] = to

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import email
+import email.policy
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -75,6 +76,23 @@ async def test_from_name_sets_display_name():
     assert kwargs["Source"] == "Sunrise Dental <billing@sunrise.test>"
     parsed = email.message_from_bytes(kwargs["RawMessage"]["Data"])
     assert parsed["From"] == "Sunrise Dental <billing@sunrise.test>"
+
+
+async def test_non_ascii_body_is_encoded_7bit_safe():
+    client = MagicMock()
+    client.send_raw_email.return_value = {"MessageId": "msg-7bit"}
+    with (
+        patch("app.services.email.get_settings", return_value=_settings()),
+        patch("app.services.email.boto3.client", return_value=client),
+    ):
+        await _send(text_body="Balance: $12.50 — thanks", html_body="<p>Café Dental</p>")
+
+    raw = client.send_raw_email.call_args.kwargs["RawMessage"]["Data"]
+    assert raw.isascii()
+    parsed = email.message_from_bytes(raw, policy=email.policy.default)
+    texts = {p.get_content_type(): p.get_content() for p in parsed.walk() if not p.is_multipart()}
+    assert texts["text/plain"].strip() == "Balance: $12.50 — thanks"
+    assert "Café Dental" in texts["text/html"]
 
 
 async def test_skips_when_ses_unconfigured():
