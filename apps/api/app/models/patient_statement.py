@@ -30,7 +30,7 @@ class PatientStatement(Base, PHIMixin):
     aging_snapshot: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
 
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    # When SES accepted the send. Null for downloads.
+    # When the send was accepted (SES MessageId, or dev no-send). Null for downloads.
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     generated_by: Mapped[str] = mapped_column(String(255), nullable=False)
 

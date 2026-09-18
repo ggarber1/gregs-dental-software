@@ -10,8 +10,10 @@ Raises domain exceptions the router maps to HTTP codes:
 from __future__ import annotations
 
 import asyncio
+import html as html_mod
 import uuid
 from datetime import UTC, date, datetime
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +26,8 @@ from app.services.email import send_email_with_attachment
 from app.services.ledger.balance import get_unreversed_entries
 from app.services.reports.patient_aging import AgingBreakdown, bucket_ledger_entries
 from app.services.statements.pdf import build_context, html_to_pdf, render_statement_html, usd
+
+DeliveryMethod = Literal["email", "download"]
 
 
 class NoOutstandingBalanceError(ValueError):
@@ -111,9 +115,9 @@ async def send_statement_email(
         f"Please contact our office{phone} to arrange payment.\n"
     )
     html = (
-        f"<p>Your statement from {practice.name} is attached.</p>"
+        f"<p>Your statement from {html_mod.escape(practice.name)} is attached.</p>"
         f"<p><strong>Amount due: {usd(balance_cents)}</strong></p>"
-        f"<p>Please contact our office{phone} to arrange payment.</p>"
+        f"<p>Please contact our office{html_mod.escape(phone)} to arrange payment.</p>"
     )
     return await send_email_with_attachment(
         to=patient.email,
@@ -131,7 +135,7 @@ async def create_statement(
     practice_id: uuid.UUID,
     patient_id: uuid.UUID,
     *,
-    delivery_method: str,
+    delivery_method: DeliveryMethod,
     generated_by: str,
     now: datetime | None = None,
 ) -> PatientStatement:
@@ -153,6 +157,8 @@ async def create_statement(
         await send_statement_email(
             practice, patient, pdf, statement_date=now.date(), balance_cents=aging.balance_cents
         )
+        # send returned None only in dev no-send mode (logged, not rejected);
+        # RuntimeError is the sole failure path.
         delivered_at = now
 
     row = PatientStatement(

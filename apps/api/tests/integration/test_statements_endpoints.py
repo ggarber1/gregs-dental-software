@@ -243,6 +243,32 @@ class TestCreateStatementService:
                 db_session, other.id, patient.id, delivery_method="download", generated_by="u"
             )
 
+    async def test_soft_deleted_patient_is_lookup_error(self, db_session: AsyncSession):
+        practice, _, _, patient = await _seed(db_session)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+        patient.deleted_at = _NOW
+        await db_session.commit()
+
+        with pytest.raises(LookupError):
+            await statements.create_statement(
+                db_session, practice.id, patient.id, delivery_method="download", generated_by="u"
+            )
+
+    async def test_dev_no_send_still_records_delivered_at(self, db_session: AsyncSession):
+        practice, _, _, patient = await _seed(db_session)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+
+        with patch(_P_PDF, return_value=_FAKE_PDF), patch(_P_SEND, AsyncMock(return_value=None)):
+            row = await statements.create_statement(
+                db_session,
+                practice.id,
+                patient.id,
+                delivery_method="email",
+                generated_by="u",
+                now=_NOW,
+            )
+        assert row.delivered_at == _NOW
+
 
 class TestListAndRenderService:
     async def test_list_is_most_recent_first_and_practice_scoped(self, db_session: AsyncSession):
@@ -297,6 +323,21 @@ class TestListAndRenderService:
         assert "$10.00" in captured["html"]
         assert "$90.00" not in captured["html"]
         assert "Pat Statement" in captured["html"]
+
+    async def test_render_without_require_balance_works_after_full_payment(
+        self, db_session: AsyncSession
+    ):
+        practice, _, _, patient = await _seed(db_session)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+        await _post(
+            db_session, practice.id, patient.id, entry_type="patient_payment", amount_cents=-600
+        )
+
+        with patch(_P_PDF, return_value=_FAKE_PDF):
+            pdf = await statements.render_statement_pdf(
+                db_session, practice.id, patient.id, statement_date=_NOW.date()
+            )
+        assert pdf == _FAKE_PDF
 
     async def test_render_preview_requires_balance(self, db_session: AsyncSession):
         practice, _, _, patient = await _seed(db_session)
