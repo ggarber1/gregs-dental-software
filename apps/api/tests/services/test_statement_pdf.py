@@ -109,7 +109,10 @@ def test_build_context_handles_missing_addresses():
 
 
 def test_render_html_contains_key_content():
-    entries = [_entry("charge", 12345, days_ago=45, memo="D0120 Exam")]
+    entries = [
+        _entry("charge", 12345, days_ago=45, memo="D0120 Exam"),
+        _entry("patient_payment", -2000, days_ago=1, method="cash"),
+    ]
     aging = bucket_ledger_entries(entries, now=_NOW)
     ctx = build_context(_practice(), _patient(), entries, aging, statement_date=date(2026, 9, 18))
 
@@ -118,7 +121,10 @@ def test_render_html_contains_key_content():
     assert "Sunrise Dental" in html
     assert "Jane Smith" in html
     assert "D0120 Exam" in html
-    assert "$123.45" in html  # amount due and the 31-60 bucket
+    assert "$123.45" in html  # the 31-60 bucket
+    assert "$103.45" in html  # amount due
+    assert "$20.00" in html  # payments & credits shown as a positive figure
+    assert "-$20.00" not in html
     assert "September 18, 2026" in html
     assert "+16175550100" in html
     assert "Thank you for choosing Sunrise Dental" in html

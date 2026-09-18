@@ -7,6 +7,7 @@ present on every dev machine or the CI runner.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -45,7 +46,7 @@ class _PracticeLike(Protocol):
 
 
 class _PatientLike(Protocol):
-    id: object
+    id: uuid.UUID
     first_name: str
     last_name: str
     address_line1: str | None

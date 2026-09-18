@@ -57,7 +57,7 @@
       <td>{{ ctx.aging.buckets.b31_60 | usd }}</td>
       <td>{{ ctx.aging.buckets.b61_90 | usd }}</td>
       <td>{{ ctx.aging.buckets.b90_plus | usd }}</td>
-      <td>{{ ctx.aging.credits_cents | usd }}</td>
+      <td>{{ (-ctx.aging.credits_cents) | usd }}</td>
       <td class="due">{{ ctx.aging.balance_cents | usd }}</td>
     </tr>
   </tbody>
