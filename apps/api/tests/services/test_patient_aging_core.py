@@ -66,6 +66,15 @@ def test_payments_and_adjustments_are_credits_not_bucketed():
     assert aging.balance_cents == 2500
 
 
+def test_positive_adjustment_is_aged_like_a_charge():
+    entry = _entry("adjustment", 2500, days_ago=45)
+    aging = bucket_ledger_entries([entry], now=_NOW)
+    assert aging.buckets.b31_60 == 2500
+    assert aging.credits_cents == 0
+    assert aging.balance_cents == 2500
+    assert aging.oldest_charge_at == entry.posted_at
+
+
 def test_all_same_day_is_all_current():
     entries = [_entry("charge", 100, days_ago=0), _entry("charge", 200, days_ago=0)]
     aging = bucket_ledger_entries(entries, now=_NOW)

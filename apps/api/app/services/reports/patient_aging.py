@@ -1,8 +1,9 @@
 """Patient A/R aging (Module 8b).
 
-Charges are bucketed by the age of their posted_at date; payments and adjustments
-are not attributed to a bucket and are reported as one signed credits total. This
-is the standard small-practice statement layout and avoids FIFO attribution.
+Positive-amount entries (charges and positive adjustments) are bucketed by the age
+of their posted_at date; payments and negative adjustments are not attributed to a
+bucket and are reported as one signed credits total. This is the standard
+small-practice statement layout and avoids FIFO attribution.
 
 `bucket_ledger_entries` is pure and shared by the worklist endpoint and the PDF.
 """
@@ -14,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Protocol
 
-from app.services.reports.insurance_ar import Buckets, age_bucket
+from app.services.reports.insurance_ar import Buckets, age_bucket, days_between
 
 DEFAULT_MIN_BALANCE_CENTS = 500
 
@@ -29,7 +30,7 @@ class _EntryLike(Protocol):
     posted_at: datetime
 
 
-@dataclass(frozen=True)
+@dataclass
 class AgingBreakdown:
     buckets: Buckets = field(default_factory=Buckets)
     credits_cents: int = 0
@@ -46,21 +47,18 @@ class AgingBreakdown:
         return {"b0_30": b.b0_30, "b31_60": b.b31_60, "b61_90": b.b61_90, "b90_plus": b.b90_plus}
 
 
-def _days_between(anchor: datetime, now: datetime) -> int:
-    return (now.date() - anchor.date()).days
-
-
 def bucket_ledger_entries(entries: Sequence[_EntryLike], *, now: datetime) -> AgingBreakdown:
-    """Pure. Entries should already exclude reversal pairs (see
-    `ledger.balance.unreversed_entry_where`)."""
+    """Pure. Positive-amount entries (charges and positive adjustments) are bucketed
+    by age; payments and negative adjustments are credits. Entries should already
+    exclude reversal pairs (see `ledger.balance.unreversed_entry_where`)."""
     buckets = Buckets()
     credits = 0
     oldest: datetime | None = None
     for e in entries:
-        if e.entry_type != "charge":
+        if e.amount_cents <= 0:
             credits += e.amount_cents
             continue
-        bucket = age_bucket(_days_between(e.posted_at, now))
+        bucket = age_bucket(days_between(e.posted_at, now))
         if bucket == "0-30":
             buckets.b0_30 += e.amount_cents
         elif bucket == "31-60":

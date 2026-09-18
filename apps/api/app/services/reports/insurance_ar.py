@@ -234,7 +234,7 @@ def summarize(rows: list[WorklistRow]) -> Summary:
 # ---------------------------------------------------------------------------
 
 
-def _days_between(anchor: datetime, now: datetime) -> int:
+def days_between(anchor: datetime, now: datetime) -> int:
     return (now.date() - anchor.date()).days
 
 
@@ -356,7 +356,7 @@ async def get_worklist(
         if cat is None:
             continue
         anchor = c.submitted_at or c.created_at
-        days = _days_between(anchor, now)
+        days = days_between(anchor, now)
         shortfall = (
             int(est) - int(c.insurance_paid_cents)
             if cat == "underpaid" and est is not None and c.insurance_paid_cents is not None
