@@ -146,7 +146,8 @@ def test_render_html_escapes_user_content():
 
 
 def test_html_to_pdf_produces_a_pdf_when_weasyprint_is_available():
-    pytest.importorskip("weasyprint")
+    # Pango missing raises OSError from dlopen, not ImportError.
+    pytest.importorskip("weasyprint", exc_type=OSError)
     from app.services.statements.pdf import html_to_pdf
 
     ctx = build_context(

@@ -76,9 +76,9 @@ async def send_email_with_attachment(
     settings = get_settings()
 
     if not settings.ses_from_address:
+        # Recipient is PHI (patient email) — log the subject and attachment only.
         logger.info(
-            "Email send skipped (SES not configured). To=%s Subject=%s Attachment=%s",
-            to,
+            "Email send skipped (SES not configured). Subject=%s Attachment=%s",
             subject,
             attachment_filename,
         )
@@ -122,5 +122,5 @@ async def send_email_with_attachment(
         raise RuntimeError(f"SES send_raw_email failed: {exc}") from exc
 
     message_id: str = response["MessageId"]
-    logger.info("Email with attachment sent to %s (SES MessageId=%s)", to, message_id)
+    logger.info("Email with attachment sent (SES MessageId=%s)", message_id)
     return message_id
