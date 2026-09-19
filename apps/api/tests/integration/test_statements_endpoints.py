@@ -17,6 +17,7 @@ from app.models.patient_statement import PatientStatement
 from app.models.practice import Practice
 from app.models.user import PracticeUser, User
 from app.services.statements import service as statements
+from tests.integration.conftest import mut
 
 pytestmark = pytest.mark.integration
 
@@ -349,3 +350,172 @@ class TestListAndRenderService:
                 statement_date=_NOW.date(),
                 require_balance=True,
             )
+
+
+# ── HTTP ──────────────────────────────────────────────────────────────────────
+
+
+def _headers(practice: Practice) -> dict[str, str]:
+    return {"Authorization": "Bearer test-token", "X-Practice-ID": str(practice.id)}
+
+
+class TestStatementsHttp:
+    async def test_email_then_history_then_aging(self, client, db_session: AsyncSession):
+        practice, user, sub, patient = await _seed(db_session)
+        await _post(db_session, practice.id, patient.id, amount_cents=12000, days_ago=40)
+        headers = _headers(practice)
+        base = f"/api/v1/patients/{patient.id}/statements"
+        h, k, d = _auth_patches(_decoded(user, sub))
+
+        send = AsyncMock(return_value="ses-msg-http")
+        with h, k, d, patch(_P_PDF, return_value=_FAKE_PDF), patch(_P_SEND, send):
+            create = await client.post(base, headers=mut(headers), json={"deliveryMethod": "email"})
+            assert create.status_code == 201, create.text
+            body = create.json()
+            assert body["deliveryMethod"] == "email"
+            assert body["balanceCents"] == 12000
+            assert body["buckets"]["b31_60"] == 12000
+            assert body["deliveredAt"] is not None
+            assert body["generatedBy"] == sub
+            send.assert_awaited_once()
+
+            history = await client.get(base, headers=headers)
+            assert history.status_code == 200, history.text
+            assert [s["id"] for s in history.json()] == [body["id"]]
+
+            aging = await client.get("/api/v1/reports/patient-aging", headers=headers)
+            assert aging.status_code == 200, aging.text
+            rows = aging.json()
+            assert len(rows) == 1
+            assert rows[0]["patientId"] == str(patient.id)
+            assert rows[0]["lastStatementMethod"] == "email"
+            assert rows[0]["lastStatementAt"] == body["generatedAt"]
+
+    async def test_download_flow_post_then_get_pdf(self, client, db_session: AsyncSession):
+        practice, user, sub, patient = await _seed(db_session, email=None)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+        headers = _headers(practice)
+        base = f"/api/v1/patients/{patient.id}/statements"
+        h, k, d = _auth_patches(_decoded(user, sub))
+
+        with h, k, d, patch(_P_PDF, return_value=_FAKE_PDF):
+            create = await client.post(
+                base, headers=mut(headers), json={"deliveryMethod": "download"}
+            )
+            assert create.status_code == 201, create.text
+            assert create.json()["deliveredAt"] is None
+            statement_id = create.json()["id"]
+
+            pdf = await client.get(f"{base}/{statement_id}/pdf", headers=headers)
+            assert pdf.status_code == 200, pdf.text
+            assert pdf.headers["content-type"] == "application/pdf"
+            assert pdf.headers["content-disposition"].startswith("attachment;")
+            assert pdf.content == _FAKE_PDF
+
+            preview = await client.get(f"{base}/preview", headers=headers)
+            assert preview.status_code == 200, preview.text
+            assert preview.headers["content-disposition"].startswith("inline;")
+
+        assert len(await _statement_rows(db_session, patient.id)) == 1  # preview recorded nothing
+
+    async def test_idempotent_replay_returns_json_not_pdf(self, client, db_session: AsyncSession):
+        practice, user, sub, patient = await _seed(db_session, email=None)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+        headers = {**_headers(practice), "Idempotency-Key": str(uuid.uuid4())}
+        base = f"/api/v1/patients/{patient.id}/statements"
+        h, k, d = _auth_patches(_decoded(user, sub))
+        body = {"deliveryMethod": "download"}
+
+        with h, k, d:
+            first = await client.post(base, headers=headers, json=body)
+            assert first.status_code == 201, first.text
+            assert "X-Idempotent-Replayed" not in first.headers
+
+            second = await client.post(base, headers=headers, json=body)
+            assert second.status_code == 201, second.text
+            assert second.headers["X-Idempotent-Replayed"] == "true"
+            assert second.headers["content-type"].startswith("application/json")
+            assert second.json() == first.json()
+
+        assert len(await _statement_rows(db_session, patient.id)) == 1
+
+    async def test_validation_errors(self, client, db_session: AsyncSession):
+        practice, user, sub, patient = await _seed(db_session, email=None)
+        headers = _headers(practice)
+        base = f"/api/v1/patients/{patient.id}/statements"
+        h, k, d = _auth_patches(_decoded(user, sub))
+
+        with h, k, d:
+            no_balance = await client.post(
+                base, headers=mut(headers), json={"deliveryMethod": "download"}
+            )
+            assert no_balance.status_code == 400
+            assert no_balance.json()["error"]["code"] == "NO_OUTSTANDING_BALANCE"
+
+            await _post(db_session, practice.id, patient.id, amount_cents=600)
+            no_email = await client.post(
+                base, headers=mut(headers), json={"deliveryMethod": "email"}
+            )
+            assert no_email.status_code == 400
+            assert no_email.json()["error"]["code"] == "PATIENT_HAS_NO_EMAIL"
+
+            missing_key = await client.post(
+                base, headers=headers, json={"deliveryMethod": "download"}
+            )
+            assert missing_key.status_code == 422
+
+    async def test_ses_failure_is_502_and_records_nothing(self, client, db_session: AsyncSession):
+        practice, user, sub, patient = await _seed(db_session)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+        headers = _headers(practice)
+        h, k, d = _auth_patches(_decoded(user, sub))
+
+        with (
+            h,
+            k,
+            d,
+            patch(_P_PDF, return_value=_FAKE_PDF),
+            patch(_P_SEND, AsyncMock(side_effect=RuntimeError("SES send_raw_email failed"))),
+        ):
+            resp = await client.post(
+                f"/api/v1/patients/{patient.id}/statements",
+                headers=mut(headers),
+                json={"deliveryMethod": "email"},
+            )
+        assert resp.status_code == 502, resp.text
+        assert resp.json()["error"]["code"] == "EMAIL_DELIVERY_FAILED"
+        assert await _statement_rows(db_session, patient.id) == []
+
+    async def test_other_practice_cannot_see_or_bill_patient(
+        self, client, db_session: AsyncSession
+    ):
+        practice, _, _, patient = await _seed(db_session)
+        other, other_user, other_sub, _ = await _seed(db_session)
+        await _post(db_session, practice.id, patient.id, amount_cents=600)
+        headers = _headers(other)
+        base = f"/api/v1/patients/{patient.id}/statements"
+        h, k, d = _auth_patches(_decoded(other_user, other_sub))
+
+        with h, k, d:
+            create = await client.post(
+                base, headers=mut(headers), json={"deliveryMethod": "download"}
+            )
+            assert create.status_code == 404
+            assert create.json()["error"]["code"] == "PATIENT_NOT_FOUND"
+            history = await client.get(base, headers=headers)
+            assert history.status_code == 200
+            assert history.json() == []
+            preview = await client.get(f"{base}/preview", headers=headers)
+            assert preview.status_code == 404
+
+    async def test_feature_flag_off_is_403(self, client, db_session: AsyncSession):
+        practice, user, sub, patient = await _seed(db_session, ledger_enabled=False)
+        headers = _headers(practice)
+        h, k, d = _auth_patches(_decoded(user, sub))
+
+        with h, k, d:
+            history = await client.get(f"/api/v1/patients/{patient.id}/statements", headers=headers)
+            aging = await client.get("/api/v1/reports/patient-aging", headers=headers)
+        assert history.status_code == 403
+        assert history.json()["error"]["code"] == "FEATURE_NOT_ENABLED"
+        assert aging.status_code == 403
