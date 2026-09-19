@@ -36,26 +36,50 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+function authHeaders(base: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...base };
+  const token = getAccessToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const practiceId = getPracticeId();
+  if (practiceId) {
+    headers["X-Practice-ID"] = practiceId;
+  }
+  return headers;
+}
+
+async function throwApiError(response: Response): Promise<never> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const errorBody: unknown = await response
+    .json()
+    .catch(() => ({ error: { code: "UNKNOWN", message: response.statusText } }));
+  throw new ApiError(response.status, errorBody);
+}
+
+/** GET a binary resource (PDF) with the same auth headers as JSON requests. */
+async function requestBlob(path: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login";
+      return new Blob();
+    }
+    return throwApiError(response);
+  }
+  return response.blob();
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
   body?: unknown,
   options: RequestOptions = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  const token = getAccessToken();
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const practiceId = getPracticeId();
-  if (practiceId) {
-    headers["X-Practice-ID"] = practiceId;
-  }
-
+  const headers = authHeaders({ "Content-Type": "application/json" });
   if (options.idempotencyKey) {
     headers["Idempotency-Key"] = options.idempotencyKey;
   }
@@ -72,11 +96,7 @@ async function request<T>(
       window.location.href = "/login";
       return undefined as T;
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const errorBody: unknown = await response
-      .json()
-      .catch(() => ({ error: { code: "UNKNOWN", message: response.statusText } }));
-    throw new ApiError(response.status, errorBody);
+    return throwApiError(response);
   }
 
   if (response.status === 204 || response.status === 205) {
@@ -110,4 +130,6 @@ export const apiClient = {
 
   delete: <T>(path: string, options?: RequestOptions) =>
     request<T>("DELETE", path, undefined, options),
+
+  getBlob: (path: string) => requestBlob(path),
 };
