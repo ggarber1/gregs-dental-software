@@ -127,6 +127,17 @@ export function fetchStatementPreview(patientId: string): Promise<Blob> {
   return apiClient.getBlob(`/api/v1/patients/${patientId}/statements/preview`);
 }
 
+/** Re-download the PDF for a recorded statement (no new statement row is created). */
+export async function downloadStatementPdf(
+  patientId: string,
+  statement: PatientStatement,
+): Promise<void> {
+  const blob = await apiClient.getBlob(
+    `/api/v1/patients/${patientId}/statements/${statement.id}/pdf`,
+  );
+  saveBlob(blob, statementFilename(statement.generatedAt));
+}
+
 /**
  * POST a statement. For `download`, follows up with a GET for the bytes and
  * triggers the browser save (the API never returns a PDF from a mutation).
