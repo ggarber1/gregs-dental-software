@@ -463,6 +463,7 @@ class TestStatementsHttp:
                 base, headers=headers, json={"deliveryMethod": "download"}
             )
             assert missing_key.status_code == 422
+            assert missing_key.json()["error"]["code"] == "MISSING_IDEMPOTENCY_KEY"
 
     async def test_ses_failure_is_502_and_records_nothing(self, client, db_session: AsyncSession):
         practice, user, sub, patient = await _seed(db_session)
@@ -492,6 +493,15 @@ class TestStatementsHttp:
         practice, _, _, patient = await _seed(db_session)
         other, other_user, other_sub, _ = await _seed(db_session)
         await _post(db_session, practice.id, patient.id, amount_cents=600)
+        with patch(_P_PDF, return_value=_FAKE_PDF):
+            own = await statements.create_statement(
+                db_session,
+                practice.id,
+                patient.id,
+                delivery_method="download",
+                generated_by="u",
+                now=_NOW,
+            )
         headers = _headers(other)
         base = f"/api/v1/patients/{patient.id}/statements"
         h, k, d = _auth_patches(_decoded(other_user, other_sub))
@@ -507,6 +517,9 @@ class TestStatementsHttp:
             assert history.json() == []
             preview = await client.get(f"{base}/preview", headers=headers)
             assert preview.status_code == 404
+            pdf = await client.get(f"{base}/{own.id}/pdf", headers=headers)
+            assert pdf.status_code == 404
+            assert pdf.json()["error"]["code"] == "STATEMENT_NOT_FOUND"
 
     async def test_feature_flag_off_is_403(self, client, db_session: AsyncSession):
         practice, user, sub, patient = await _seed(db_session, ledger_enabled=False)
