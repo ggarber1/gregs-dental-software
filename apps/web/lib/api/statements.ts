@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiClient, apiErrorMessage, generateId } from "@/lib/api-client";
@@ -110,6 +110,8 @@ export function usePatientAgingWorklist(params: {
     queryKey: statementKeys.aging(params.sortBy, params.minBalanceCents),
     queryFn: () =>
       apiClient.get<PatientAgingRow[]>(`/api/v1/reports/patient-aging?${search.toString()}`),
+    // Keep the table in place while a sort/threshold change refetches.
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -87,9 +87,10 @@ export default function PatientAgingPage() {
       b31_60: acc.b31_60 + r.buckets.b31_60,
       b61_90: acc.b61_90 + r.buckets.b61_90,
       b90_plus: acc.b90_plus + r.buckets.b90_plus,
+      credits: acc.credits + r.creditsCents,
       balance: acc.balance + r.balanceCents,
     }),
-    { b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, balance: 0 },
+    { b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, credits: 0, balance: 0 },
   );
 
   return (
@@ -166,7 +167,7 @@ export default function PatientAgingPage() {
                   <TableCell className="text-right tabular-nums">{centsToUsd(row.buckets.b61_90)}</TableCell>
                   <TableCell className="text-right tabular-nums">{centsToUsd(row.buckets.b90_plus)}</TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {centsToUsd(row.creditsCents)}
+                    {centsToUsd(-row.creditsCents)}
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">
                     {centsToUsd(row.balanceCents)}
@@ -192,7 +193,9 @@ export default function PatientAgingPage() {
                 <TableCell className="text-right tabular-nums">{centsToUsd(totals.b31_60)}</TableCell>
                 <TableCell className="text-right tabular-nums">{centsToUsd(totals.b61_90)}</TableCell>
                 <TableCell className="text-right tabular-nums">{centsToUsd(totals.b90_plus)}</TableCell>
-                <TableCell />
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {centsToUsd(-totals.credits)}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{centsToUsd(totals.balance)}</TableCell>
                 <TableCell colSpan={2} />
               </TableRow>
