@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient, ApiError, generateId } from "@/lib/api-client";
+import { apiClient, apiErrorMessage, generateId } from "@/lib/api-client";
 
 export type ARCategory = "awaiting" | "underpaid" | "problem";
 export type AgeBucket = "0-30" | "31-60" | "61-90" | "90+";
@@ -108,14 +108,6 @@ export function useInsuranceARSummary() {
     queryFn: () =>
       apiClient.get<InsuranceARSummary>("/api/v1/reports/insurance-ar/summary"),
   });
-}
-
-function apiErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    const body = err.body as { error?: { message?: string } } | null;
-    return body?.error?.message ?? `Unexpected error (${err.status})`;
-  }
-  return "Something went wrong. Please try again.";
 }
 
 export function useAcceptUnderpayment() {

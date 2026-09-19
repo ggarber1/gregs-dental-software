@@ -115,6 +115,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Human-readable message for a failed request, suitable for a toast. */
+export function apiErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { error?: { message?: string } } | null;
+    return body?.error?.message ?? `Unexpected error (${err.status})`;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "Something went wrong. Please try again.";
+}
+
 export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) =>
     request<T>("GET", path, undefined, options),

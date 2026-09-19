@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient, ApiError, generateId } from "@/lib/api-client";
+import { apiClient, apiErrorMessage, generateId } from "@/lib/api-client";
 import type { ARBuckets } from "@/lib/api/reports";
 
 // ── Types (hand-written, mirroring packages/shared-types/src/schemas/statements.ts) ──
@@ -43,27 +43,19 @@ export function statementFilename(generatedAtIso: string): string {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Midnight UTC of the given instant, in ms — so day differences count calendar days. */
+const utcDay = (d: Date): number => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
 /** "Never" | "Today" | "N days ago" | "N weeks ago" | "N months ago" */
 export function lastStatementLabel(iso: string | null, now: Date = new Date()): string {
   if (!iso) return "Never";
   const then = new Date(iso);
-  const days = Math.floor((now.getTime() - then.getTime()) / DAY_MS);
-  if (days <= 0 || now.toISOString().slice(0, 10) === then.toISOString().slice(0, 10)) {
-    return "Today";
-  }
+  const days = Math.round((utcDay(now) - utcDay(then)) / DAY_MS);
+  if (days <= 0) return "Today";
   if (days < 14) return days === 1 ? "1 day ago" : `${days} days ago`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 9) return `${weeks} weeks ago`;
+  if (days < 35) return `${Math.floor(days / 7)} weeks ago`;
   const months = Math.floor(days / 30);
   return months === 1 ? "1 month ago" : `${months} months ago`;
-}
-
-function apiErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    const body = err.body as { error?: { message?: string } } | null;
-    return body?.error?.message ?? `Unexpected error (${err.status})`;
-  }
-  return "Something went wrong. Please try again.";
 }
 
 /** Hand a Blob to the browser as a file download. */
@@ -78,10 +70,18 @@ export function saveBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Open a Blob in a new tab (PDF preview). */
-export function openBlob(blob: Blob): void {
+/**
+ * Open a Blob in a new tab (PDF preview). If the browser blocks the popup,
+ * fall back to a file download so the user still gets the PDF.
+ */
+export function openBlob(blob: Blob, fallbackFilename: string): void {
   const url = URL.createObjectURL(blob);
-  window.open(url, "_blank", "noopener");
+  const w = window.open(url, "_blank");
+  if (!w) {
+    URL.revokeObjectURL(url);
+    saveBlob(blob, fallbackFilename);
+    return;
+  }
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
@@ -139,10 +139,16 @@ export function useSendStatement(patientId: string) {
         { idempotencyKey: generateId() },
       );
       if (deliveryMethod === "download") {
-        const blob = await apiClient.getBlob(
-          `/api/v1/patients/${patientId}/statements/${statement.id}/pdf`,
-        );
-        saveBlob(blob, statementFilename(statement.generatedAt));
+        try {
+          const blob = await apiClient.getBlob(
+            `/api/v1/patients/${patientId}/statements/${statement.id}/pdf`,
+          );
+          saveBlob(blob, statementFilename(statement.generatedAt));
+        } catch {
+          throw new Error(
+            "Statement recorded but the PDF could not be downloaded. Use the statement history to retry.",
+          );
+        }
       }
       return statement;
     },
@@ -150,11 +156,15 @@ export function useSendStatement(patientId: string) {
       toast.success(
         statement.deliveryMethod === "email" ? "Statement emailed." : "Statement downloaded.",
       );
-      void qc.invalidateQueries({ queryKey: statementKeys.patient(patientId) });
-      void qc.invalidateQueries({ queryKey: AGING_PREFIX });
     },
     onError: (err) => {
       toast.error(apiErrorMessage(err));
+    },
+    // The POST may have recorded a row even when the follow-up download failed,
+    // so refresh history and the worklist on every outcome.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: statementKeys.patient(patientId) });
+      void qc.invalidateQueries({ queryKey: AGING_PREFIX });
     },
   });
 }

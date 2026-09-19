@@ -7,7 +7,7 @@ vi.mock("@/lib/auth/cookies", () => ({
 }));
 
 import { getAccessToken, getPracticeId } from "@/lib/auth/cookies";
-import { apiClient, ApiError } from "@/lib/api-client";
+import { apiClient, ApiError, apiErrorMessage } from "@/lib/api-client";
 
 const mockGetAccessToken = vi.mocked(getAccessToken);
 const mockGetPracticeId = vi.mocked(getPracticeId);
@@ -220,5 +220,26 @@ describe("apiClient.getBlob", () => {
       status: 400,
       body: { error: { code: "NO_OUTSTANDING_BALANCE" } },
     });
+  });
+});
+
+describe("apiErrorMessage", () => {
+  it("uses the API error body message for ApiError", () => {
+    const err = new ApiError(400, { error: { code: "X", message: "No outstanding balance." } });
+    expect(apiErrorMessage(err)).toBe("No outstanding balance.");
+  });
+
+  it("falls back to the status when the ApiError body has no message", () => {
+    expect(apiErrorMessage(new ApiError(502, null))).toBe("Unexpected error (502)");
+  });
+
+  it("uses the message of a plain Error", () => {
+    expect(apiErrorMessage(new Error("PDF could not be downloaded."))).toBe(
+      "PDF could not be downloaded.",
+    );
+  });
+
+  it("uses a generic message for non-Error values", () => {
+    expect(apiErrorMessage("boom")).toBe("Something went wrong. Please try again.");
   });
 });

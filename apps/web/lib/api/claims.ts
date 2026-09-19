@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient, ApiError, generateId } from "@/lib/api-client";
+import { apiClient, apiErrorMessage, generateId } from "@/lib/api-client";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -98,14 +98,6 @@ export function usePatientClaims(patientId: string) {
 export interface WriteOffResponse {
   claim: Claim;
   ledgerEntry: string | null;
-}
-
-function apiErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    const body = err.body as { error?: { message?: string } } | null;
-    return body?.error?.message ?? `Unexpected error (${err.status})`;
-  }
-  return "Something went wrong. Please try again.";
 }
 
 export function useResubmitClaim(claimId: string, appointmentId: string, patientId: string) {
