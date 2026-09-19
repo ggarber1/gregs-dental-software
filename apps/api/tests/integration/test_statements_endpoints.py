@@ -213,7 +213,7 @@ class TestCreateStatementService:
         with (
             patch(_P_PDF, return_value=_FAKE_PDF),
             patch(_P_SEND, AsyncMock(side_effect=RuntimeError("SES send_raw_email failed"))),
-            pytest.raises(RuntimeError),
+            pytest.raises(statements.StatementDeliveryError),
         ):
             await statements.create_statement(
                 db_session, practice.id, patient.id, delivery_method="email", generated_by="u"

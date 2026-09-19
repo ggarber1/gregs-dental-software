@@ -150,7 +150,11 @@ async def test_create_download_statement_has_null_delivered_at():
             "PATIENT_HAS_NO_EMAIL",
         ),
         (LookupError("nope"), 404, "PATIENT_NOT_FOUND"),
-        (RuntimeError("SES send_raw_email failed: boom"), 502, "EMAIL_DELIVERY_FAILED"),
+        (
+            statements.StatementDeliveryError("SES send_raw_email failed: boom"),
+            502,
+            "EMAIL_DELIVERY_FAILED",
+        ),
     ],
 )
 async def test_create_statement_error_mapping(exc, status, code):
@@ -253,6 +257,22 @@ async def test_statement_pdf_download_uses_recorded_date():
     assert resp.content == _PDF
     assert render.call_args.kwargs["statement_date"] == row.generated_at.date()
     assert render.call_args.kwargs["require_balance"] is False
+
+
+@pytest.mark.asyncio
+async def test_statement_pdf_unknown_patient_is_404():
+    row = _statement(delivery_method="download", delivered_at=None)
+    with (
+        _auth_patches() as headers,
+        _router_patches(
+            get_statement=AsyncMock(return_value=row),
+            render_statement_pdf=AsyncMock(side_effect=LookupError("nope")),
+        ),
+    ):
+        async with await _client() as client:
+            resp = await client.get(f"{_BASE}/{row.id}/pdf", headers=headers)
+    assert resp.status_code == 404
+    assert resp.json()["error"]["code"] == "PATIENT_NOT_FOUND"
 
 
 @pytest.mark.asyncio

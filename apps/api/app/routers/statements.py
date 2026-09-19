@@ -93,7 +93,7 @@ async def create_patient_statement(
             raise _err(400, "NO_OUTSTANDING_BALANCE", str(exc)) from exc
         except statements.NoPatientEmailError as exc:
             raise _err(400, "PATIENT_HAS_NO_EMAIL", str(exc)) from exc
-        except RuntimeError as exc:
+        except statements.StatementDeliveryError as exc:
             raise _err(502, "EMAIL_DELIVERY_FAILED", "Statement email could not be sent") from exc
         return PatientStatement.model_validate(_statement_to_dict(row))
 

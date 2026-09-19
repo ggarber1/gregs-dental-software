@@ -4,7 +4,7 @@ Raises domain exceptions the router maps to HTTP codes:
   LookupError               → 404 patient not in this practice
   NoOutstandingBalanceError → 400
   NoPatientEmailError       → 400
-  RuntimeError              → 502 (SES failure, from send_email_with_attachment)
+  StatementDeliveryError    → 502 (SES failure, from send_email_with_attachment)
 """
 
 from __future__ import annotations
@@ -35,6 +35,10 @@ class NoOutstandingBalanceError(ValueError):
 
 
 class NoPatientEmailError(ValueError):
+    pass
+
+
+class StatementDeliveryError(RuntimeError):
     pass
 
 
@@ -154,11 +158,14 @@ async def create_statement(
     delivered_at: datetime | None = None
     if delivery_method == "email":
         pdf = await _render(practice, patient, entries, aging, now.date())
-        await send_statement_email(
-            practice, patient, pdf, statement_date=now.date(), balance_cents=aging.balance_cents
-        )
+        try:
+            await send_statement_email(
+                practice, patient, pdf, statement_date=now.date(), balance_cents=aging.balance_cents
+            )
+        except RuntimeError as exc:
+            raise StatementDeliveryError(str(exc)) from exc
         # send returned None only in dev no-send mode (logged, not rejected);
-        # RuntimeError is the sole failure path.
+        # StatementDeliveryError is the sole failure path.
         delivered_at = now
 
     row = PatientStatement(
