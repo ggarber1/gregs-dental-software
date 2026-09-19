@@ -61,8 +61,8 @@ export default function BillingPage() {
         <SummaryCard
           title="Patient A/R"
           value={centsToUsd(summary.patientArTotalCents)}
-          subtitle="Statements coming soon"
-          href="/billing/claims"
+          subtitle="Outstanding patient balances"
+          href="/billing/patient-aging"
         />
         {summary.eraReconciliationMode === "confirm" &&
           summary.reconciliationPendingCount > 0 && (
