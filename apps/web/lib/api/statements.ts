@@ -153,10 +153,7 @@ export function useSendStatement(patientId: string) {
       );
       if (deliveryMethod === "download") {
         try {
-          const blob = await apiClient.getBlob(
-            `/api/v1/patients/${patientId}/statements/${statement.id}/pdf`,
-          );
-          saveBlob(blob, statementFilename(statement.generatedAt));
+          await downloadStatementPdf(patientId, statement);
         } catch {
           throw new Error(
             "Statement recorded but the PDF could not be downloaded. Use the statement history to retry.",

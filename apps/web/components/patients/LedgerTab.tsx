@@ -12,6 +12,7 @@ import {
   type LedgerEntry,
   type LedgerPaymentMethod,
 } from "@/lib/api/ledger";
+import { apiErrorMessage } from "@/lib/api-client";
 import { usePatient } from "@/lib/api/patients";
 import {
   downloadStatementPdf,
@@ -240,15 +241,15 @@ function StatementActions({
     try {
       const blob = await fetchStatementPreview(patientId);
       openBlob(blob, statementFilename(new Date().toISOString()));
-    } catch {
-      toast.error("Could not generate the statement preview.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
     } finally {
       setPreviewing(false);
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         className={STATEMENT_BUTTON_CLASS}
