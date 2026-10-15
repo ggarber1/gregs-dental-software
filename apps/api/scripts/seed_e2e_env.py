@@ -38,6 +38,7 @@ from app.models.operatory import Operatory
 from app.models.practice import Practice
 from app.models.provider import Provider
 from app.models.user import PracticeUser, User
+from scripts.seed_insurance_plans import ensure_plans
 
 # Fixed UUIDs so re-runs produce the same rows (idempotent by primary key).
 E2E_PRACTICE_UUID = uuid.UUID("00000000-0000-0000-0000-e2e000000001")
@@ -120,12 +121,13 @@ async def seed_fixtures(
     full_name: str,
     practice_name: str,
 ) -> None:
-    """Create the e2e practice, user, membership, provider and operatory if missing."""
+    """Create the e2e practice, user, membership, provider, operatory and plans if missing."""
     practice = await _ensure_practice(session, practice_id, practice_name)
     user = await _ensure_user(session, cognito_sub, email, full_name)
     await _ensure_membership(session, practice, user)
     await _ensure_provider(session, practice)
     await _ensure_operatory(session, practice)
+    await ensure_plans(session, practice.id)
     await session.commit()
 
 
@@ -138,7 +140,6 @@ async def seed(
     practice_name: str,
 ) -> None:
     from app.core.config import get_settings
-    from scripts.seed_insurance_plans import seed as seed_plans
 
     engine = create_async_engine(get_settings().async_database_url, pool_pre_ping=True)
     try:
@@ -154,8 +155,6 @@ async def seed(
     finally:
         await engine.dispose()
     print("[seed] Done.")
-
-    await seed_plans(practice_id)
 
 
 def main() -> None:

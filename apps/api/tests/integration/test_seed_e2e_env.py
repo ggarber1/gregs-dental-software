@@ -8,11 +8,13 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.insurance_plan import InsurancePlan
 from app.models.operatory import Operatory
 from app.models.practice import Practice
 from app.models.provider import Provider
 from app.models.user import PracticeUser, User
 from scripts.seed_e2e_env import E2E_OPERATORY_UUID, E2E_PROVIDER_UUID, seed_fixtures
+from scripts.seed_insurance_plans import _CARRIERS
 
 pytestmark = pytest.mark.integration
 
@@ -52,6 +54,7 @@ async def test_creates_practice_user_provider_and_operatory(db_session: AsyncSes
     assert provider is not None and provider.practice_id == practice_id
     operatory = await db_session.get(Operatory, E2E_OPERATORY_UUID)
     assert operatory is not None and operatory.practice_id == practice_id
+    assert await _count(db_session, InsurancePlan) == len(_CARRIERS)
 
 
 async def test_rerun_creates_no_duplicates(db_session: AsyncSession) -> None:
@@ -62,3 +65,4 @@ async def test_rerun_creates_no_duplicates(db_session: AsyncSession) -> None:
 
     for model in (Practice, User, PracticeUser, Provider, Operatory):
         assert await _count(db_session, model) == 1, model.__name__
+    assert await _count(db_session, InsurancePlan) == len(_CARRIERS)
