@@ -91,6 +91,7 @@ async def _post(
     amount_cents: int,
     days_ago: int = 1,
     reverses: uuid.UUID | None = None,
+    now: datetime.datetime = _NOW,
 ) -> LedgerEntry:
     entry = LedgerEntry(
         id=uuid.uuid4(),
@@ -99,7 +100,7 @@ async def _post(
         entry_type=entry_type,
         amount_cents=amount_cents,
         reverses_entry_id=reverses,
-        posted_at=_NOW - timedelta(days=days_ago),
+        posted_at=now - timedelta(days=days_ago),
     )
     session.add(entry)
     await session.commit()
@@ -362,7 +363,15 @@ def _headers(practice: Practice) -> dict[str, str]:
 class TestStatementsHttp:
     async def test_email_then_history_then_aging(self, client, db_session: AsyncSession):
         practice, user, sub, patient = await _seed(db_session)
-        await _post(db_session, practice.id, patient.id, amount_cents=12000, days_ago=40)
+        # The endpoint ages against the real clock, so anchor the charge to it too.
+        await _post(
+            db_session,
+            practice.id,
+            patient.id,
+            amount_cents=12000,
+            days_ago=40,
+            now=datetime.datetime.now(UTC),
+        )
         headers = _headers(practice)
         base = f"/api/v1/patients/{patient.id}/statements"
         h, k, d = _auth_patches(_decoded(user, sub))
