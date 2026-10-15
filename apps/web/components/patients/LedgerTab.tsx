@@ -12,6 +12,18 @@ import {
   type LedgerEntry,
   type LedgerPaymentMethod,
 } from "@/lib/api/ledger";
+import { apiErrorMessage } from "@/lib/api-client";
+import { usePatient } from "@/lib/api/patients";
+import {
+  downloadStatementPdf,
+  fetchStatementPreview,
+  lastStatementLabel,
+  openBlob,
+  statementFilename,
+  usePatientStatements,
+  useSendStatement,
+} from "@/lib/api/statements";
+import { toast } from "sonner";
 
 interface LedgerTabProps {
   patientId: string;
@@ -207,6 +219,150 @@ function AddAdjustmentForm({ patientId }: { patientId: string }) {
 
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
+const STATEMENT_BUTTON_CLASS =
+  "rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50 disabled:pointer-events-none";
+
+function StatementActions({
+  patientId,
+  balanceCents,
+  email,
+}: {
+  patientId: string;
+  balanceCents: number;
+  email: string | null | undefined;
+}) {
+  const send = useSendStatement(patientId);
+  const [previewing, setPreviewing] = useState(false);
+  const hasBalance = balanceCents > 0;
+  const balanceTitle = hasBalance ? undefined : "No outstanding balance";
+
+  const preview = async () => {
+    setPreviewing(true);
+    try {
+      const blob = await fetchStatementPreview(patientId);
+      openBlob(blob, statementFilename(new Date().toISOString()));
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={STATEMENT_BUTTON_CLASS}
+        disabled={!hasBalance || previewing}
+        title={balanceTitle ?? "Open a PDF preview in a new tab"}
+        onClick={() => void preview()}
+      >
+        {previewing ? "Generating…" : "Preview statement"}
+      </button>
+      <button
+        type="button"
+        className={STATEMENT_BUTTON_CLASS}
+        disabled={!hasBalance || !email || send.isPending}
+        title={balanceTitle ?? (email ? `Email statement to ${email}` : "Patient has no email on file")}
+        onClick={() => send.mutate("email")}
+      >
+        {send.isPending && send.variables === "email" ? "Sending…" : "Email statement"}
+      </button>
+      <button
+        type="button"
+        className={STATEMENT_BUTTON_CLASS}
+        disabled={!hasBalance || send.isPending}
+        title={balanceTitle ?? "Download PDF for mailing"}
+        onClick={() => send.mutate("download")}
+      >
+        {send.isPending && send.variables === "download" ? "Preparing…" : "Download PDF"}
+      </button>
+    </div>
+  );
+}
+
+function StatementHistory({ patientId }: { patientId: string }) {
+  const [open, setOpen] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const { data, isLoading } = usePatientStatements(patientId);
+  const statements = data ?? [];
+
+  const download = async (statement: (typeof statements)[number]) => {
+    setDownloadingId(statement.id);
+    try {
+      await downloadStatementPdf(patientId, statement);
+    } catch {
+      toast.error("Could not download the statement PDF.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between text-left"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <h3 className="text-sm font-semibold">
+          Statement history
+          {!isLoading && (
+            <span className="ml-2 font-normal text-muted-foreground">({statements.length})</span>
+          )}
+        </h3>
+        <span className="text-xs text-muted-foreground">{open ? "Hide" : "Show"}</span>
+      </button>
+
+      {open && statements.length === 0 && !isLoading && (
+        <p className="text-sm text-muted-foreground">No statements have been sent.</p>
+      )}
+
+      {open && statements.length > 0 && (
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Delivery</th>
+                <th className="px-3 py-2 text-right">Balance</th>
+                <th className="px-3 py-2">Sent by</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {statements.map((s) => (
+                <tr key={s.id} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {s.generatedAt.slice(0, 10)}
+                    <span className="ml-2 text-xs">({lastStatementLabel(s.generatedAt)})</span>
+                  </td>
+                  <td className="px-3 py-2">{s.deliveryMethod === "email" ? "Email" : "Downloaded"}</td>
+                  <td className="px-3 py-2 text-right">{centsToUsd(s.balanceCents)}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                    {s.generatedBy}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      className="text-xs text-primary underline disabled:opacity-50"
+                      disabled={downloadingId === s.id}
+                      onClick={() => void download(s)}
+                    >
+                      {downloadingId === s.id ? "…" : "PDF"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BalanceBadge({ balanceCents }: { balanceCents: number }) {
   if (balanceCents > 0) {
     return <Badge variant="destructive">{centsToUsd(balanceCents)} owed</Badge>;
@@ -219,6 +375,7 @@ function BalanceBadge({ balanceCents }: { balanceCents: number }) {
 
 export function LedgerTab({ patientId }: LedgerTabProps) {
   const { data, isLoading, isError } = usePatientLedger(patientId);
+  const { data: patient } = usePatient(patientId);
 
   const entries = data?.entries ?? [];
   const balanceCents = data?.balanceCents ?? 0;
@@ -226,11 +383,18 @@ export function LedgerTab({ patientId }: LedgerTabProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-4 rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-semibold">Ledger</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Balance</span>
-            <BalanceBadge balanceCents={balanceCents} />
+          <div className="flex flex-wrap items-center gap-3">
+            <StatementActions
+              patientId={patientId}
+              balanceCents={balanceCents}
+              email={patient?.email}
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Balance</span>
+              <BalanceBadge balanceCents={balanceCents} />
+            </div>
           </div>
         </div>
 
@@ -289,6 +453,8 @@ export function LedgerTab({ patientId }: LedgerTabProps) {
           </div>
         )}
       </div>
+
+      <StatementHistory patientId={patientId} />
 
       <div className="space-y-3 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">Record payment</h3>

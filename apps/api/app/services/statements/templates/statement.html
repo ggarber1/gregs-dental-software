@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Statement — {{ ctx.practice_name }}</title>
+<style>
+  @page { size: Letter; margin: 0.75in; }
+  body { font-family: "DejaVu Sans", Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #111; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #222; padding-bottom: 10px; }
+  .practice h1 { font-size: 18pt; margin: 0 0 4px 0; }
+  .practice p, .patient p { margin: 0; line-height: 1.35; }
+  .logo { width: 120px; height: 48px; border: 1px dashed #bbb; color: #bbb; font-size: 8pt; display: flex; align-items: center; justify-content: center; }
+  .meta { margin-top: 24px; display: flex; justify-content: space-between; }
+  .patient { margin-top: 18px; }  /* window-envelope position: left, ~1.5in from top */
+  table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #ddd; text-align: left; }
+  th { background: #f2f2f2; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .aging td, .aging th { text-align: center; }
+  .aging td.due { font-weight: bold; font-size: 12pt; }
+  .cta { margin: 18px 0; padding: 10px 12px; background: #f7f7f7; border-left: 4px solid #222; }
+  .footer { margin-top: 28px; border-top: 1px solid #ddd; padding-top: 8px; font-size: 9pt; color: #555; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="practice">
+    <h1>{{ ctx.practice_name }}</h1>
+    {% for line in ctx.practice_address_lines %}<p>{{ line }}</p>{% endfor %}
+    {% if ctx.practice_phone %}<p>{{ ctx.practice_phone }}</p>{% endif %}
+  </div>
+  <div class="logo">logo</div>
+</div>
+
+<div class="meta">
+  <div class="patient">
+    <p><strong>{{ ctx.patient_name }}</strong></p>
+    {% for line in ctx.patient_address_lines %}<p>{{ line }}</p>{% endfor %}
+  </div>
+  <div>
+    <p><strong>Statement Date:</strong> {{ ctx.statement_date.strftime("%B %-d, %Y") }}</p>
+    <p><strong>Account:</strong> {{ ctx.account_number }}</p>
+  </div>
+</div>
+
+<table class="aging">
+  <thead>
+    <tr>
+      <th>Current</th><th>31–60 Days</th><th>61–90 Days</th><th>90+ Days</th>
+      <th>Payments &amp; Credits</th><th>Amount Due</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{ ctx.aging.buckets.b0_30 | usd }}</td>
+      <td>{{ ctx.aging.buckets.b31_60 | usd }}</td>
+      <td>{{ ctx.aging.buckets.b61_90 | usd }}</td>
+      <td>{{ ctx.aging.buckets.b90_plus | usd }}</td>
+      <td>{{ (-ctx.aging.credits_cents) | usd }}</td>
+      <td class="due">{{ ctx.aging.balance_cents | usd }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="cta">
+  Please contact our office{% if ctx.practice_phone %} at {{ ctx.practice_phone }}{% endif %} to arrange payment.
+  {# pay_url: add payment URL here when patient portal launches #}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Date</th><th>Description</th>
+      <th class="num">Charges</th><th class="num">Credits</th><th class="num">Balance</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in ctx.lines %}
+    <tr>
+      <td>{{ line.posted_on.isoformat() }}</td>
+      <td>{{ line.description }}</td>
+      <td class="num">{% if line.charge_cents is not none %}{{ line.charge_cents | usd }}{% endif %}</td>
+      <td class="num">{% if line.credit_cents is not none %}{{ line.credit_cents | usd }}{% endif %}</td>
+      <td class="num">{{ line.running_balance_cents | usd }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No activity on this account.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="footer">
+  {% if ctx.practice_phone %}Questions? Call {{ ctx.practice_phone }}. {% endif %}
+  Thank you for choosing {{ ctx.practice_name }}.
+</div>
+
+</body>
+</html>

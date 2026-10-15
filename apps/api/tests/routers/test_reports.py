@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,6 +23,9 @@ from app.services.reports.insurance_ar import (
     Summary,
     WorklistRow,
 )
+from app.services.reports.patient_aging import AgingBreakdown, PatientAgingRow
+from app.services.reports.reconciliation import ARSummaryData
+from app.services.reports.reconciliation import ReconciliationRow as ReconRow
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -223,7 +227,7 @@ async def test_accept_endpoint_returns_action_result():
     with _auth_patches() as headers, patch(
         "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
     ), patch(
-        "app.routers.reports.insurance_ar.accept_underpayment",
+        "app.routers.reports.insurance_ar.write_off_underpayment",
         new=AsyncMock(return_value=claim),
     ), patch(
         "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
@@ -261,57 +265,6 @@ async def test_accept_endpoint_feature_off_returns_403():
 
 
 @pytest.mark.asyncio
-async def test_appeal_endpoint_feature_off_returns_403():
-    from app.main import create_app
-
-    app = create_app()
-    with _auth_patches() as headers, patch(
-        "app.routers.reports.require_feature",
-        new=AsyncMock(side_effect=_feature_off()),
-    ), patch(
-        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
-    ):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post(
-                f"/api/v1/reports/insurance-ar/claims/{uuid.uuid4()}/appeal",
-                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                json={},
-            )
-    assert resp.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_appeal_endpoint_returns_action_result():
-    from app.main import create_app
-
-    app = create_app()
-    appealing_claim = MagicMock(
-        id=uuid.uuid4(),
-        status="appealing",
-        insurance_reviewed_at=None,
-    )
-    cid = appealing_claim.id
-    with _auth_patches() as headers, patch(
-        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
-    ), patch(
-        "app.routers.reports.insurance_ar.flag_for_appeal",
-        new=AsyncMock(return_value=appealing_claim),
-    ), patch(
-        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
-    ):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post(
-                f"/api/v1/reports/insurance-ar/claims/{cid}/appeal",
-                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-                json={},
-            )
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "appealing"
-
-
-@pytest.mark.asyncio
 async def test_accept_endpoint_rejects_non_write_role():
     from app.main import create_app
 
@@ -340,7 +293,7 @@ async def test_accept_endpoint_409_when_not_underpaid():
     with _auth_patches() as headers, patch(
         "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
     ), patch(
-        "app.routers.reports.insurance_ar.accept_underpayment",
+        "app.routers.reports.insurance_ar.write_off_underpayment",
         new=AsyncMock(side_effect=ValueError("not underpaid")),
     ), patch(
         "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
@@ -353,3 +306,330 @@ async def test_accept_endpoint_409_when_not_underpaid():
                 json={},
             )
     assert resp.status_code == 409
+
+
+# ── Reconciliation endpoint tests ────────────────────────────────────────────
+
+
+def _recon_row(**kw) -> ReconRow:
+    defaults = dict(
+        claim_id=uuid.uuid4(),
+        appointment_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
+        claim_number="CLM001",
+        patient_name="Jane Doe",
+        payer_id="DELTA",
+        carrier_name="Delta Dental",
+        recon_label="overpaid",
+        billed_cents=100000,
+        estimated_insurance_cents=80000,
+        insurance_paid_cents=85000,
+        variance_cents=5000,
+        has_estimate=True,
+        patient_balance_cents=15000,
+        days_since_era=5,
+        reconciliation_confirmed_at=None,
+    )
+    defaults.update(kw)
+    return ReconRow(**defaults)
+
+
+@pytest.mark.asyncio
+async def test_get_reconciliation_worklist_happy_path():
+    from app.main import create_app
+
+    app = create_app()
+    row = _recon_row()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch(
+            "app.routers.reports.require_feature",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.routers.reports.reconciliation.get_reconciliation_worklist",
+            new=AsyncMock(return_value=[row]),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get(
+                "/api/v1/reports/reconciliation/claims", headers=headers
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["reconLabel"] == "overpaid"
+    assert data[0]["varianceCents"] == 5000
+
+
+@pytest.mark.asyncio
+async def test_get_reconciliation_worklist_confirmed_filter():
+    from app.main import create_app
+
+    app = create_app()
+    mock_get = AsyncMock(return_value=[])
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.get_reconciliation_worklist",
+            new=mock_get,
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            await client.get(
+                "/api/v1/reports/reconciliation/claims?confirmed=false", headers=headers
+            )
+    mock_get.assert_called_once()
+    _, kwargs = mock_get.call_args
+    assert kwargs["confirmed"] is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_reconciliation_success():
+    from app.main import create_app
+
+    app = create_app()
+    claim = MagicMock()
+    claim.id = uuid.uuid4()
+    claim.status = "paid"
+    claim.insurance_reviewed_at = None
+    claim.reconciliation_confirmed_at = datetime(2026, 7, 25, 12, 0, tzinfo=UTC)
+    with (
+        _auth_patches(role="front_desk") as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.confirm_reconciliation",
+            new=AsyncMock(return_value=claim),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                f"/api/v1/reports/reconciliation/claims/{claim.id}/confirm",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert resp.status_code == 200
+    assert resp.json()["claimId"] == str(claim.id)
+
+
+@pytest.mark.asyncio
+async def test_confirm_reconciliation_not_found():
+    from app.main import create_app
+
+    app = create_app()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.confirm_reconciliation",
+            new=AsyncMock(side_effect=LookupError("not found")),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                f"/api/v1/reports/reconciliation/claims/{uuid.uuid4()}/confirm",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_confirm_reconciliation_already_confirmed():
+    from app.main import create_app
+
+    app = create_app()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.confirm_reconciliation",
+            new=AsyncMock(side_effect=ValueError("claim already confirmed")),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                f"/api/v1/reports/reconciliation/claims/{uuid.uuid4()}/confirm",
+                headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+            )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_ar_summary_happy_path():
+    from app.main import create_app
+
+    app = create_app()
+    summary = ARSummaryData(
+        insurance_ar_total_cents=500000,
+        patient_ar_total_cents=75000,
+        claims_needing_attention=3,
+        reconciliation_pending_count=2,
+        era_reconciliation_mode="confirm",
+    )
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch("app.routers.reports.require_feature", new=AsyncMock(return_value=None)),
+        patch(
+            "app.routers.reports.reconciliation.get_ar_summary",
+            new=AsyncMock(return_value=summary),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/api/v1/reports/ar-summary", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["insuranceArTotalCents"] == 500000
+    assert data["reconciliationPendingCount"] == 2
+    assert data["eraReconciliationMode"] == "confirm"
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_feature_gate():
+    from app.main import create_app
+
+    app = create_app()
+    with (
+        _auth_patches() as headers,
+        patch("app.routers.reports.get_session_factory", return_value=_fake_session_factory()),
+        patch(
+            "app.routers.reports.require_feature",
+            new=AsyncMock(side_effect=_feature_off()),
+        ),
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            r1 = await client.get(
+                "/api/v1/reports/reconciliation/claims", headers=headers
+            )
+            r2 = await client.get("/api/v1/reports/ar-summary", headers=headers)
+    assert r1.status_code == 403
+    assert r2.status_code == 403
+
+
+# ── GET /reports/patient-aging ────────────────────────────────────────────────
+
+
+def _aging_row(**overrides):
+    base = dict(
+        patient_id=uuid.uuid4(),
+        patient_name="Jane Smith",
+        email="jane@example.com",
+        aging=AgingBreakdown(
+            buckets=Buckets(b0_30=5000, b31_60=5000, b61_90=3000, b90_plus=2000),
+            credits_cents=-1000,
+            balance_cents=14000,
+            oldest_charge_at=datetime(2026, 5, 1, tzinfo=UTC),
+        ),
+        last_statement_at=datetime(2026, 7, 1, 10, 0, tzinfo=UTC),
+        last_statement_method="email",
+    )
+    base.update(overrides)
+    return PatientAgingRow(**base)
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_returns_rows_with_buckets():
+    from app.main import app
+
+    row = _aging_row()
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.patient_aging.get_patient_aging_worklist",
+        new=AsyncMock(return_value=[row]),
+    ) as worklist, patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/api/v1/reports/patient-aging?sort_by=last_statement&min_balance_cents=1",
+                headers=headers,
+            )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["patientId"] == str(row.patient_id)
+    assert body[0]["patientName"] == "Jane Smith"
+    assert body[0]["balanceCents"] == 14000
+    assert body[0]["creditsCents"] == -1000
+    assert body[0]["buckets"] == {"b0_30": 5000, "b31_60": 5000, "b61_90": 3000, "b90_plus": 2000}
+    assert body[0]["lastStatementMethod"] == "email"
+    assert body[0]["lastStatementAt"].startswith("2026-07-01T10:00:00")
+    kwargs = worklist.call_args.kwargs
+    assert kwargs["sort_by"] == "last_statement"
+    assert kwargs["min_balance_cents"] == 1
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_null_statement_fields():
+    from app.main import app
+
+    row = _aging_row(last_statement_at=None, last_statement_method=None, email=None)
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(return_value=None)
+    ), patch(
+        "app.routers.reports.patient_aging.get_patient_aging_worklist",
+        new=AsyncMock(return_value=[row]),
+    ), patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/patient-aging", headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()[0]["lastStatementAt"] is None
+    assert resp.json()[0]["lastStatementMethod"] is None
+    assert resp.json()[0]["email"] is None
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_gated_on_billing_ledger():
+    from app.main import app
+
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.require_feature", new=AsyncMock(side_effect=_feature_off())
+    ) as gate, patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/patient-aging", headers=headers)
+
+    assert resp.status_code == 403
+    assert gate.call_args.args[2] == "billing_ledger"
+
+
+@pytest.mark.asyncio
+async def test_patient_aging_rejects_bad_sort():
+    from app.main import app
+
+    with _auth_patches() as headers, patch(
+        "app.routers.reports.get_session_factory", return_value=_fake_session_factory()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/reports/patient-aging?sort_by=name", headers=headers)
+
+    assert resp.status_code == 422

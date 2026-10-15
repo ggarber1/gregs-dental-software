@@ -3,22 +3,27 @@ from __future__ import annotations
 import uuid
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.core.db import get_session_factory
 from app.core.features import require_feature
 from app.routers.patients import _require_practice_scope, _require_write_role
 from app.schemas.generated import (
     ApiError,
+    ARSummary,
     ClaimActionResult,
     Error,
     InsuranceARRow,
     InsuranceARSummary,
+    PatientAgingRow,
+    ReconciliationRow,
 )
-from app.services.reports import insurance_ar
+from app.services.reports import insurance_ar, patient_aging, reconciliation
 
 router = APIRouter(prefix="/api/v1", tags=["reports"])
 _FEATURE = "claims_submission"
+# Patient aging is ledger-derived, not claims-derived, so it gates on the ledger flag.
+_LEDGER_FEATURE = "billing_ledger"
 
 
 def _err(status: int, code: str, message: str) -> HTTPException:
@@ -55,6 +60,20 @@ def _row_to_dict(r: insurance_ar.WorklistRow) -> dict[str, Any]:
 
 def _buckets_to_dict(b: insurance_ar.Buckets) -> dict[str, Any]:
     return {"b0_30": b.b0_30, "b31_60": b.b31_60, "b61_90": b.b61_90, "b90_plus": b.b90_plus}
+
+
+def _aging_row_to_dict(r: patient_aging.PatientAgingRow) -> dict[str, Any]:
+    return {
+        "patientId": r.patient_id,
+        "patientName": r.patient_name,
+        "email": r.email,
+        "balanceCents": r.aging.balance_cents,
+        "buckets": _buckets_to_dict(r.aging.buckets),
+        "creditsCents": r.aging.credits_cents,
+        "oldestChargeAt": r.aging.oldest_charge_at,
+        "lastStatementAt": r.last_statement_at,
+        "lastStatementMethod": r.last_statement_method,
+    }
 
 
 @router.get("/reports/insurance-ar/claims", response_model=list[InsuranceARRow])
@@ -127,33 +146,108 @@ def _action_result(claim: Any) -> ClaimActionResult:
     "/reports/insurance-ar/claims/{claim_id}/accept",
     response_model=ClaimActionResult,
 )
-async def accept_underpayment(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
+async def write_off_underpayment(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     async with get_session_factory()() as session:
         await require_feature(session, practice_id, _FEATURE)
         try:
-            claim = await insurance_ar.accept_underpayment(session, practice_id, claim_id)
+            claim = await insurance_ar.write_off_underpayment(session, practice_id, claim_id)
         except LookupError:
             raise _err(404, "CLAIM_NOT_FOUND", "Claim not found") from None
         except ValueError:
             raise _err(409, "NOT_UNDERPAID", "Claim is not currently underpaid") from None
         return _action_result(claim)
+
+
+def _recon_row_to_dict(r: reconciliation.ReconciliationRow) -> dict[str, Any]:
+    return {
+        "claimId": r.claim_id,
+        "appointmentId": r.appointment_id,
+        "patientId": r.patient_id,
+        "claimNumber": r.claim_number,
+        "patientName": r.patient_name,
+        "payerId": r.payer_id,
+        "carrierName": r.carrier_name,
+        "reconLabel": r.recon_label,
+        "billedCents": r.billed_cents,
+        "estimatedInsuranceCents": r.estimated_insurance_cents,
+        "insurancePaidCents": r.insurance_paid_cents,
+        "varianceCents": r.variance_cents,
+        "hasEstimate": r.has_estimate,
+        "patientBalanceCents": r.patient_balance_cents,
+        "daysSinceEra": r.days_since_era,
+        "reconciliationConfirmedAt": (
+            r.reconciliation_confirmed_at.isoformat()
+            if r.reconciliation_confirmed_at
+            else None
+        ),
+    }
+
+
+@router.get("/reports/reconciliation/claims", response_model=list[ReconciliationRow])
+async def get_reconciliation_worklist(
+    request: Request,
+    confirmed: bool | None = None,
+) -> list[ReconciliationRow]:
+    practice_id = _require_practice_scope(request)
+    async with get_session_factory()() as session:
+        await require_feature(session, practice_id, _FEATURE)
+        rows = await reconciliation.get_reconciliation_worklist(
+            session, practice_id, confirmed=confirmed
+        )
+        return [ReconciliationRow.model_validate(_recon_row_to_dict(r)) for r in rows]
 
 
 @router.post(
-    "/reports/insurance-ar/claims/{claim_id}/appeal",
+    "/reports/reconciliation/claims/{claim_id}/confirm",
     response_model=ClaimActionResult,
 )
-async def flag_for_appeal(claim_id: uuid.UUID, request: Request) -> ClaimActionResult:
+async def confirm_reconciliation(
+    claim_id: uuid.UUID, request: Request
+) -> ClaimActionResult:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
     async with get_session_factory()() as session:
         await require_feature(session, practice_id, _FEATURE)
         try:
-            claim = await insurance_ar.flag_for_appeal(session, practice_id, claim_id)
+            claim = await reconciliation.confirm_reconciliation(
+                session, practice_id, claim_id
+            )
         except LookupError:
             raise _err(404, "CLAIM_NOT_FOUND", "Claim not found") from None
-        except ValueError:
-            raise _err(409, "NOT_UNDERPAID", "Claim is not currently underpaid") from None
+        except ValueError as exc:
+            raise _err(409, "CONFIRM_REJECTED", str(exc)) from None
         return _action_result(claim)
+
+
+@router.get("/reports/ar-summary", response_model=ARSummary)
+async def get_ar_summary(request: Request) -> ARSummary:
+    practice_id = _require_practice_scope(request)
+    async with get_session_factory()() as session:
+        await require_feature(session, practice_id, _FEATURE)
+        data = await reconciliation.get_ar_summary(session, practice_id)
+        return ARSummary.model_validate(
+            {
+                "insuranceArTotalCents": data.insurance_ar_total_cents,
+                "patientArTotalCents": data.patient_ar_total_cents,
+                "claimsNeedingAttention": data.claims_needing_attention,
+                "reconciliationPendingCount": data.reconciliation_pending_count,
+                "eraReconciliationMode": data.era_reconciliation_mode,
+            }
+        )
+
+
+@router.get("/reports/patient-aging", response_model=list[PatientAgingRow])
+async def get_patient_aging(
+    request: Request,
+    sort_by: patient_aging.SortBy = "balance",
+    min_balance_cents: int = Query(patient_aging.DEFAULT_MIN_BALANCE_CENTS, ge=0),
+) -> list[PatientAgingRow]:
+    practice_id = _require_practice_scope(request)
+    async with get_session_factory()() as session:
+        await require_feature(session, practice_id, _LEDGER_FEATURE)
+        rows = await patient_aging.get_patient_aging_worklist(
+            session, practice_id, min_balance_cents=min_balance_cents, sort_by=sort_by
+        )
+        return [PatientAgingRow.model_validate(_aging_row_to_dict(r)) for r in rows]

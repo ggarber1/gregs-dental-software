@@ -111,43 +111,63 @@ staging-verify:
 	@echo " SSM population steps are in DEV.md under 'First apply'."
 	@echo "======================================================"
 
-# staging-up: provision VPC endpoints + ElastiCache, start RDS + NAT instance, bring ECS to desired=1
+# staging-up: provision all ephemeral resources, start NAT + Whisper, bring ECS to desired=1.
+# Dependency order: vpc_endpoints → elasticache → rds → alb → security_groups
+#                   → lambda_workers → ecs → start NAT/Whisper → scale up ECS
 # Run from the repo root.
 staging-up:
-	@echo "==> [1/7] Provisioning VPC endpoints (~2 min)..."
+	@echo "==> [1/10] Provisioning VPC endpoints (~2 min)..."
 	cd $(STAGING_DIR) && terraform apply -target=module.vpc_endpoints -auto-approve
-	@echo "==> [2/7] Provisioning ElastiCache (~5 min)..."
+	@echo "==> [2/10] Provisioning ElastiCache (~5 min)..."
 	cd $(STAGING_DIR) && terraform apply -target=module.elasticache -auto-approve
-	@echo "==> [3/7] Starting RDS..."
-	-aws rds start-db-instance --db-instance-identifier dental-staging
-	@echo "==> [4/7] Starting NAT instance..."
+	@echo "==> [3/10] Provisioning RDS (~10 min)..."
+	cd $(STAGING_DIR) && terraform apply -target=module.rds -auto-approve
+	@echo "==> [4/10] Provisioning ALB..."
+	cd $(STAGING_DIR) && terraform apply -target=module.alb -auto-approve
+	@echo "==> [5/10] Provisioning security groups..."
+	cd $(STAGING_DIR) && terraform apply -target=module.security_groups -auto-approve
+	@echo "==> [6/10] Provisioning Lambda workers..."
+	cd $(STAGING_DIR) && terraform apply -target=module.lambda_workers -auto-approve
+	@echo "==> [7/10] Provisioning ECS cluster and services..."
+	cd $(STAGING_DIR) && terraform apply -target=module.ecs -auto-approve
+	@echo "==> [8/10] Starting NAT instance..."
 	-aws ec2 start-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw nat_instance_id)
-	@echo "==> [5/7] Starting Whisper EC2..."
+	@echo "==> [9/10] Starting Whisper EC2..."
 	-aws ec2 start-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw whisper_instance_id)
-	@echo "==> [6/7] Waiting for RDS to be available (~2 min)..."
-	aws rds wait db-instance-available --db-instance-identifier dental-staging
-	@echo "==> [7/7] Starting ECS services..."
+	@echo "==> [10/10] Starting ECS services..."
 	aws ecs update-service --cluster dental-staging --service dental-staging-api --desired-count 1
 	aws ecs update-service --cluster dental-staging --service dental-staging-web --desired-count 1
 	@echo ""
 	@echo "==> Staging is up!"
 	@cd $(STAGING_DIR) && echo "    ALB: http://$$(terraform output -raw alb_dns_name)"
 
-# staging-down: stop ECS, stop RDS, stop NAT instance, destroy ElastiCache + VPC endpoints
+# staging-down: destroy all ephemeral compute resources; nothing billed while idle.
+# Destroy order matters:
+#   lambda_workers before security_groups — Lambda VPC ENIs hold the worker SG;
+#   security_groups before ALB — SG rules reference the ALB SG;
+#   RDS before security_groups is not required, but doing it early is cleaner.
 # Run from the repo root.
 staging-down:
-	@echo "==> [1/6] Stopping ECS services..."
+	@echo "==> [1/10] Draining ECS services..."
 	-aws ecs update-service --cluster dental-staging --service dental-staging-api --desired-count 0
 	-aws ecs update-service --cluster dental-staging --service dental-staging-web --desired-count 0
-	@echo "==> [2/6] Stopping Whisper EC2..."
+	@echo "==> [2/10] Stopping Whisper EC2..."
 	-aws ec2 stop-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw whisper_instance_id)
-	@echo "==> [3/6] Stopping RDS..."
-	-aws rds stop-db-instance --db-instance-identifier dental-staging
-	@echo "==> [4/6] Stopping NAT instance..."
+	@echo "==> [3/10] Stopping NAT instance..."
 	-aws ec2 stop-instances --instance-ids $$(cd $(STAGING_DIR) && terraform output -raw nat_instance_id)
-	@echo "==> [5/6] Destroying ElastiCache (~3 min)..."
+	@echo "==> [4/10] Destroying ECS cluster and services..."
+	cd $(STAGING_DIR) && terraform destroy -target=module.ecs -auto-approve
+	@echo "==> [5/10] Destroying Lambda workers (releases worker SG ENIs)..."
+	cd $(STAGING_DIR) && terraform destroy -target=module.lambda_workers -auto-approve
+	@echo "==> [6/10] Destroying security groups (clears ALB SG references)..."
+	cd $(STAGING_DIR) && terraform destroy -target=module.security_groups -auto-approve
+	@echo "==> [7/10] Destroying ALB..."
+	cd $(STAGING_DIR) && terraform destroy -target=module.alb -auto-approve
+	@echo "==> [8/10] Destroying RDS (no snapshot)..."
+	cd $(STAGING_DIR) && terraform destroy -target=module.rds -auto-approve
+	@echo "==> [9/10] Destroying ElastiCache (~3 min)..."
 	cd $(STAGING_DIR) && terraform destroy -target=module.elasticache -auto-approve
-	@echo "==> [6/6] Destroying VPC endpoints (~2 min)..."
+	@echo "==> [10/10] Destroying VPC endpoints (~2 min)..."
 	cd $(STAGING_DIR) && terraform destroy -target=module.vpc_endpoints -auto-approve
 	@echo ""
-	@echo "==> Staging is down. Cost while idle: ~\$$2/mo (RDS storage only)."
+	@echo "==> Staging is down. Cost while idle: ~\$$0/mo."

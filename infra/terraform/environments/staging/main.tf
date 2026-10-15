@@ -102,6 +102,9 @@ module "rds" {
     module.security_groups.api_task_sg_id,
     module.security_groups.worker_sg_id,
   ]
+  # staging-down destroys and recreates this instance — no snapshot needed
+  deletion_protection = false
+  skip_final_snapshot = true
   tags = local.common_tags
 }
 

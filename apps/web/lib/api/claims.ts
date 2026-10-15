@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { apiClient, generateId } from "@/lib/api-client";
+import { apiClient, apiErrorMessage, generateId } from "@/lib/api-client";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -112,10 +113,14 @@ export function useResubmitClaim(claimId: string, appointmentId: string, patient
     mutationFn: () =>
       apiClient.post<Claim>(`/api/v1/claims/${claimId}/resubmit`, {}, { idempotencyKey: generateId() }),
     onSuccess: () => {
+      toast.success("Claim resubmitted — moved to Awaiting.");
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
       void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 }
@@ -130,10 +135,14 @@ export function useWriteOffClaim(claimId: string, appointmentId: string, patient
         { idempotencyKey: generateId() },
       ),
     onSuccess: () => {
+      toast.success("Claim written off.");
       void qc.invalidateQueries({ queryKey: claimsKeys.appointment(appointmentId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.patient(patientId) });
       void qc.invalidateQueries({ queryKey: claimsKeys.all });
       void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+    onError: (err) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 }

@@ -15,4 +15,5 @@ export * from "./schemas/copay.js";
 export * from "./schemas/claims.js";
 export * from "./schemas/era.js";
 export * from "./schemas/ledger.js";
+export * from "./schemas/statements.js";
 export * from "./schemas/attachments.js";

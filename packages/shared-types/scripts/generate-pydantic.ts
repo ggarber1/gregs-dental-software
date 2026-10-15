@@ -182,7 +182,16 @@ import {
   InsuranceARTotalsSchema,
   InsuranceARSummarySchema,
   ClaimActionResultSchema,
+  ReconciliationLabelSchema,
+  ReconciliationRowSchema,
+  ARSummarySchema,
 } from "../src/schemas/reports.js";
+import {
+  StatementDeliveryMethodSchema,
+  PatientAgingRowSchema,
+  PatientStatementSchema,
+  GenerateStatementRequestSchema,
+} from "../src/schemas/statements.js";
 
 // ── Schema registry ───────────────────────────────────────────────────────────
 const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
@@ -326,6 +335,15 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   InsuranceARTotals: InsuranceARTotalsSchema,
   InsuranceARSummary: InsuranceARSummarySchema,
   ClaimActionResult: ClaimActionResultSchema,
+  // ERA Reconciliation
+  ReconciliationLabel: ReconciliationLabelSchema,
+  ReconciliationRow: ReconciliationRowSchema,
+  ARSummary: ARSummarySchema,
+  // Patient Aging + Statements
+  StatementDeliveryMethod: StatementDeliveryMethodSchema,
+  PatientAgingRow: PatientAgingRowSchema,
+  PatientStatement: PatientStatementSchema,
+  GenerateStatementRequest: GenerateStatementRequestSchema,
 };
 
 // ── Paths ─────────────────────────────────────────────────────────────────────

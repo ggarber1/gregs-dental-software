@@ -52,9 +52,9 @@ def test_classify_draft_excluded():
     assert _classify("draft") is None
 
 
-def test_classify_appealing_first_even_with_payment():
-    # appealing wins even though there's a prior payment that looks underpaid
-    assert _classify("appealing", paid=200, estimate=1000) == "appealing"
+def test_classify_appealing_folded_into_problem():
+    # appealing is treated as problem — same queue, same actions
+    assert _classify("appealing", paid=200, estimate=1000) == "problem"
 
 
 def test_classify_problem_statuses():
@@ -92,7 +92,14 @@ def test_classify_reviewed_drops_to_done():
 def test_reason_denied_uses_codes():
     claim = SimpleNamespace(status="denied", denial_codes=["45", "B7"],
                             submission_errors=None, clearinghouse_status=None)
-    assert reason_for(claim) == "denied: 45, B7"
+    # 45 maps to a known description; B7 is unknown so falls back to "code B7"
+    assert reason_for(claim) == "denied — exceeds contracted rate · code B7"
+
+
+def test_reason_denied_no_codes():
+    claim = SimpleNamespace(status="denied", denial_codes=None,
+                            submission_errors=None, clearinghouse_status=None)
+    assert reason_for(claim) == "denied — contact the carrier for details"
 
 
 def test_reason_rejected_uses_submission_errors():
@@ -103,6 +110,16 @@ def test_reason_rejected_uses_submission_errors():
         clearinghouse_status="rejected",
     )
     assert reason_for(claim) == "Missing tooth number"
+
+
+def test_reason_appealing_returns_pending_appeal():
+    claim = SimpleNamespace(
+        status="appealing",
+        denial_codes=None,
+        submission_errors=None,
+        clearinghouse_status=None,
+    )
+    assert reason_for(claim) == "pending appeal"
 
 
 def test_reason_none_for_non_problem():
