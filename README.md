@@ -16,7 +16,9 @@ The dental PMS market is dominated by legacy, server-based software with outdate
 
 ## Build Strategy
 
-### Phase 0 — Discovery (current)
+> **Current status:** see [`longterm_build_plan.md`](longterm_build_plan.md) — the canonical roadmap and backlog. The phases below are the original strategy.
+
+### Phase 0 — Discovery (done)
 Talk to the practice before writing any code. Understand the real workflow, the real pain, and what would actually make them switch.
 
 ### Phase 1 — Full Replacement (MVP Core)

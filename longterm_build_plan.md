@@ -41,7 +41,7 @@ Replace the paper chart. The last thing keeping a practice on Eaglesoft.
 - ✅ Clinical Notes (per-visit, templates, sign-and-lock)
 - ✅ Digital Tooth Chart (SVG, condition tracking, history mode)
 - ✅ Treatment Planning (multi-item plans, open-plan queue)
-- 🔲 Perio Charting (6-point probing, comparison view, keyboard entry): Gonna merge but needs review
+- ✅ Perio Charting (6-point probing, comparison view, keyboard entry) — PRs #40, #45; still needs dad's review
 - 🔲 Offline Resilience Phase 1 (PWA app shell, read-only offline mode)
 - ✅ Practice Fee Schedule (CDT code catalog per practice) — delivered as **Module 3.6** in Phase 3 (full CDT catalog seeded + per-practice fee entry in Settings)
 - 🔲 Imaging Software Integration (local bridge agent launches imaging software with correct patient pre-selected — plan: `imaging_bridge_plan.md`)
