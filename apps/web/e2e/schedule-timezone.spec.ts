@@ -107,7 +107,8 @@ test.describe("Schedule — timezone rendering (Module 3.4.3)", () => {
 
     // Belt-and-suspenders: assert the event's top pixel is inside the row
     // labeled "2pm". FullCalendar labels slot times in the left gutter.
-    const twoPmLabel = page.locator(".fc-timegrid-slot-label-cushion", { hasText: /2\s?p/i }).first();
+    // Anchored so "12pm" doesn't match first.
+    const twoPmLabel = page.locator(".fc-timegrid-slot-label-cushion", { hasText: /^2\s?p/i }).first();
     const twoPmBox = await twoPmLabel.boundingBox();
     const eventBox = await event.boundingBox();
     expect(twoPmBox).not.toBeNull();

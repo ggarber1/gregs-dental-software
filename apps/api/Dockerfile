@@ -35,10 +35,11 @@ WORKDIR /app
 # Copy venv from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy application source and migration files
+# Copy application source, migration files, and one-off ops scripts (e2e seed)
 COPY app/ app/
 COPY alembic/ alembic/
 COPY alembic.ini .
+COPY scripts/ scripts/
 
 # Set PATH so venv binaries take precedence
 ENV PATH="/app/.venv/bin:$PATH" \

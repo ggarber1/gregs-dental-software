@@ -11,7 +11,8 @@
  *
  * Optional:
  *   COGNITO_USER_POOL_ID  — If set, ensures the Cognito user exists (creates if missing).
- *                           Required in CI; can be omitted locally if the user already exists.
+ *                           Needs AWS admin credentials. Not set in CI — the staging
+ *                           test user is pre-provisioned with custom:practice_id.
  *   AWS_REGION            — AWS region for Cognito (default: us-east-1)
  *   E2E_BASE_URL          — Override base URL (default: http://localhost:3000)
  */
@@ -72,7 +73,7 @@ async function ensureCognitoUser(email: string, password: string): Promise<void>
   }
 }
 
-async function runMigrations(): Promise<void> {
+function runMigrations(): void {
   const apiDir = path.resolve(__dirname, "../../..", "apps/api");
   try {
     execSync("uv run alembic upgrade head", { cwd: apiDir, stdio: "inherit" });
@@ -83,7 +84,11 @@ async function runMigrations(): Promise<void> {
 }
 
 export default async function globalSetup(config: FullConfig) {
-  await runMigrations();
+  // Remote targets (staging) are migrated by the deploy workflow; only a local
+  // stack needs it here.
+  if (!process.env.E2E_BASE_URL) {
+    runMigrations();
+  }
 
   const baseURL = config.projects[0]?.use.baseURL ?? "http://localhost:3000";
   const email = process.env.E2E_TEST_EMAIL;

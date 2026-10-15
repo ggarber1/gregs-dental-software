@@ -277,6 +277,15 @@ aws ssm put-parameter --name /dental/staging/app/encryption_key \
 # Generate a random secret key for the API
 aws ssm put-parameter --name /dental/staging/app/secret_key \
   --value "$(openssl rand -hex 32)" --type SecureString --overwrite
+
+# E2E test user — the deploy workflow seeds a practice, provider and operatory for
+# this user after migrations. Create a Cognito user (no MFA) with custom:practice_id
+# set, store its email/password as the E2E_TEST_EMAIL / E2E_TEST_PASSWORD GitHub
+# secrets, then record its sub and practice id here:
+aws ssm put-parameter --name /dental/staging/e2e/cognito_sub \
+  --value "<sub>" --type String --overwrite
+aws ssm put-parameter --name /dental/staging/e2e/practice_id \
+  --value "<custom:practice_id>" --type String --overwrite
 ```
 
 **Step 4 — Bring staging up:**
@@ -287,6 +296,14 @@ make staging-up
 ```
 
 Staging is now live. The ALB DNS name is printed at the end.
+
+`staging-down` destroys the ALB and the database, so after every `staging-up`:
+
+- The ALB has a new DNS name — update `/dental/staging/app/api_url` and
+  `/dental/staging/app/web_url` to `http://<new ALB DNS>` before deploying (the
+  API URL is baked into the web bundle at build time).
+- The database is empty — run the **Deploy Staging** workflow; it migrates and
+  re-seeds the e2e fixtures.
 
 **Step 5 — Verify everything is healthy:**
 

@@ -19,7 +19,7 @@ interface ApiHeaders {
 }
 
 function getApiHeaders(idempotencyKey?: string): ApiHeaders & Record<string, string> {
-  const state: AuthState = JSON.parse(fs.readFileSync(AUTH_STATE_PATH, "utf-8"));
+  const state = JSON.parse(fs.readFileSync(AUTH_STATE_PATH, "utf-8")) as AuthState;
   const cookie = state.cookies.find((c) => c.name === "dental-access-token");
   if (!cookie) throw new Error("dental-access-token cookie not found in storageState");
 
