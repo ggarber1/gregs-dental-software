@@ -200,9 +200,15 @@ jobs:
               "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].InstanceId' \
             --output text)
+          if [ "${INSTANCE_ID}" = "None" ]; then
+            # Whisper only backs ambient notes; a missing instance shouldn't block the deploy.
+            echo "::warning::No running dental-staging-whisper instance — skipping Whisper restart"
+            INSTANCE_ID=""
+          fi
           echo "instance_id=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Restart Whisper service
+        if: steps.whisper.outputs.instance_id != ''
         run: |
           CMD_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.whisper.outputs.instance_id }}" \
