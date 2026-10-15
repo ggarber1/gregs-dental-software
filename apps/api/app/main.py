@@ -21,6 +21,7 @@ from app.routers import (
     appointment_procedures,
     appointment_types,
     appointments,
+    attachments,
     claims,
     clinical_notes,
     contracted_fees,
@@ -145,6 +146,7 @@ def create_app() -> FastAPI:
     app.include_router(fee_schedule.router)
     app.include_router(contracted_fees.router)
     app.include_router(copay.router)
+    app.include_router(attachments.router)
     app.include_router(claims.router)
     app.include_router(era.router)
     app.include_router(reports.router)

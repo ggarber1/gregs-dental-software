@@ -109,3 +109,54 @@ def test_non_self_uses_insured_identity_for_subscriber():
     assert claim.subscriber_dob == date(1975, 3, 3)
     assert claim.patient_first_name == "John"     # patient stays the patient
     assert claim.relationship_to_insured == "child"
+
+
+# ── attachment_refs in builder ─────────────────────────────────────────────────
+
+
+def test_build_claim_input_with_attachment_refs_passes_through():
+    from app.services.claims.base import AttachmentRef
+    from app.services.claims.builder import build_claim_input
+
+    refs = [
+        AttachmentRef(
+            attachment_type="xray",
+            pwk01_code="B4",
+            stedi_attachment_id="stedi-abc",
+            attachment_control_number=None,
+        ),
+    ]
+    result = build_claim_input(
+        appt=_Appt(),
+        procedures=[_Proc("p1", "D0120", "Exam", 5000)],
+        patient=_Patient(),
+        insurance=_Insurance(),
+        payer_id="DELTA01",
+        practice=_Practice(),
+        provider=_Provider(),
+        billing_tax_id="123456789",
+        pcn="PCN001",
+        usage_indicator="T",
+        attachment_refs=refs,
+    )
+    assert len(result.attachment_refs) == 1
+    assert result.attachment_refs[0].pwk01_code == "B4"
+    assert result.attachment_refs[0].stedi_attachment_id == "stedi-abc"
+
+
+def test_build_claim_input_without_attachments_has_empty_refs():
+    from app.services.claims.builder import build_claim_input
+
+    result = build_claim_input(
+        appt=_Appt(),
+        procedures=[_Proc("p1", "D0120", "Exam", 5000)],
+        patient=_Patient(),
+        insurance=_Insurance(),
+        payer_id="DELTA01",
+        practice=_Practice(),
+        provider=_Provider(),
+        billing_tax_id="123456789",
+        pcn="PCN001",
+        usage_indicator="T",
+    )
+    assert result.attachment_refs == ()

@@ -152,7 +152,15 @@ import {
   CopayEstimateSchema,
   OverrideCopaySchema,
 } from "../src/schemas/copay.js";
-import { ClaimSchema, ClaimStatusSchema } from "../src/schemas/claims.js";
+import {
+  ClaimSchema,
+  ClaimStatusSchema,
+  ClaimSubmissionResultSchema,
+} from "../src/schemas/claims.js";
+import {
+  AttachmentTypeSchema,
+  AppointmentAttachmentSchema,
+} from "../src/schemas/attachments.js";
 import {
   ERARemittanceSchema,
   UnmatchedERAPaymentSchema,
@@ -304,6 +312,10 @@ const schemas: Record<string, Parameters<typeof zodToJsonSchema>[0]> = {
   // Claims
   ClaimStatus: ClaimStatusSchema,
   Claim: ClaimSchema,
+  ClaimSubmissionResult: ClaimSubmissionResultSchema,
+  // Attachments
+  AttachmentType: AttachmentTypeSchema,
+  AppointmentAttachment: AppointmentAttachmentSchema,
   // ERA
   ERARemittance: ERARemittanceSchema,
   UnmatchedERAPayment: UnmatchedERAPaymentSchema,

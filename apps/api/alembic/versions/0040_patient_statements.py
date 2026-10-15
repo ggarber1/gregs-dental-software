@@ -1,7 +1,7 @@
 """Patient statements (Module 8b) — append-only delivery record
 
-Revision ID: 0039
-Revises: 0038
+Revision ID: 0040
+Revises: 0039
 Create Date: 2026-09-18
 
 """
@@ -13,8 +13,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0039"
-down_revision: str | Sequence[str] | None = "0038"
+revision: str = "0040"
+down_revision: str | Sequence[str] | None = "0039"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

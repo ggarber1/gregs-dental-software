@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from app.services.claims.base import Address, ClaimLine, DentalClaimInput
+from app.services.claims.base import Address, AttachmentRef, ClaimLine, DentalClaimInput
 
 
 def _gender(sex: str | None) -> str:
@@ -37,6 +37,7 @@ def build_claim_input(
     usage_indicator: str,
     claim_frequency_code: str = "1",
     original_claim_reference: str | None = None,
+    attachment_refs: list[AttachmentRef] | None = None,
 ) -> DentalClaimInput:
     """Assemble a DentalClaimInput from already-fetched ORM rows (pure; no DB).
 
@@ -114,4 +115,5 @@ def build_claim_input(
         lines=lines,
         claim_frequency_code=claim_frequency_code,
         original_claim_reference=original_claim_reference,
+        attachment_refs=tuple(attachment_refs or []),
     )

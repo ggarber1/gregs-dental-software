@@ -38,6 +38,11 @@ class _FakeClient(ClearinghouseClient):
         self.calls += 1
         return self._result
 
+    async def upload_claim_attachment(
+        self, file_bytes: bytes, content_type: str
+    ) -> str:
+        return "fake-attachment-id"
+
 
 def _ok_result() -> ClaimResult:
     return ClaimResult(
@@ -96,13 +101,13 @@ async def _seed(session: AsyncSession):
 async def test_submits_and_persists_submitted(db_session: AsyncSession):
     practice, appt = await _seed(db_session)
     client = _FakeClient(_ok_result())
-    claim = await submit_claim_for_appointment(
+    result = await submit_claim_for_appointment(
         db_session, practice.id, appt.id,
         client=client, usage_indicator="T", user_sub="sub-1",
     )
-    assert claim.status == "submitted"
-    assert claim.clearinghouse_claim_id == "txn-1"
-    assert claim.total_charge_cents == 20000
+    assert result.claim.status == "submitted"
+    assert result.claim.clearinghouse_claim_id == "txn-1"
+    assert result.claim.total_charge_cents == 20000
     assert client.calls == 1
 
 
@@ -118,7 +123,7 @@ async def test_idempotent_second_call_returns_same_row(db_session: AsyncSession)
         db_session, practice.id, appt.id,
         client=client, usage_indicator="T", user_sub="sub-1",
     )
-    assert first.id == second.id
+    assert first.claim.id == second.claim.id
     assert client.calls == 1
 
 
@@ -129,12 +134,12 @@ async def test_rejected_result_marks_clearinghouse_rejected(db_session: AsyncSes
         accepted=False, clearinghouse_claim_id="txn-x", clearinghouse_status="REJECTED",
         errors=["Invalid member ID"], raw_request={}, raw_response={},
     )
-    claim = await submit_claim_for_appointment(
+    result = await submit_claim_for_appointment(
         db_session, practice.id, appt.id, client=_FakeClient(rejected),
         usage_indicator="T", user_sub="sub-1",
     )
-    assert claim.status == "clearinghouse_rejected"
-    assert claim.submission_errors == ["Invalid member ID"]
+    assert result.claim.status == "clearinghouse_rejected"
+    assert result.claim.submission_errors == ["Invalid member ID"]
 
 
 @pytest.mark.asyncio
@@ -157,13 +162,18 @@ class _RaisingClient(ClearinghouseClient):
     async def submit_dental_claim(self, claim, idempotency_key):
         raise ClaimSubmissionError("Stedi timeout", retryable=True)
 
+    async def upload_claim_attachment(
+        self, file_bytes: bytes, content_type: str
+    ) -> str:
+        return "fake-attachment-id"
+
 
 @pytest.mark.asyncio
 async def test_transport_error_marks_submission_failed(db_session: AsyncSession):
     practice, appt = await _seed(db_session)
-    claim = await submit_claim_for_appointment(
+    result = await submit_claim_for_appointment(
         db_session, practice.id, appt.id, client=_RaisingClient(),
         usage_indicator="T", user_sub="sub-1",
     )
-    assert claim.status == "submission_failed"
-    assert claim.submission_errors and "timeout" in claim.submission_errors[0].lower()
+    assert result.claim.status == "submission_failed"
+    assert result.claim.submission_errors and "timeout" in result.claim.submission_errors[0].lower()

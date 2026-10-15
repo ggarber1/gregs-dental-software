@@ -1,7 +1,7 @@
 """Add reconciliation_confirmed_at to claims; add automation_config to practices
 
-Revision ID: 0038
-Revises: 0037
+Revision ID: 0039
+Revises: 0038
 Create Date: 2026-07-27
 
 """
@@ -13,8 +13,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from alembic import op
 
-revision: str = "0038"
-down_revision: str | Sequence[str] | None = "0037"
+revision: str = "0039"
+down_revision: str | Sequence[str] | None = "0038"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
