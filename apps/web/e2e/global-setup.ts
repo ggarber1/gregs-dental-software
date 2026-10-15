@@ -73,7 +73,7 @@ async function ensureCognitoUser(email: string, password: string): Promise<void>
   }
 }
 
-async function runMigrations(): Promise<void> {
+function runMigrations(): void {
   const apiDir = path.resolve(__dirname, "../../..", "apps/api");
   try {
     execSync("uv run alembic upgrade head", { cwd: apiDir, stdio: "inherit" });
@@ -87,7 +87,7 @@ export default async function globalSetup(config: FullConfig) {
   // Remote targets (staging) are migrated by the deploy workflow; only a local
   // stack needs it here.
   if (!process.env.E2E_BASE_URL) {
-    await runMigrations();
+    runMigrations();
   }
 
   const baseURL = config.projects[0]?.use.baseURL ?? "http://localhost:3000";
