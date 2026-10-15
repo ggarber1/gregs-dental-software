@@ -21,7 +21,6 @@ jobs:
     outputs:
       web_url: ${{ steps.staging_urls.outputs.web_url }}
       api_url: ${{ steps.staging_urls.outputs.api_url }}
-      user_pool_id: ${{ steps.build_config.outputs.user_pool_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -140,7 +139,7 @@ jobs:
 
           echo "arn=${ARN}" >> "$GITHUB_OUTPUT"
 
-      - name: Look up network config for migration task
+      - name: Look up network config for one-off tasks
         id: network
         run: |
           SUBNET_ID=$(aws ec2 describe-subnets \
@@ -160,33 +159,23 @@ jobs:
 
       - name: Run Alembic migrations
         run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "${{ env.CLUSTER }}" \
-            --task-definition "${{ steps.api-task-def.outputs.arn }}" \
-            --overrides '{"containerOverrides":[{"name":"api","command":["alembic","upgrade","head"]}]}' \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.sg }}],assignPublicIp=DISABLED}" \
-            --launch-type FARGATE \
-            --query 'tasks[0].taskArn' \
-            --output text)
+          .github/scripts/run-ecs-task.sh "${{ env.CLUSTER }}" \
+            "${{ steps.api-task-def.outputs.arn }}" \
+            "${{ steps.network.outputs.subnet }}" "${{ steps.network.outputs.sg }}" \
+            alembic upgrade head
 
-          echo "Migration task ARN: ${TASK_ARN}"
-
-          aws ecs wait tasks-stopped \
-            --cluster "${{ env.CLUSTER }}" \
-            --tasks "$TASK_ARN"
-
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster "${{ env.CLUSTER }}" \
-            --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "Migration failed with exit code ${EXIT_CODE}"
-            exit 1
-          fi
-
-          echo "Migration succeeded"
+      # Staging's database is recreated empty by `make staging-up`; give the e2e
+      # Cognito user a practice, provider and operatory to test against. Idempotent.
+      - name: Seed e2e fixtures
+        run: |
+          COGNITO_SUB=$(aws ssm get-parameter --name /dental/staging/e2e/cognito_sub \
+            --query Parameter.Value --output text)
+          PRACTICE_ID=$(aws ssm get-parameter --name /dental/staging/e2e/practice_id \
+            --query Parameter.Value --output text)
+          .github/scripts/run-ecs-task.sh "${{ env.CLUSTER }}" \
+            "${{ steps.api-task-def.outputs.arn }}" \
+            "${{ steps.network.outputs.subnet }}" "${{ steps.network.outputs.sg }}" \
+            python -m scripts.seed_e2e_env --cognito-sub "$COGNITO_SUB" --practice-id "$PRACTICE_ID"
 
       - name: Deploy API service
         run: |
@@ -269,5 +258,4 @@ jobs:
     with:
       web_url: ${{ needs.deploy.outputs.web_url }}
       api_url: ${{ needs.deploy.outputs.api_url }}
-      cognito_user_pool_id: ${{ needs.deploy.outputs.user_pool_id }}
     secrets: inherit

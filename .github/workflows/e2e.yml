@@ -11,10 +11,6 @@ on:
         description: "Staging API URL"
         required: true
         type: string
-      cognito_user_pool_id:
-        description: "Cognito user pool ID (for idempotent test-user creation)"
-        required: true
-        type: string
   workflow_call:
     inputs:
       web_url:
@@ -23,10 +19,6 @@ on:
         type: string
       api_url:
         description: "Staging API URL"
-        required: true
-        type: string
-      cognito_user_pool_id:
-        description: "Cognito user pool ID (for idempotent test-user creation)"
         required: true
         type: string
     secrets:
@@ -62,7 +54,6 @@ jobs:
         env:
           E2E_BASE_URL: ${{ inputs.web_url }}
           E2E_API_URL: ${{ inputs.api_url }}
-          COGNITO_USER_POOL_ID: ${{ inputs.cognito_user_pool_id }}
           E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
         run: pnpm e2e
