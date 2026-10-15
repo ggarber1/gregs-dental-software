@@ -76,12 +76,16 @@ resource "aws_instance" "nat" {
 
   lifecycle {
     create_before_destroy = true
+    # most_recent AMI moves whenever Amazon publishes a new AL2023 build; without
+    # this every plan replaces the NAT, and an interrupted replacement leaves the
+    # private routes pointing at the old (stopped) instance.
+    ignore_changes = [ami]
   }
 }
 
 resource "aws_route" "private_nat" {
-  count                = length(var.private_route_table_ids)
-  route_table_id       = var.private_route_table_ids[count.index]
+  count                  = length(var.private_route_table_ids)
+  route_table_id         = var.private_route_table_ids[count.index]
   destination_cidr_block = "0.0.0.0/0"
-  network_interface_id = aws_instance.nat.primary_network_interface_id
+  network_interface_id   = aws_instance.nat.primary_network_interface_id
 }
