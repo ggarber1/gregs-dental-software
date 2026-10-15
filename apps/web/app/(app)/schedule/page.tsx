@@ -223,13 +223,16 @@ function SchedulePageContent() {
       ) : appt.noShowRisk === "medium" ? (
         <span className="text-yellow-500 mr-0.5">●</span>
       ) : null;
-    // Combine type + provider on one line to save vertical space
+    // Combine time + type + provider on one line to save vertical space
     const details = [appt.appointmentTypeName, appt.providerName].filter(Boolean).join(" · ");
     const durationMinutes = (new Date(appt.endTime).getTime() - new Date(appt.startTime).getTime()) / 60_000;
     return (
       <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-snug">
         <div className="font-semibold truncate">{riskDot}{glyph} {name}</div>
-        {details && <div className="truncate opacity-75">{details}</div>}
+        <div className="truncate opacity-75">
+          <span className="fc-event-time">{eventInfo.timeText}</span>
+          {details && ` · ${details}`}
+        </div>
         {shouldShowNotes(appt.notes, durationMinutes) && (
           <div className="truncate opacity-60 italic" title={appt.notes ?? undefined}>
             {appt.notes}
