@@ -66,7 +66,7 @@ test.describe("Staff intake flow", () => {
 
       await patientPage.getByPlaceholder("Jane", { exact: true }).fill("E2EUpdated");
       await patientPage.getByPlaceholder("Doe", { exact: true }).fill("StaffFlowPatient");
-      await patientPage.getByPlaceholder("1990-01-15").fill("1985-06-20");
+      await patientPage.locator('input[autocomplete="bday"]').fill("1985-06-20");
       await patientPage.getByPlaceholder("555-867-5309").fill("+19788180488");
       await patientPage.getByRole("button", { name: "Next" }).click();
 

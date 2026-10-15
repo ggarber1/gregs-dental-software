@@ -46,7 +46,7 @@ test.describe("Public intake form", () => {
     // ── Step 1: Personal Information ──────────────────────────────────────────
     await page.getByPlaceholder("Jane", { exact: true }).fill("E2E");
     await page.getByPlaceholder("Doe", { exact: true }).fill("TestPatient");
-    await page.getByPlaceholder("1990-01-15").fill("1985-06-20");
+    await page.locator('input[autocomplete="bday"]').fill("1985-06-20");
     await page.getByPlaceholder("555-867-5309").fill("+19788180488");
     await page.getByRole("button", { name: "Next" }).click();
 
@@ -77,7 +77,7 @@ test.describe("Public intake form", () => {
     // Complete the form
     await page.getByPlaceholder("Jane", { exact: true }).fill("E2E");
     await page.getByPlaceholder("Doe", { exact: true }).fill("TestPatient");
-    await page.getByPlaceholder("1990-01-15").fill("1985-06-20");
+    await page.locator('input[autocomplete="bday"]').fill("1985-06-20");
     await page.getByPlaceholder("555-867-5309").fill("+19788180488");
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Next" }).click();
