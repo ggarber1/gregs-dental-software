@@ -440,6 +440,7 @@ here.
 
 | Item | Source spec | Trigger / when |
 |---|---|---|
+| **"Copy link" for sent intake forms** — staff can't see or copy an intake form's URL; it only reaches the patient by SMS. If Twilio fails, the number is wrong, or A2P isn't approved, the form is undeliverable, and there's no way to open it on a front-desk tablet. Add a copy-link button per sent form on the patient page (the send response already returns `formUrl`). | Staging click-through, 2026-10-16 | Before onboarding the first practice (A2P approval may lag) |
 | Async eligibility batch (EventBridge→SQS→ECS worker) | `specs/...eligibility-verification-design.md` §9 | **Staging Checkpoint 5** (untestable locally; first live call from ECS) |
 | Appointment-slot eligibility badge | eligibility §9 | Bundle with Checkpoint 5 |
 | Verification-queue page (today's patients + status) | eligibility §9 | Bundle with Checkpoint 5 |
