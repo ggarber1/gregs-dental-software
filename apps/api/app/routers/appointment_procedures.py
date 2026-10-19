@@ -25,6 +25,7 @@ from app.schemas.generated import (
     ProcedureTotals,
     UpdateAppointmentProcedure,
 )
+from app.services.ledger.posting import sync_charges_if_completed
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +303,8 @@ async def create_procedure(
             last_accessed_at=datetime.now(UTC),
         )
         session.add(row)
+        await session.flush()
+        await sync_charges_if_completed(session, appt, user_sub=user_sub)
         await session.commit()
         await session.refresh(row)
     logger.info(
@@ -321,7 +324,7 @@ async def update_procedure(
     _require_write_role(request)
     user_sub = getattr(request.state.user, "sub", None)
     async with get_session_factory()() as session:
-        await _load_scoped_appointment(session, appointment_id, practice_id)
+        appt = await _load_scoped_appointment(session, appointment_id, practice_id)
         row = await _load_scoped_procedure(
             session, appointment_id, procedure_id, practice_id
         )
@@ -358,6 +361,8 @@ async def update_procedure(
         row.last_accessed_by = user_sub
         row.last_accessed_at = datetime.now(UTC)
         row.updated_at = datetime.now(UTC)
+        await session.flush()
+        await sync_charges_if_completed(session, appt, user_sub=user_sub)
         await session.commit()
         await session.refresh(row)
     return _proc_to_schema(row)
@@ -369,10 +374,13 @@ async def delete_procedure(
 ) -> None:
     practice_id = _require_practice_scope(request)
     _require_write_role(request)
+    user_sub = getattr(request.state.user, "sub", None)
     async with get_session_factory()() as session:
-        await _load_scoped_appointment(session, appointment_id, practice_id)
+        appt = await _load_scoped_appointment(session, appointment_id, practice_id)
         row = await _load_scoped_procedure(
             session, appointment_id, procedure_id, practice_id
         )
         row.deleted_at = datetime.now(UTC)
+        await session.flush()
+        await sync_charges_if_completed(session, appt, user_sub=user_sub)
         await session.commit()
