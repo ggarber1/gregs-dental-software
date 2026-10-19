@@ -39,3 +39,8 @@ output "github_actions_role_arn" {
   description = "Informational — the deploy workflows derive the role ARN from the AWS_ACCOUNT_ID secret"
   value       = module.github_oidc.role_arn
 }
+
+output "route53_name_servers" {
+  description = "NS records to add at the domain registrar. Empty when no domain is set or when reusing an existing zone."
+  value       = length(module.route53) > 0 ? module.route53[0].name_servers : []
+}
