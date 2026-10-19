@@ -75,7 +75,46 @@ module "alb" {
   domain_name       = var.domain_name
   # No deletion protection in staging — easier to tear down
   enable_deletion_protection = false
-  tags              = local.common_tags
+  tags                       = local.common_tags
+}
+
+# Static "coming soon" site. Always provisioned (idle cost ~$0).
+# When ready to launch, change route53.apex_alias below from module.static_site
+# to module.alb (or production CloudFront).
+module "static_site" {
+  count  = var.domain_name != "" ? 1 : 0
+  source = "../../modules/static-site"
+
+  env                 = local.env
+  bucket_name         = "dental-static-${local.env}"
+  aliases             = [var.domain_name]
+  acm_certificate_arn = module.alb.acm_certificate_arn
+
+  tags = local.common_tags
+}
+
+# DNS + ACM validation. Skipped entirely when domain_name is unset.
+module "route53" {
+  count  = var.domain_name != "" ? 1 : 0
+  source = "../../modules/route53"
+
+  env              = local.env
+  domain_name      = var.domain_name
+  create_zone      = var.create_dns_zone
+  existing_zone_id = var.existing_zone_id
+
+  acm_certificate_arn           = module.alb.acm_certificate_arn
+  acm_domain_validation_options = module.alb.acm_domain_validation_options
+
+  # Currently aliased to the maintenance page. To go live, swap to:
+  #   dns_name = module.alb.alb_dns_name
+  #   zone_id  = module.alb.alb_zone_id
+  apex_alias = {
+    dns_name = module.static_site[0].cloudfront_domain_name
+    zone_id  = module.static_site[0].cloudfront_hosted_zone_id
+  }
+
+  tags = local.common_tags
 }
 
 # App-tier security groups created here to break the circular dependency:
@@ -105,7 +144,7 @@ module "rds" {
   # staging-down destroys and recreates this instance — no snapshot needed
   deletion_protection = false
   skip_final_snapshot = true
-  tags = local.common_tags
+  tags                = local.common_tags
 }
 
 # ElastiCache is destroyed on staging-down and recreated on staging-up
@@ -149,19 +188,19 @@ module "whisper" {
 }
 
 module "ecs" {
-  source              = "../../modules/ecs"
-  env                 = local.env
-  vpc_id              = module.vpc.vpc_id
-  private_subnet_ids  = module.vpc.private_subnet_ids
-  api_task_sg_id      = module.security_groups.api_task_sg_id
-  web_task_sg_id      = module.security_groups.web_task_sg_id
-  alb_sg_id           = module.alb.alb_sg_id
-  api_target_group_arn = module.alb.api_target_group_arn
-  web_target_group_arn = module.alb.web_target_group_arn
-  ecr_api_repo_url    = module.ecr.api_repo_url
-  ecr_web_repo_url    = module.ecr.web_repo_url
-  kms_key_arn         = module.kms.key_arn
-  ssm_parameter_path  = module.ssm.parameter_path_prefix
+  source                   = "../../modules/ecs"
+  env                      = local.env
+  vpc_id                   = module.vpc.vpc_id
+  private_subnet_ids       = module.vpc.private_subnet_ids
+  api_task_sg_id           = module.security_groups.api_task_sg_id
+  web_task_sg_id           = module.security_groups.web_task_sg_id
+  alb_sg_id                = module.alb.alb_sg_id
+  api_target_group_arn     = module.alb.api_target_group_arn
+  web_target_group_arn     = module.alb.web_target_group_arn
+  ecr_api_repo_url         = module.ecr.api_repo_url
+  ecr_web_repo_url         = module.ecr.web_repo_url
+  kms_key_arn              = module.kms.key_arn
+  ssm_parameter_path       = module.ssm.parameter_path_prefix
   phi_documents_bucket_arn = module.s3.phi_documents_bucket_arn
   era_files_bucket_arn     = module.s3.era_files_bucket_arn
   exports_bucket_arn       = module.s3.exports_bucket_arn
@@ -178,19 +217,19 @@ module "ecs" {
 }
 
 module "lambda_workers" {
-  source             = "../../modules/lambda-workers"
-  env                = local.env
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  worker_sg_id       = module.security_groups.worker_sg_id
-  kms_key_arn        = module.kms.key_arn
-  ssm_parameter_path = module.ssm.parameter_path_prefix
-  reminders_queue_arn   = module.sqs.reminders_queue_arn
-  eligibility_queue_arn = module.sqs.eligibility_queue_arn
-  era_queue_arn         = module.sqs.era_queue_arn
+  source                   = "../../modules/lambda-workers"
+  env                      = local.env
+  vpc_id                   = module.vpc.vpc_id
+  private_subnet_ids       = module.vpc.private_subnet_ids
+  worker_sg_id             = module.security_groups.worker_sg_id
+  kms_key_arn              = module.kms.key_arn
+  ssm_parameter_path       = module.ssm.parameter_path_prefix
+  reminders_queue_arn      = module.sqs.reminders_queue_arn
+  eligibility_queue_arn    = module.sqs.eligibility_queue_arn
+  era_queue_arn            = module.sqs.era_queue_arn
   phi_documents_bucket_arn = module.s3.phi_documents_bucket_arn
   era_files_bucket_arn     = module.s3.era_files_bucket_arn
-  tags               = local.common_tags
+  tags                     = local.common_tags
 }
 
 module "cloudwatch" {

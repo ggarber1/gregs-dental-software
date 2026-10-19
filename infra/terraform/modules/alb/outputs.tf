@@ -29,3 +29,13 @@ output "api_target_group_arn_suffix" {
 output "web_target_group_arn" {
   value = aws_lb_target_group.web.arn
 }
+
+output "acm_certificate_arn" {
+  description = "Unvalidated ACM cert ARN. Empty when domain_name is unset."
+  value       = length(aws_acm_certificate.main) > 0 ? aws_acm_certificate.main[0].arn : ""
+}
+
+output "acm_domain_validation_options" {
+  description = "Pass to route53 module to create DNS validation records."
+  value       = length(aws_acm_certificate.main) > 0 ? aws_acm_certificate.main[0].domain_validation_options : []
+}

@@ -10,6 +10,18 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "create_dns_zone" {
+  description = "Create a new Route 53 hosted zone for domain_name. Set false to use an existing zone via existing_zone_id."
+  type        = bool
+  default     = true
+}
+
+variable "existing_zone_id" {
+  description = "Existing Route 53 zone ID. Used only when create_dns_zone = false."
+  type        = string
+  default     = ""
+}
+
 variable "alert_email" {
   description = "Email address for CloudWatch alarms"
   type        = string

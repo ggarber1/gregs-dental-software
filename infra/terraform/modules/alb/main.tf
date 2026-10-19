@@ -80,26 +80,19 @@ resource "aws_lb_target_group" "web" {
   tags = merge(var.tags, { Name = "dental-${var.env}-web-tg" })
 }
 
-# ACM cert — only when domain_name is set
+# ACM cert — only when domain_name is set.
+# Validation is performed by the route53 module, which owns the DNS records.
 resource "aws_acm_certificate" "main" {
-  count             = var.domain_name != "" ? 1 : 0
-  domain_name       = var.domain_name
+  count                     = var.domain_name != "" ? 1 : 0
+  domain_name               = var.domain_name
   subject_alternative_names = ["*.${var.domain_name}"]
-  validation_method = "DNS"
+  validation_method         = "DNS"
 
   tags = merge(var.tags, { Name = "dental-${var.env}-cert" })
 
   lifecycle {
     create_before_destroy = true
   }
-}
-
-resource "aws_acm_certificate_validation" "main" {
-  count           = var.domain_name != "" ? 1 : 0
-  certificate_arn = aws_acm_certificate.main[0].arn
-  # DNS validation records must be added manually — Terraform can't add them
-  # without a Route53 zone, which isn't managed here. Add the CNAME records
-  # shown in the AWS console before running apply with a domain_name set.
 }
 
 # HTTP listener:
@@ -174,7 +167,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.main[0].certificate_arn
+  certificate_arn   = aws_acm_certificate.main[0].arn
 
   default_action {
     type             = "forward"
