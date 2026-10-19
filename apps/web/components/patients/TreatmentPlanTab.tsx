@@ -644,10 +644,10 @@ function NewPlanForm({ patientId, onDone }: { patientId: string; onDone: () => v
         {items.map((item) => (
           <div
             key={item.key}
-            className="grid grid-cols-[3rem_6rem_1fr_5rem_auto_1.5rem] gap-2 items-center"
+            className="grid grid-cols-[4rem_6rem_1fr_5rem_auto_1.5rem] gap-2 items-center"
           >
             <Input
-              className="h-8 text-sm"
+              className="h-8 px-2 text-sm"
               placeholder="Tooth"
               value={item.toothNumber}
               onChange={(e) => setItemField(item.key, "toothNumber", e.target.value)}
