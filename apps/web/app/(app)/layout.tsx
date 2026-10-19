@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 
+import { SessionKeeper } from "@/components/auth/SessionKeeper";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
+      <SessionKeeper />
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />

@@ -9,6 +9,7 @@
  * Idempotency-Key header is required on all mutation methods (POST/PATCH/DELETE).
  */
 
+import { loginUrl, refreshSession } from "@/lib/auth/clientSession";
 import { getAccessToken, getPracticeId } from "@/lib/auth/cookies";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -57,19 +58,29 @@ async function throwApiError(response: Response): Promise<never> {
   throw new ApiError(response.status, errorBody);
 }
 
+/**
+ * Send a request; on 401 refresh the session and retry once. `send` must rebuild
+ * its headers so the retry carries the new token. Returns null after redirecting
+ * to login (session is gone), so callers stop processing.
+ */
+async function sendWithSessionRetry(send: () => Promise<Response>): Promise<Response | null> {
+  const first = await send();
+  if (first.status !== 401 || typeof window === "undefined") return first;
+  if (await refreshSession()) {
+    const retried = await send();
+    if (retried.status !== 401) return retried;
+  }
+  window.location.href = loginUrl(window.location.pathname + window.location.search);
+  return null;
+}
+
 /** GET a binary resource (PDF) with the same auth headers as JSON requests. */
 async function requestBlob(path: string): Promise<Blob> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "GET",
-    headers: authHeaders(),
-  });
-  if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.location.href = "/login";
-      return new Blob();
-    }
-    return throwApiError(response);
-  }
+  const response = await sendWithSessionRetry(() =>
+    fetch(`${API_BASE_URL}${path}`, { method: "GET", headers: authHeaders() }),
+  );
+  if (!response) return new Blob();
+  if (!response.ok) return throwApiError(response);
   return response.blob();
 }
 
@@ -79,25 +90,23 @@ async function request<T>(
   body?: unknown,
   options: RequestOptions = {},
 ): Promise<T> {
-  const headers = authHeaders({ "Content-Type": "application/json" });
-  if (options.idempotencyKey) {
-    headers["Idempotency-Key"] = options.idempotencyKey;
-  }
+  const buildHeaders = () => {
+    const headers = authHeaders({ "Content-Type": "application/json" });
+    // Same key on the retry, so a replayed mutation can't double-write.
+    if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
+    return headers;
+  };
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    ...(body !== undefined && { body: JSON.stringify(body) }),
-    ...(options.signal !== undefined && { signal: options.signal }),
-  });
-
-  if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.location.href = "/login";
-      return undefined as T;
-    }
-    return throwApiError(response);
-  }
+  const response = await sendWithSessionRetry(() =>
+    fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: buildHeaders(),
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+      ...(options.signal !== undefined && { signal: options.signal }),
+    }),
+  );
+  if (!response) return undefined as T;
+  if (!response.ok) return throwApiError(response);
 
   if (response.status === 204 || response.status === 205) {
     return undefined as T;

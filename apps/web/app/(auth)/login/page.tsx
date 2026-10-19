@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, confirmSignIn, signOut } from "aws-amplify/auth";
 
+import { saveSessionCookie, safeNextPath } from "@/lib/auth/clientSession";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -78,18 +79,12 @@ export default function LoginPage() {
       return;
     }
 
-    const res = await fetch("/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: idToken, refreshToken: "" }),
-    });
-
-    if (!res.ok) {
+    if (!(await saveSessionCookie(idToken))) {
       setError("Failed to establish session. Please try again.");
       return;
     }
 
-    router.push("/dashboard");
+    router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
   }
 
   return (

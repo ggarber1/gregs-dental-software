@@ -11,7 +11,7 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { signOut } from "aws-amplify/auth";
+import { clearSession } from "@/lib/auth/clientSession";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -67,12 +67,7 @@ export function Sidebar() {
   const router = useRouter();
 
   async function handleSignOut() {
-    try {
-      await signOut();
-    } catch {
-      // Non-fatal — proceed to clear cookies regardless.
-    }
-    await fetch("/auth/session", { method: "DELETE" });
+    await clearSession();
     router.push("/login");
   }
 

@@ -35,21 +35,21 @@ describe("middleware — route protection", () => {
       mockValidate.mockResolvedValue(null);
       const res = await middleware(makeReq("/dashboard"));
       expect(res.status).toBe(307);
-      expect(res.headers.get("location")).toBe(`${ORIGIN}/login`);
+      expect(res.headers.get("location")).toBe(`${ORIGIN}/login?next=%2Fdashboard`);
     });
 
     it("redirects /patients/123 to /login", async () => {
       mockValidate.mockResolvedValue(null);
       const res = await middleware(makeReq("/patients/123"));
       expect(res.status).toBe(307);
-      expect(res.headers.get("location")).toBe(`${ORIGIN}/login`);
+      expect(res.headers.get("location")).toBe(`${ORIGIN}/login?next=%2Fpatients%2F123`);
     });
 
     it("redirects /billing to /login", async () => {
       mockValidate.mockResolvedValue(null);
       const res = await middleware(makeReq("/billing"));
       expect(res.status).toBe(307);
-      expect(res.headers.get("location")).toBe(`${ORIGIN}/login`);
+      expect(res.headers.get("location")).toBe(`${ORIGIN}/login?next=%2Fbilling`);
     });
 
     it("passes through /login", async () => {

@@ -30,7 +30,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!isAuthenticated) {
-    return NextResponse.redirect(new URL("/login", nextUrl));
+    const login = new URL("/login", nextUrl);
+    login.searchParams.set("next", nextUrl.pathname + nextUrl.search);
+    return NextResponse.redirect(login);
   }
 
   return NextResponse.next();

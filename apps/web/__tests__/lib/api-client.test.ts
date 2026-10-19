@@ -5,8 +5,13 @@ vi.mock("@/lib/auth/cookies", () => ({
   getAccessToken: vi.fn(),
   getPracticeId: vi.fn(),
 }));
+vi.mock("@/lib/auth/clientSession", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/clientSession")>()),
+  refreshSession: vi.fn(),
+}));
 
 import { getAccessToken, getPracticeId } from "@/lib/auth/cookies";
+import { refreshSession } from "@/lib/auth/clientSession";
 import { apiClient, ApiError, apiErrorMessage } from "@/lib/api-client";
 
 const mockGetAccessToken = vi.mocked(getAccessToken);
@@ -241,5 +246,94 @@ describe("apiErrorMessage", () => {
 
   it("uses a generic message for non-Error values", () => {
     expect(apiErrorMessage("boom")).toBe("Something went wrong. Please try again.");
+  });
+});
+
+describe("apiClient — expired session (401)", () => {
+  const mockRefresh = vi.mocked(refreshSession);
+  let location: { href: string; pathname: string; search: string };
+
+  function respond(...statuses: number[]) {
+    const fetchMock = vi.fn<typeof fetch>();
+    for (const status of statuses) {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: status }), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    location = { href: "", pathname: "/schedule", search: "?date=2026-10-19" };
+    vi.stubGlobal("window", { location });
+    mockGetPracticeId.mockReturnValue(undefined);
+    mockGetAccessToken.mockReturnValueOnce("expired-token").mockReturnValue("fresh-token");
+    mockRefresh.mockReset();
+  });
+
+  it("refreshes once and retries the request with the new token", async () => {
+    mockRefresh.mockResolvedValue(true);
+    const fetchMock = respond(401, 200);
+
+    await expect(apiClient.get("/patients")).resolves.toEqual({ ok: 200 });
+
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryHeaders = fetchMock.mock.calls[1]![1]?.headers as Record<string, string>;
+    expect(retryHeaders["Authorization"]).toBe("Bearer fresh-token");
+    expect(location.href).toBe("");
+  });
+
+  it("reuses the idempotency key on the retried mutation", async () => {
+    mockRefresh.mockResolvedValue(true);
+    const fetchMock = respond(401, 201);
+
+    await apiClient.post("/patients", { firstName: "A" }, { idempotencyKey: "key-1" });
+
+    const keys = fetchMock.mock.calls.map(
+      ([, init]) => (init?.headers as Record<string, string>)["Idempotency-Key"],
+    );
+    expect(keys).toEqual(["key-1", "key-1"]);
+  });
+
+  it("sends the user to login with a return path when the retry is still 401", async () => {
+    mockRefresh.mockResolvedValue(true);
+    const fetchMock = respond(401, 401);
+
+    await apiClient.get("/patients");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(location.href).toBe("/login?next=%2Fschedule%3Fdate%3D2026-10-19");
+  });
+
+  it("does not retry when the refresh fails", async () => {
+    mockRefresh.mockResolvedValue(false);
+    const fetchMock = respond(401);
+
+    await apiClient.get("/patients");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(location.href).toBe("/login?next=%2Fschedule%3Fdate%3D2026-10-19");
+  });
+
+  it("leaves non-401 errors alone", async () => {
+    respond(403);
+
+    await expect(apiClient.get("/patients")).rejects.toBeInstanceOf(ApiError);
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("retries blob downloads the same way", async () => {
+    mockRefresh.mockResolvedValue(true);
+    const fetchMock = respond(401, 200);
+
+    await apiClient.getBlob("/statements/1/pdf");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(location.href).toBe("");
   });
 });
