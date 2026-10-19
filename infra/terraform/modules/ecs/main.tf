@@ -63,8 +63,8 @@ resource "aws_iam_role_policy" "task_execution_ssm" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = ["ssm:GetParameters", "ssm:GetParametersByPath"]
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameters", "ssm:GetParametersByPath"]
         Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/*"
       },
       {
@@ -119,8 +119,8 @@ resource "aws_iam_role_policy" "api_task" {
         Resource = var.sqs_queue_arns
       },
       {
-        Effect = "Allow"
-        Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
         Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/*"
       },
       {
@@ -168,9 +168,14 @@ resource "aws_ecs_task_definition" "api" {
       protocol      = "tcp"
     }]
 
+    # Names must match app/core/config.py Settings fields (API_ENV, S3_BUCKET_*);
+    # deployed envs refuse to start on missing or -local defaults.
     environment = [
-      { name = "ENV", value = var.env },
+      { name = "API_ENV", value = var.env },
       { name = "PORT", value = "8000" },
+      { name = "S3_BUCKET_PHI_DOCUMENTS", value = var.s3_bucket_names.phi_documents },
+      { name = "S3_BUCKET_ERA_FILES", value = var.s3_bucket_names.era_files },
+      { name = "S3_BUCKET_EXPORTS", value = var.s3_bucket_names.exports },
     ]
 
     secrets = [

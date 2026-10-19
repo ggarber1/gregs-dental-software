@@ -59,6 +59,15 @@ variable "exports_bucket_arn" {
   type = string
 }
 
+variable "s3_bucket_names" {
+  description = "Bucket names passed to the API container (it addresses buckets by name, not ARN)."
+  type = object({
+    phi_documents = string
+    era_files     = string
+    exports       = string
+  })
+}
+
 variable "sqs_queue_arns" {
   description = "SQS queue ARNs the API task can send messages to"
   type        = list(string)

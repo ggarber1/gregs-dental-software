@@ -1,6 +1,7 @@
 from functools import lru_cache
+from typing import Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,6 +76,25 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.api_env == "production"
+
+    @model_validator(mode="after")
+    def _require_deployed_config(self) -> Self:
+        """Crash at startup rather than run a deployed env on dev defaults."""
+        if self.api_env not in _DEPLOYED_ENVS:
+            return self
+        problems = [
+            f"{name} is a local-dev default"
+            for name in _BUCKET_FIELDS
+            if getattr(self, name).endswith("-local")
+        ] + [f"{name} is not set" for name in _REQUIRED_DEPLOYED_FIELDS if not getattr(self, name)]
+        if problems:
+            raise ValueError(f"Invalid config for API_ENV={self.api_env}: " + "; ".join(problems))
+        return self
+
+
+_DEPLOYED_ENVS = frozenset({"staging", "production"})
+_BUCKET_FIELDS = ("s3_bucket_phi_documents", "s3_bucket_era_files", "s3_bucket_exports")
+_REQUIRED_DEPLOYED_FIELDS = ("cognito_user_pool_id", "cognito_client_id", "app_encryption_key")
 
 
 @lru_cache
