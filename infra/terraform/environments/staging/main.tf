@@ -144,7 +144,7 @@ module "rds" {
   # staging-down destroys and recreates this instance — no snapshot needed
   deletion_protection = false
   skip_final_snapshot = true
-  tags = local.common_tags
+  tags                = local.common_tags
 }
 
 # ElastiCache is destroyed on staging-down and recreated on staging-up
