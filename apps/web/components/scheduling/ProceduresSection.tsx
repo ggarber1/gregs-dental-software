@@ -20,49 +20,26 @@ import {
   useCreateAppointmentProcedure,
   useDeleteAppointmentProcedure,
   formatCents,
-  prefillFeeDollars,
   type CdtCode,
-  type CreateAppointmentProcedureBody,
   type EstimateSource,
 } from "@/lib/api/procedures";
+import {
+  EMPTY_DRAFT,
+  buildCreateProcedureBody,
+  withCatalogCode,
+  withCodeText,
+  type DraftProcedure,
+} from "@/components/scheduling/procedureDraft";
 
 interface ProceduresSectionProps {
   appointmentId: string;
 }
-
-interface DraftProcedure {
-  procedureCode: string;
-  procedureName: string;
-  toothNumber: string;
-  surface: string;
-  fee: string;
-  insuranceEst: string;
-  patientEst: string;
-  estimateSource: EstimateSource | "";
-  notes: string;
-}
-
-const EMPTY_DRAFT: DraftProcedure = {
-  procedureCode: "",
-  procedureName: "",
-  toothNumber: "",
-  surface: "",
-  fee: "",
-  insuranceEst: "",
-  patientEst: "",
-  estimateSource: "",
-  notes: "",
-};
 
 const ESTIMATE_SOURCE_OPTIONS: { value: EstimateSource; label: string }[] = [
   { value: "manual", label: "Manual" },
   { value: "eligibility", label: "Eligibility" },
   { value: "prior_eob", label: "Prior EOB" },
 ];
-
-function dollarsToCents(value: string): number {
-  return Math.round(parseFloat(value) * 100);
-}
 
 export function ProceduresSection({ appointmentId }: ProceduresSectionProps) {
   const { data, isLoading } = useAppointmentProcedures(appointmentId);
@@ -82,18 +59,13 @@ export function ProceduresSection({ appointmentId }: ProceduresSectionProps) {
   }
 
   function handleCodeChange(value: string) {
-    setField("procedureCode", value);
+    setDraft((prev) => withCodeText(prev, value));
     setCodeQuery(value);
     setShowCodeDropdown(true);
   }
 
   function selectCdtCode(code: CdtCode) {
-    setDraft((prev) => ({
-      ...prev,
-      procedureCode: code.code,
-      procedureName: code.description,
-      fee: prefillFeeDollars(prev.fee, code.resolvedFeeCents),
-    }));
+    setDraft((prev) => withCatalogCode(prev, code));
     setShowCodeDropdown(false);
   }
 
@@ -107,19 +79,7 @@ export function ProceduresSection({ appointmentId }: ProceduresSectionProps) {
 
   async function handleAdd() {
     if (!canSubmit) return;
-    const body: CreateAppointmentProcedureBody = {
-      procedureCode: draft.procedureCode.trim(),
-      procedureName: draft.procedureName.trim(),
-      feeCents: dollarsToCents(draft.fee),
-    };
-    if (draft.toothNumber.trim()) body.toothNumber = draft.toothNumber.trim();
-    if (draft.surface.trim()) body.surface = draft.surface.trim();
-    if (draft.insuranceEst.trim()) body.insuranceEstCents = dollarsToCents(draft.insuranceEst);
-    if (draft.patientEst.trim()) body.patientEstCents = dollarsToCents(draft.patientEst);
-    if (draft.estimateSource) body.estimateSource = draft.estimateSource;
-    if (draft.notes.trim()) body.notes = draft.notes.trim();
-
-    await createProcedure.mutateAsync(body);
+    await createProcedure.mutateAsync(buildCreateProcedureBody(draft));
     setDraft(EMPTY_DRAFT);
     setCodeQuery("");
   }

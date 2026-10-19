@@ -226,6 +226,85 @@ async def test_patch_cannot_null_last_code(client, auth_headers, proc_appointmen
     assert r.status_code == 422, r.text
 
 
+# ── Catalog linking: procedureCode resolves to cdt_code_id ─────────────────────
+
+
+async def _catalog_id(client: AsyncClient, auth_headers, code: str) -> str:
+    resp = await client.get(f"/api/v1/cdt-codes?q={code}", headers=auth_headers)
+    return next(r["id"] for r in resp.json() if r["code"] == code)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.parametrize("typed", ["D0120", " d0120 "])
+async def test_create_with_code_only_links_catalog(
+    client, auth_headers, proc_appointment, typed
+):
+    url = f"/api/v1/appointments/{proc_appointment.id}/procedures"
+    r = await client.post(
+        url,
+        json={"procedureCode": typed, "procedureName": "Periodic exam", "feeCents": 5000},
+        headers=mut(auth_headers),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["cdtCodeId"] == await _catalog_id(client, auth_headers, "D0120")
+    assert r.json()["procedureCode"] == "D0120"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_create_with_unknown_code_stays_free_text(client, auth_headers, proc_appointment):
+    url = f"/api/v1/appointments/{proc_appointment.id}/procedures"
+    r = await client.post(
+        url,
+        json={"procedureCode": "D9999X", "procedureName": "Custom", "feeCents": 1000},
+        headers=mut(auth_headers),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["cdtCodeId"] is None
+    assert r.json()["procedureCode"] == "D9999X"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_create_with_cdt_code_id_links_catalog(client, auth_headers, proc_appointment):
+    url = f"/api/v1/appointments/{proc_appointment.id}/procedures"
+    cdt_id = await _catalog_id(client, auth_headers, "D1110")
+    r = await client.post(
+        url,
+        json={"cdtCodeId": cdt_id, "procedureName": "Prophy", "feeCents": 12000},
+        headers=mut(auth_headers),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["cdtCodeId"] == cdt_id
+    assert r.json()["procedureCode"] == "D1110"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_patch_code_relinks_or_unlinks(client, auth_headers, proc_appointment):
+    url = f"/api/v1/appointments/{proc_appointment.id}/procedures"
+    created = await client.post(
+        url,
+        json={"procedureCode": "D0120", "procedureName": "Exam", "feeCents": 5000},
+        headers=mut(auth_headers),
+    )
+    pid = created.json()["id"]
+
+    relinked = await client.patch(
+        f"{url}/{pid}", json={"procedureCode": "D0150"}, headers=mut(auth_headers)
+    )
+    assert relinked.status_code == 200, relinked.text
+    assert relinked.json()["cdtCodeId"] == await _catalog_id(client, auth_headers, "D0150")
+
+    unlinked = await client.patch(
+        f"{url}/{pid}", json={"procedureCode": "D9999X"}, headers=mut(auth_headers)
+    )
+    assert unlinked.status_code == 200, unlinked.text
+    assert unlinked.json()["cdtCodeId"] is None
+    assert unlinked.json()["procedureCode"] == "D9999X"
+
+
 # ── Sub-task E: cross-practice authz + appointment-delete cascade ──────────────
 
 
