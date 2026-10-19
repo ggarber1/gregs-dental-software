@@ -27,8 +27,14 @@ _P_KEY = "app.middleware.auth._get_public_key"
 _P_DECODE = "app.middleware.auth.jwt.decode"
 
 
-async def _seed(session: AsyncSession, *, billing_ledger: bool, with_procedure: bool = True):
-    """Seed a practice (+admin user), patient, an in_chair appointment, and (when
+async def _seed(
+    session: AsyncSession,
+    *,
+    billing_ledger: bool,
+    with_procedure: bool = True,
+    status: str = "in_chair",
+):
+    """Seed a practice (+admin user), patient, an appointment in `status`, and (when
     `with_procedure`) one procedure (fee_cents=12000).
     Returns (practice, user, cognito_sub, appointment)."""
     practice = Practice(
@@ -73,7 +79,7 @@ async def _seed(session: AsyncSession, *, billing_ledger: bool, with_procedure: 
         patient_id=patient.id,
         start_time=start,
         end_time=start + timedelta(minutes=30),
-        status="in_chair",
+        status=status,
     )
     session.add(appointment)
     await session.flush()
@@ -199,3 +205,130 @@ async def test_checkout_with_no_procedures_posts_no_charge(
     body = ledger_resp.json()
     assert body["balanceCents"] == 0
     assert body["entries"] == []
+
+
+# ── Procedures changed after checkout (completed appointment) ─────────────────
+
+
+async def _ledger_entries(session: AsyncSession, patient_id: uuid.UUID) -> list[LedgerEntry]:
+    return list(
+        (
+            await session.scalars(
+                select(LedgerEntry)
+                .where(LedgerEntry.patient_id == patient_id)
+                .order_by(LedgerEntry.posted_at, LedgerEntry.id)
+            )
+        ).all()
+    )
+
+
+def _balance(entries: list[LedgerEntry]) -> int:
+    return sum(e.amount_cents for e in entries)
+
+
+async def _completed_with_procedure(
+    client: AsyncClient, db_session: AsyncSession, *, billing_ledger: bool = True
+):
+    """A completed appointment, then one procedure added through the API."""
+    practice, user, sub, appt = await _seed(
+        db_session, billing_ledger=billing_ledger, with_procedure=False, status="completed"
+    )
+    headers = {"Authorization": "Bearer test-token", "X-Practice-ID": str(practice.id)}
+    h1, h2, h3 = _auth(sub, user.email)
+    with h1, h2, h3:
+        resp = await client.post(
+            f"/api/v1/appointments/{appt.id}/procedures",
+            headers=mut(headers),
+            json={"procedureCode": "D0120", "procedureName": "Exam", "feeCents": 12000},
+        )
+    assert resp.status_code == 201, resp.text
+    return practice, user, sub, appt, headers, resp.json()["id"]
+
+
+async def test_procedure_added_after_completion_is_charged(
+    client: AsyncClient, db_session: AsyncSession
+):
+    _, _, _, appt, _, _ = await _completed_with_procedure(client, db_session)
+
+    entries = await _ledger_entries(db_session, appt.patient_id)
+    assert [(e.entry_type, e.amount_cents) for e in entries] == [("charge", 12000)]
+
+
+async def test_fee_edit_after_completion_reverses_and_reposts(
+    client: AsyncClient, db_session: AsyncSession
+):
+    _, user, sub, appt, headers, proc_id = await _completed_with_procedure(client, db_session)
+    h1, h2, h3 = _auth(sub, user.email)
+    with h1, h2, h3:
+        resp = await client.patch(
+            f"/api/v1/appointments/{appt.id}/procedures/{proc_id}",
+            headers=mut(headers),
+            json={"feeCents": 9000},
+        )
+    assert resp.status_code == 200, resp.text
+
+    entries = await _ledger_entries(db_session, appt.patient_id)
+    assert sorted(e.amount_cents for e in entries) == [-12000, 9000, 12000]
+    assert _balance(entries) == 9000
+
+
+async def test_delete_after_completion_reverses_charge(
+    client: AsyncClient, db_session: AsyncSession
+):
+    _, user, sub, appt, headers, proc_id = await _completed_with_procedure(client, db_session)
+    h1, h2, h3 = _auth(sub, user.email)
+    with h1, h2, h3:
+        resp = await client.delete(
+            f"/api/v1/appointments/{appt.id}/procedures/{proc_id}", headers=mut(headers)
+        )
+    assert resp.status_code == 204, resp.text
+
+    entries = await _ledger_entries(db_session, appt.patient_id)
+    assert sorted(e.amount_cents for e in entries) == [-12000, 12000]
+    assert _balance(entries) == 0
+
+
+async def test_non_fee_edit_after_completion_posts_nothing_new(
+    client: AsyncClient, db_session: AsyncSession
+):
+    _, user, sub, appt, headers, proc_id = await _completed_with_procedure(client, db_session)
+    h1, h2, h3 = _auth(sub, user.email)
+    with h1, h2, h3:
+        resp = await client.patch(
+            f"/api/v1/appointments/{appt.id}/procedures/{proc_id}",
+            headers=mut(headers),
+            json={"notes": "patient tolerated well"},
+        )
+    assert resp.status_code == 200, resp.text
+
+    entries = await _ledger_entries(db_session, appt.patient_id)
+    assert [(e.entry_type, e.amount_cents) for e in entries] == [("charge", 12000)]
+
+
+async def test_procedure_on_open_appointment_posts_nothing(
+    client: AsyncClient, db_session: AsyncSession
+):
+    practice, user, sub, appt = await _seed(
+        db_session, billing_ledger=True, with_procedure=False, status="in_chair"
+    )
+    headers = {"Authorization": "Bearer test-token", "X-Practice-ID": str(practice.id)}
+    h1, h2, h3 = _auth(sub, user.email)
+    with h1, h2, h3:
+        resp = await client.post(
+            f"/api/v1/appointments/{appt.id}/procedures",
+            headers=mut(headers),
+            json={"procedureCode": "D0120", "procedureName": "Exam", "feeCents": 12000},
+        )
+    assert resp.status_code == 201, resp.text
+
+    assert await _ledger_entries(db_session, appt.patient_id) == []
+
+
+async def test_procedure_after_completion_skips_ledger_when_feature_disabled(
+    client: AsyncClient, db_session: AsyncSession
+):
+    _, _, _, appt, _, _ = await _completed_with_procedure(
+        client, db_session, billing_ledger=False
+    )
+
+    assert await _ledger_entries(db_session, appt.patient_id) == []

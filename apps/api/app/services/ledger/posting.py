@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.features import feature_enabled
+from app.models.appointment import Appointment
 from app.models.appointment_procedure import AppointmentProcedure
 from app.models.ledger_entry import LedgerEntry
+from app.models.practice import Practice
 from app.services.ledger.balance import unreversed_entry_where
 
 
@@ -233,6 +236,25 @@ async def reconcile_charges_for_appointment(
             changed = True
     if changed:
         await session.commit()
+
+
+async def sync_charges_if_completed(
+    session: AsyncSession, appointment: Appointment, *, user_sub: str | None = None
+) -> None:
+    """Reconcile ledger charges for a checked-out appointment.
+
+    Call after any change to a completed appointment or its procedures, in the same
+    transaction. No-op unless the appointment is `completed`, has a patient, and the
+    practice has `billing_ledger` on (soft gate — never blocks the caller).
+    """
+    if appointment.status != "completed" or appointment.patient_id is None:
+        return
+    practice = await session.get(Practice, appointment.practice_id)
+    if not feature_enabled(practice, "billing_ledger"):
+        return
+    await reconcile_charges_for_appointment(
+        session, cast(LedgerAppointment, appointment), user_sub=user_sub
+    )
 
 
 async def _insurance_entry_exists(
