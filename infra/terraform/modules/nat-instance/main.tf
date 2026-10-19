@@ -79,7 +79,10 @@ resource "aws_instance" "nat" {
     # most_recent AMI moves whenever Amazon publishes a new AL2023 build; without
     # this every plan replaces the NAT, and an interrupted replacement leaves the
     # private routes pointing at the old (stopped) instance.
-    ignore_changes = [ami]
+    # A stopped instance releases its public IP, so AWS reports
+    # associate_public_ip_address = false between staging-down and staging-up;
+    # without ignoring it, any full apply in that window replaces the NAT.
+    ignore_changes = [ami, associate_public_ip_address]
   }
 }
 
