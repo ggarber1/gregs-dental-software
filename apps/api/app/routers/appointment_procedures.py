@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session_factory
@@ -139,6 +139,20 @@ def _resolve_code_fields(body: CreateAppointmentProcedure) -> str | None:
     return body.procedure_code
 
 
+async def _find_catalog_code(session: AsyncSession, code: str | None) -> CdtCodeModel | None:
+    """Exact (case/whitespace-insensitive) match against the active CDT catalog."""
+    if not code or not code.strip():
+        return None
+    match: CdtCodeModel | None = await session.scalar(
+        select(CdtCodeModel).where(
+            func.upper(CdtCodeModel.code) == code.strip().upper(),
+            CdtCodeModel.is_active.is_(True),
+            CdtCodeModel.deleted_at.is_(None),
+        )
+    )
+    return match
+
+
 @cdt_router.get("", response_model=list[CdtCode])
 async def search_cdt_codes(request: Request, q: str | None = None) -> list[CdtCode]:
     practice_id = _require_practice_scope(request)
@@ -264,12 +278,17 @@ async def create_procedure(
                 )
             if not procedure_code:
                 procedure_code = cdt.code
+        cdt_code_id = body.cdt_code_id
+        if cdt_code_id is None:
+            catalog = await _find_catalog_code(session, procedure_code)
+            if catalog is not None:
+                cdt_code_id, procedure_code = catalog.id, catalog.code
         row = ProcedureModel(
             id=uuid.uuid4(),
             practice_id=practice_id,
             appointment_id=appointment_id,
             patient_id=appt.patient_id,
-            cdt_code_id=body.cdt_code_id,
+            cdt_code_id=cdt_code_id,
             procedure_code=procedure_code,
             procedure_name=body.procedure_name,
             tooth_number=body.tooth_number,
@@ -321,6 +340,13 @@ async def update_procedure(
         ):
             if attr in data:
                 setattr(row, attr, data[attr])
+        if "procedure_code" in data and "cdt_code_id" not in data:
+            # Re-link to the edited code (or unlink) so the row never carries a
+            # code that disagrees with its catalog link.
+            catalog = await _find_catalog_code(session, row.procedure_code)
+            row.cdt_code_id = catalog.id if catalog is not None else None
+            if catalog is not None:
+                row.procedure_code = catalog.code
         if row.cdt_code_id is None and not row.procedure_code:
             raise HTTPException(
                 status_code=422,
