@@ -138,6 +138,11 @@ module "ecs" {
   phi_documents_bucket_arn = module.s3.phi_documents_bucket_arn
   era_files_bucket_arn     = module.s3.era_files_bucket_arn
   exports_bucket_arn       = module.s3.exports_bucket_arn
+  s3_bucket_names = {
+    phi_documents = module.s3.phi_documents_bucket
+    era_files     = module.s3.era_files_bucket
+    exports       = module.s3.exports_bucket
+  }
   sqs_queue_arns = [
     module.sqs.reminders_queue_arn,
     module.sqs.eligibility_queue_arn,
