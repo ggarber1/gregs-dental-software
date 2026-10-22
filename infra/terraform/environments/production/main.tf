@@ -155,19 +155,20 @@ module "ecs" {
 }
 
 module "lambda_workers" {
-  source                   = "../../modules/lambda-workers"
-  env                      = local.env
-  vpc_id                   = module.vpc.vpc_id
-  private_subnet_ids       = module.vpc.private_subnet_ids
-  worker_sg_id             = module.security_groups.worker_sg_id
-  kms_key_arn              = module.kms.key_arn
-  ssm_parameter_path       = module.ssm.parameter_path_prefix
-  reminders_queue_arn      = module.sqs.reminders_queue_arn
-  eligibility_queue_arn    = module.sqs.eligibility_queue_arn
-  era_queue_arn            = module.sqs.era_queue_arn
-  phi_documents_bucket_arn = module.s3.phi_documents_bucket_arn
-  era_files_bucket_arn     = module.s3.era_files_bucket_arn
-  tags                     = local.common_tags
+  source             = "../../modules/lambda-workers"
+  env                = local.env
+  private_subnet_ids = module.vpc.private_subnet_ids
+  worker_sg_id       = module.security_groups.worker_sg_id
+  kms_key_arn        = module.kms.key_arn
+  ssm_parameter_path = module.ssm.parameter_path_prefix
+  ecr_api_repo_url   = module.ecr.api_repo_url
+  image_tag          = "${local.env}-latest"
+  s3_bucket_names = {
+    phi_documents = module.s3.phi_documents_bucket
+    era_files     = module.s3.era_files_bucket
+    exports       = module.s3.exports_bucket
+  }
+  tags = local.common_tags
 }
 
 # Production-only: WAF attached to ALB
@@ -244,9 +245,8 @@ module "cloudwatch" {
   reminders_dlq_name          = module.sqs.reminders_dlq_name
   eligibility_dlq_name        = module.sqs.eligibility_dlq_name
   era_dlq_name                = module.sqs.era_dlq_name
-  reminder_worker_fn          = module.lambda_workers.reminder_function_name
-  eligibility_worker_fn       = module.lambda_workers.eligibility_function_name
-  era_worker_fn               = module.lambda_workers.era_function_name
+  reminder_worker_fn          = module.lambda_workers.reminders_function_name
+  risk_scoring_worker_fn      = module.lambda_workers.risk_scoring_function_name
   tags                        = local.common_tags
 }
 

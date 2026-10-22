@@ -2,10 +2,6 @@ variable "env" {
   type = string
 }
 
-variable "vpc_id" {
-  type = string
-}
-
 variable "private_subnet_ids" {
   type = list(string)
 }
@@ -22,24 +18,22 @@ variable "ssm_parameter_path" {
   type = string
 }
 
-variable "reminders_queue_arn" {
-  type = string
+variable "ecr_api_repo_url" {
+  description = "ECR repository of the API image the workers run."
+  type        = string
 }
 
-variable "eligibility_queue_arn" {
-  type = string
+variable "image_tag" {
+  description = "Initial image tag; the deploy workflow updates the functions afterwards."
+  type        = string
 }
 
-variable "era_queue_arn" {
-  type = string
-}
-
-variable "phi_documents_bucket_arn" {
-  type = string
-}
-
-variable "era_files_bucket_arn" {
-  type = string
+variable "s3_bucket_names" {
+  type = object({
+    phi_documents = string
+    era_files     = string
+    exports       = string
+  })
 }
 
 variable "tags" {

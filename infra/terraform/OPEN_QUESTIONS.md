@@ -28,7 +28,7 @@
 - **ElastiCache:** Single node (`cache.t4g.micro`). Cluster mode not needed for MVP scale.
 
 ### Compute
-- **Workers:** `reminder-worker`, `eligibility-worker`, `era-worker` -> Lambda with SQS triggers (not Fargate). Pay per invocation, scale to zero, simpler ops. Fargate only for `api` and `web`.
+- **Workers (revised 2026-10-22):** two scheduled Lambdas running the API container image (`awslambdaric` entry point): `reminders` every 15 min (claims due rows straight from `appointment_reminders` with `FOR UPDATE SKIP LOCKED` — no SQS) and `risk-scoring` nightly. Settings: non-secret env on the function; secrets read from SSM at cold start (`app/core/lambda_config.py`). Scale to zero, cost scales with practices. Eligibility/ERA run synchronously in the API; add workers only when needed. Fargate only for `api` and `web`.
 - **Lambda runtime:** Python 3.12 (matches API).
 - **ECS task sizing (MVP, no autoscaling):**
   - `api`: 512 CPU / 1024 MB

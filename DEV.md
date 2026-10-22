@@ -79,6 +79,15 @@ cd apps/web
 pnpm dev
 ```
 
+**Background workers** run on AWS Lambda on a schedule (reminders every 15 min,
+risk scoring nightly). Locally, run one pass by hand:
+
+```bash
+cd apps/api
+uv run python -m app.workers.reminder_worker      # send reminders that are due
+uv run python -m app.workers.risk_scoring_worker  # score next 7 days of appointments
+```
+
 ## Codegen (Zod → Pydantic)
 
 Run whenever you change anything in `packages/shared-types/src/schemas/`:

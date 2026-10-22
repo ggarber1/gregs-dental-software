@@ -175,6 +175,16 @@ jobs:
             --service "${{ env.API_SERVICE }}" \
             --task-definition "${{ steps.api-task-def.outputs.arn }}"
 
+      - name: Update worker Lambdas
+        run: |
+          for fn in dental-reminders-worker-production dental-risk-scoring-worker-production; do
+            aws lambda update-function-code \
+              --function-name "$fn" \
+              --image-uri "${{ steps.images.outputs.api }}" > /dev/null
+            aws lambda wait function-updated-v2 --function-name "$fn"
+            echo "Updated $fn"
+          done
+
       - name: Deploy Web service
         run: |
           aws ecs update-service \
