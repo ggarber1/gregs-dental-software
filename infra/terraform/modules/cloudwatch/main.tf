@@ -101,23 +101,23 @@ resource "aws_cloudwatch_metric_alarm" "dlq_depth" {
   tags          = var.tags
 }
 
-# Lambda worker error rates
+# Scheduled worker failures. Reminders run every 15 min and risk scoring nightly,
+# so alert on any failed run rather than an error rate.
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   for_each = {
-    reminder    = var.reminder_worker_fn
-    eligibility = var.eligibility_worker_fn
-    era         = var.era_worker_fn
+    reminders    = var.reminder_worker_fn
+    risk-scoring = var.risk_scoring_worker_fn
   }
 
   alarm_name          = "dental-${var.env}-${each.key}-worker-errors"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 2
+  evaluation_periods  = 1
   metric_name         = "Errors"
   namespace           = "AWS/Lambda"
-  period              = 300
+  period              = 900
   statistic           = "Sum"
-  threshold           = 5
-  alarm_description   = "${each.key} worker > 5 errors in 10 minutes"
+  threshold           = 0
+  alarm_description   = "${each.key} worker run failed"
   treat_missing_data  = "notBreaching"
 
   dimensions = {

@@ -1,19 +1,30 @@
+"""Scheduled reminder sender.
+
+Each run claims due reminders straight from appointment_reminders (no queue), sends
+them, and records the outcome. Safe to run concurrently and after crashes:
+- claiming uses FOR UPDATE SKIP LOCKED, so overlapping runs never take the same row;
+- a claim ("enqueued" + claimed_at) older than the lease is reclaimed by a later run;
+- a reminder that already has a Twilio SID is marked sent, never sent twice;
+- outcomes are written only while the row is still "enqueued", so a cancellation
+  that lands mid-send wins.
+
+Runs on AWS Lambda every 15 minutes (app.workers.lambda_handlers.reminders) or
+locally with `python -m app.workers.reminder_worker` (one pass).
+"""
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import joinedload
 
-from app.core.config import get_settings
-from app.core.db import get_session_factory
-from app.core.sqs import delete_message_sync, enqueue_message_sync, poll_messages_sync
 from app.models.appointment import Appointment
 from app.models.appointment_reminder import AppointmentReminder
 from app.models.patient import Patient
@@ -29,156 +40,141 @@ from app.services.sms import send_sms
 
 logger = logging.getLogger(__name__)
 
-_SCHEDULER_INTERVAL_SECONDS = 300  # 5 minutes
-_LOOK_AHEAD_MINUTES = 10
+BATCH_LIMIT = 200
+CLAIM_LEASE = timedelta(minutes=15)
+_INACTIVE_APPOINTMENT_STATUSES = frozenset({"cancelled", "no_show"})
 
 
-async def run() -> None:
-    logger.info("Reminder worker starting")
-    await asyncio.gather(
-        _scheduler_loop(),
-        _sqs_poll_loop(),
+@dataclass
+class ReminderRunSummary:
+    claimed: int = 0
+    sent: int = 0
+    skipped: int = 0
+    failed: int = 0
+
+
+async def send_due_reminders(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    limit: int = BATCH_LIMIT,
+    lease: timedelta = CLAIM_LEASE,
+) -> ReminderRunSummary:
+    """Claim up to `limit` due reminders and deliver each one."""
+    now = datetime.now(UTC)
+    summary = ReminderRunSummary()
+    async with session_factory() as session:
+        claimed_ids = await _claim_due(session, now=now, limit=limit, lease=lease)
+        summary.claimed = len(claimed_ids)
+        if not claimed_ids:
+            return summary
+        reminders = await _load_claimed(session, claimed_ids)
+        for reminder in reminders:
+            outcome = await _process(session, reminder, now=now)
+            setattr(summary, outcome, getattr(summary, outcome) + 1)
+    logger.info(
+        "Reminder run: claimed=%d sent=%d skipped=%d failed=%d",
+        summary.claimed,
+        summary.sent,
+        summary.skipped,
+        summary.failed,
     )
+    return summary
 
 
-async def _scheduler_loop() -> None:
-    while True:
-        try:
-            await _enqueue_due_reminders()
-        except Exception:
-            logger.exception("Scheduler error — continuing")
-        await asyncio.sleep(_SCHEDULER_INTERVAL_SECONDS)
-
-
-async def _enqueue_due_reminders() -> None:
-    look_ahead = datetime.now(UTC) + timedelta(minutes=_LOOK_AHEAD_MINUTES)
-    queue_name = get_settings().sqs_queue_reminders
-    factory: async_sessionmaker[AsyncSession] = get_session_factory()
-
-    async with factory() as session:
-        result = await session.scalars(
-            select(AppointmentReminder).where(
+async def _claim_due(
+    session: AsyncSession, *, now: datetime, limit: int, lease: timedelta
+) -> list[uuid.UUID]:
+    due = (
+        select(AppointmentReminder.id)
+        .where(
+            AppointmentReminder.deleted_at.is_(None),
+            AppointmentReminder.send_at <= now,
+            or_(
                 AppointmentReminder.status == "pending",
-                AppointmentReminder.send_at <= look_ahead,
-                AppointmentReminder.deleted_at.is_(None),
-            )
+                and_(
+                    AppointmentReminder.status == "enqueued",
+                    AppointmentReminder.claimed_at < now - lease,
+                ),
+            ),
         )
-        rows = result.all()
-
-        for row in rows:
-            try:
-                msg_body = {
-                    "reminder_id": str(row.id),
-                    "appointment_id": str(row.appointment_id),
-                    "practice_id": str(row.practice_id),
-                }
-                msg_id = await asyncio.to_thread(enqueue_message_sync, queue_name, msg_body)
-                row.sqs_message_id = msg_id
-                row.status = "enqueued"
-                logger.info(
-                    "Enqueued reminder %s (appt %s) as SQS message %s",
-                    row.id,
-                    row.appointment_id,
-                    msg_id,
-                )
-            except Exception:
-                logger.exception("Failed to enqueue reminder %s", row.id)
-
-        await session.commit()
+        .order_by(AppointmentReminder.send_at)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    claimed = (
+        await session.scalars(
+            update(AppointmentReminder)
+            .where(AppointmentReminder.id.in_(due.scalar_subquery()))
+            .values(status="enqueued", claimed_at=now)
+            .returning(AppointmentReminder.id)
+        )
+    ).all()
+    await session.commit()
+    return list(claimed)
 
 
-async def _sqs_poll_loop() -> None:
-    queue_name = get_settings().sqs_queue_reminders
-    while True:
-        try:
-            messages = await asyncio.to_thread(poll_messages_sync, queue_name, wait_seconds=20)
-            for msg in messages:
-                await _process_message(msg)
-        except Exception:
-            logger.exception("SQS poll error — continuing")
+async def _load_claimed(
+    session: AsyncSession, reminder_ids: list[uuid.UUID]
+) -> list[AppointmentReminder]:
+    rows = await session.scalars(
+        select(AppointmentReminder)
+        .where(AppointmentReminder.id.in_(reminder_ids))
+        .options(
+            joinedload(AppointmentReminder.patient),
+            joinedload(AppointmentReminder.appointment).joinedload(Appointment.practice),
+        )
+        .order_by(AppointmentReminder.send_at)
+    )
+    return list(rows.unique().all())
 
 
-async def _process_message(msg: dict[str, Any]) -> None:
-    queue_name = get_settings().sqs_queue_reminders
-    receipt_handle: str = msg["ReceiptHandle"]
-
+async def _process(session: AsyncSession, reminder: AppointmentReminder, *, now: datetime) -> str:
+    """Deliver one claimed reminder and record the outcome. Returns the summary field."""
+    appointment = reminder.appointment
+    if reminder.twilio_message_sid is not None or reminder.sent_at is not None:
+        # Delivered by a run that crashed before recording it.
+        await _finish(session, reminder, status="sent", sent_at=reminder.sent_at or now)
+        return "sent"
+    if (
+        appointment.deleted_at is not None
+        or appointment.status in _INACTIVE_APPOINTMENT_STATUSES
+        or appointment.start_time <= now
+    ):
+        await _finish(session, reminder, status="cancelled")
+        return "skipped"
     try:
-        body = json.loads(msg["Body"])
-        reminder_id = uuid.UUID(body["reminder_id"])
-    except (KeyError, ValueError, json.JSONDecodeError):
-        logger.error("Malformed SQS message id=%s", msg.get("MessageId"))
-        await asyncio.to_thread(delete_message_sync, queue_name, receipt_handle)
-        return
-
-    factory = get_session_factory()
-    async with factory() as session:
-        reminder = await session.scalar(
-            select(AppointmentReminder)
-            .where(AppointmentReminder.id == reminder_id)
-            .options(
-                joinedload(AppointmentReminder.patient),
-                joinedload(AppointmentReminder.appointment).joinedload(Appointment.practice),
-            )
+        delivered = await _deliver(reminder, reminder.patient, appointment, appointment.practice)
+    except Exception as exc:
+        logger.error(
+            "Reminder %s (%s) delivery failed: %s", reminder.id, reminder.reminder_type, exc
         )
+        await _finish(
+            session, reminder, status="failed", failed_at=datetime.now(UTC), failure_reason=str(exc)
+        )
+        return "failed"
+    if not delivered:
+        # Opted out or no contact info — nothing to retry.
+        await _finish(session, reminder, status="cancelled")
+        return "skipped"
+    await _finish(
+        session,
+        reminder,
+        status="sent",
+        sent_at=datetime.now(UTC),
+        twilio_message_sid=reminder.twilio_message_sid,
+    )
+    return "sent"
 
-        if reminder is None:
-            logger.warning("Reminder %s not found — deleting SQS message", reminder_id)
-            await asyncio.to_thread(delete_message_sync, queue_name, receipt_handle)
-            return
 
-        if reminder.status != "enqueued":
-            logger.info(
-                "Reminder %s status=%s — skipping (already sent or cancelled)",
-                reminder_id,
-                reminder.status,
-            )
-            await asyncio.to_thread(delete_message_sync, queue_name, receipt_handle)
-            return
-
-        # Idempotency: if we already stored a delivery SID this reminder was sent.
-        # Guard against the case where the worker crashed after sending but before
-        # deleting the SQS message.
-        if reminder.twilio_message_sid is not None or reminder.sent_at is not None:
-            logger.info(
-                "Reminder %s already delivered — deleting duplicate SQS message", reminder_id
-            )
-            await asyncio.to_thread(delete_message_sync, queue_name, receipt_handle)
-            return
-
-        patient: Patient = reminder.patient
-        appointment: Appointment = reminder.appointment
-        practice: Practice = appointment.practice
-
-        try:
-            delivered = await _deliver(reminder, patient, appointment, practice)
-        except Exception as exc:
-            # Delivery failed (e.g. Twilio/SES API error). Mark as failed so the
-            # status is visible in the DB, but do NOT delete the SQS message — the
-            # visibility timeout will expire and the message redelivered for a retry.
-            # DLQ will catch repeated failures after maxReceiveCount is exceeded.
-            reminder.status = "failed"
-            reminder.failed_at = datetime.now(UTC)
-            reminder.failure_reason = str(exc)
-            await session.commit()
-            logger.error(
-                "Delivery failed for reminder %s (type=%s): %s",
-                reminder_id,
-                reminder.reminder_type,
-                exc,
-            )
-            return  # intentionally skip SQS delete
-
-        if delivered:
-            reminder.status = "sent"
-            reminder.sent_at = datetime.now(UTC)
-        else:
-            # Skipped: opt-out or missing contact info. Cancel so it's not retried.
-            reminder.status = "cancelled"
-
-        await session.commit()
-
-    await asyncio.to_thread(delete_message_sync, queue_name, receipt_handle)
-    logger.info("Processed reminder %s (type=%s)", reminder_id, reminder.reminder_type)
+async def _finish(session: AsyncSession, reminder: AppointmentReminder, **values: Any) -> None:
+    """Record an outcome only if the row is still claimed (a cancellation wins)."""
+    await session.execute(
+        update(AppointmentReminder)
+        .where(AppointmentReminder.id == reminder.id, AppointmentReminder.status == "enqueued")
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    await session.commit()
 
 
 async def _deliver(
@@ -255,3 +251,17 @@ async def _deliver_email(
     )
     await send_email(patient.email, subject, html, text)
     return True
+
+
+async def _main() -> None:
+    from app.core.db import dispose_engine, get_session_factory
+
+    try:
+        await send_due_reminders(get_session_factory())
+    finally:
+        await dispose_engine()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(_main())

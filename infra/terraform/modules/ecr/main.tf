@@ -1,3 +1,6 @@
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 resource "aws_ecr_repository" "api" {
   name                 = "dental/api"
   image_tag_mutability = "MUTABLE"
@@ -11,6 +14,26 @@ resource "aws_ecr_repository" "api" {
   }
 
   tags = merge(var.tags, { Name = "dental/api" })
+}
+
+# Lets the scheduled worker Lambdas (modules/lambda-workers) pull the API image.
+resource "aws_ecr_repository_policy" "api_lambda_pull" {
+  repository = aws_ecr_repository.api.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "LambdaPull"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+      Condition = {
+        StringLike = {
+          "aws:sourceArn" = "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:dental-*"
+        }
+      }
+    }]
+  })
 }
 
 resource "aws_ecr_repository" "web" {

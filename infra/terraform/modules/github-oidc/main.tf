@@ -71,6 +71,15 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = "ecr:GetAuthorizationToken"
         Resource = "*"
       },
+      # Point the scheduled worker Lambdas at each newly pushed API image
+      {
+        Effect = "Allow"
+        Action = ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"]
+        Resource = [
+          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:dental-reminders-worker-${var.env}",
+          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:dental-risk-scoring-worker-${var.env}",
+        ]
+      },
       # ECR image push/pull for api, web, and whisper repos
       {
         Effect = "Allow"
@@ -97,14 +106,14 @@ resource "aws_iam_role_policy" "github_actions" {
       },
       # ECS service updates scoped to this environment's cluster
       {
-        Effect = "Allow"
-        Action = ["ecs:UpdateService", "ecs:DescribeServices"]
+        Effect   = "Allow"
+        Action   = ["ecs:UpdateService", "ecs:DescribeServices"]
         Resource = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/dental-${var.env}/*"
       },
       # ECS one-off migration task — RunTask scoped to api task definition
       {
-        Effect  = "Allow"
-        Action  = ["ecs:RunTask"]
+        Effect   = "Allow"
+        Action   = ["ecs:RunTask"]
         Resource = "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/dental-${var.env}-api:*"
         Condition = {
           ArnEquals = {

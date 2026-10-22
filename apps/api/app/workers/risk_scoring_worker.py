@@ -1,4 +1,8 @@
-"""EventBridge-triggered Lambda: scores no-show risk for upcoming appointments."""
+"""Nightly no-show risk scoring for appointments in the next 7 days.
+
+Runs on AWS Lambda (app.workers.lambda_handlers.risk_scoring, EventBridge nightly)
+or locally with `python -m app.workers.risk_scoring_worker` (one pass).
+"""
 
 from __future__ import annotations
 
@@ -6,35 +10,28 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any
 
 from sqlalchemy import case, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.db import get_session_factory
 from app.models.appointment import Appointment
-from app.models.appointment_reminder import AppointmentReminder
-from app.services.reminders import stage_reminder_jobs
 from app.services.risk_scoring import PatientAppointmentHistory, compute_risk_score
 
 logger = logging.getLogger(__name__)
 
 _WINDOW_DAYS = 7
-_EXTRA_REMINDER_HOURS = 4
 _UPCOMING_STATUSES = ("scheduled", "confirmed", "checked_in", "in_chair")
 _HISTORY_STATUSES = ("completed", "no_show", "cancelled", "checked_in", "in_chair")
 
 
-def handler(event: dict[str, Any], context: Any) -> None:
-    asyncio.run(_run())
-
-
-async def _run() -> None:
+async def score_upcoming_appointments(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    """Score every upcoming appointment in the window; returns how many were scored."""
     now = datetime.now(UTC)
     window_end = now + timedelta(days=_WINDOW_DAYS)
     logger.info("Risk scoring started: window %s → %s", now.isoformat(), window_end.isoformat())
 
-    factory = get_session_factory()
-    async with factory() as session:
+    async with session_factory() as session:
         appts = (
             await session.scalars(
                 select(Appointment).where(
@@ -45,45 +42,38 @@ async def _run() -> None:
                 )
             )
         ).all()
-
         if not appts:
             logger.info("No upcoming appointments to score")
-            return
+            return 0
 
         patient_ids = {a.patient_id for a in appts if a.patient_id is not None}
         history_map = await _batch_fetch_histories(session, patient_ids, cutoff=now)
-        appt_ids = [a.id for a in appts]
-        existing_4h = await _fetch_existing_4h_reminder_ids(session, appt_ids)
-
-        scored: list[tuple[uuid.UUID, Literal["low", "medium", "high"]]] = []
+        computed_at = datetime.now(UTC)
+        rows = []
         for appt in appts:
-            pid = appt.patient_id
             history = (
-                history_map.get(pid) if pid is not None else None
+                history_map.get(appt.patient_id) if appt.patient_id is not None else None
             ) or PatientAppointmentHistory(0, 0, 0)
             lead_hours = (appt.start_time - now).total_seconds() / 3600
             is_confirmed = appt.status in ("confirmed", "checked_in", "in_chair")
-            risk = compute_risk_score(appt, history, is_confirmed, lead_hours)
-            scored.append((appt.id, risk))
-
-            if risk == "high" and appt.id not in existing_4h and lead_hours > _EXTRA_REMINDER_HOURS:
-                stage_reminder_jobs(session, appt, reminder_hours=[_EXTRA_REMINDER_HOURS])
-                logger.info("Staged extra 4h reminder for high-risk appointment %s", appt.id)
-
-        computed_at = datetime.now(UTC)
-        for appt_id, risk in scored:
-            await session.execute(
-                update(Appointment)
-                .where(Appointment.id == appt_id)
-                .values(no_show_risk=risk, no_show_risk_computed_at=computed_at)
+            rows.append(
+                {
+                    "id": appt.id,
+                    "no_show_risk": compute_risk_score(appt, history, is_confirmed, lead_hours),
+                    "no_show_risk_computed_at": computed_at,
+                }
             )
 
+        # One executemany (ORM bulk UPDATE by primary key), not a query per appointment.
+        await session.execute(update(Appointment), rows)
         await session.commit()
-        logger.info(
-            "Risk scoring complete: %d appointments scored, %d high-risk",
-            len(scored),
-            sum(1 for _, r in scored if r == "high"),
-        )
+
+    logger.info(
+        "Risk scoring complete: %d appointments scored, %d high-risk",
+        len(rows),
+        sum(1 for r in rows if r["no_show_risk"] == "high"),
+    )
+    return len(rows)
 
 
 async def _batch_fetch_histories(
@@ -126,22 +116,15 @@ async def _batch_fetch_histories(
     }
 
 
-async def _fetch_existing_4h_reminder_ids(
-    session: Any,
-    appointment_ids: list[uuid.UUID],
-) -> set[uuid.UUID]:
-    if not appointment_ids:
-        return set()
+async def _main() -> None:
+    from app.core.db import dispose_engine, get_session_factory
 
-    rows = (
-        await session.scalars(
-            select(AppointmentReminder.appointment_id).where(
-                AppointmentReminder.appointment_id.in_(appointment_ids),
-                AppointmentReminder.hours_before == _EXTRA_REMINDER_HOURS,
-                AppointmentReminder.status != "cancelled",
-                AppointmentReminder.deleted_at.is_(None),
-            )
-        )
-    ).all()
+    try:
+        await score_upcoming_appointments(get_session_factory())
+    finally:
+        await dispose_engine()
 
-    return set(rows)
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(_main())

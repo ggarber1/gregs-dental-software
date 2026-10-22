@@ -38,7 +38,8 @@ class AppointmentReminder(Base, TimestampMixin):
     hours_before: Mapped[int] = mapped_column(Integer, nullable=False)
     send_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")
-    sqs_message_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Lease for the scheduled sender: set when status becomes "enqueued" (claimed).
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     twilio_message_sid: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

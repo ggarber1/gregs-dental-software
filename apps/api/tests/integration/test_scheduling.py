@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -685,20 +684,16 @@ async def test_no_show_risk_recomputed_on_confirmation(
 
 
 @pytest.mark.integration
-async def test_nightly_worker_scores_and_deduplicates_reminder(
+async def test_nightly_worker_scores_high_risk_without_extra_reminder(
     db_engine, db_session: AsyncSession, patient, provider, operatory, practice
 ) -> None:
-    """The nightly worker:
-
-    1. Sets no_show_risk on upcoming appointments.
-    2. Stages a 4h reminder for high-risk appointments.
-    3. Does NOT create a second 4h reminder on a second run.
-    """
+    """The nightly worker sets no_show_risk on upcoming appointments and no longer
+    stages an extra 4h reminder for high-risk ones (removed 2026-10-22)."""
     from sqlalchemy import select
 
     from app.models.appointment import Appointment
     from app.models.appointment_reminder import AppointmentReminder
-    from app.workers.risk_scoring_worker import _run
+    from app.workers.risk_scoring_worker import score_upcoming_appointments
 
     now = datetime.now(UTC)
 
@@ -738,39 +733,20 @@ async def test_nightly_worker_scores_and_deduplicates_reminder(
     # Wire the worker to the test DB
     test_factory = async_sessionmaker(db_engine, expire_on_commit=False)
 
-    with patch("app.workers.risk_scoring_worker.get_session_factory", return_value=test_factory):
-        await _run()
+    await score_upcoming_appointments(test_factory)
 
     # Score must be set
     await db_session.refresh(appt)
     assert appt.no_show_risk == "high"
     assert appt.no_show_risk_computed_at is not None
 
-    # A 4h reminder must have been staged (both SMS and email)
+    # No extra reminder rows are staged for high-risk appointments
     reminders = (
         await db_session.scalars(
-            select(AppointmentReminder).where(
-                AppointmentReminder.appointment_id == appt.id,
-                AppointmentReminder.hours_before == 4,
-            )
+            select(AppointmentReminder).where(AppointmentReminder.appointment_id == appt.id)
         )
     ).all()
-    assert len(reminders) == 2  # sms + email
-    assert {r.reminder_type for r in reminders} == {"sms", "email"}
-
-    # Second run must not create duplicate 4h reminders
-    with patch("app.workers.risk_scoring_worker.get_session_factory", return_value=test_factory):
-        await _run()
-
-    reminders_after = (
-        await db_session.scalars(
-            select(AppointmentReminder).where(
-                AppointmentReminder.appointment_id == appt.id,
-                AppointmentReminder.hours_before == 4,
-            )
-        )
-    ).all()
-    assert len(reminders_after) == 2  # still exactly 2 — no duplicates
+    assert reminders == []
 
 
 def _next_weekday(from_dt: datetime, weekday: int) -> datetime:

@@ -32,11 +32,6 @@ class Settings(BaseSettings):
     s3_bucket_era_files: str = Field(default="dental-era-files-local")
     s3_bucket_exports: str = Field(default="dental-exports-local")
 
-    sqs_queue_reminders: str = Field(default="dental-reminders-queue")
-    sqs_queue_eligibility: str = Field(default="dental-eligibility-queue")
-    sqs_queue_era: str = Field(default="dental-era-queue")
-    sqs_queue_audit_logs: str = Field(default="dental-audit-logs-queue")
-
     # ── Cognito ───────────────────────────────────────────────────────────────
     cognito_user_pool_id: str = Field(default="")
     cognito_client_id: str = Field(default="")

@@ -38,11 +38,7 @@ variable "reminder_worker_fn" {
   type = string
 }
 
-variable "eligibility_worker_fn" {
-  type = string
-}
-
-variable "era_worker_fn" {
+variable "risk_scoring_worker_fn" {
   type = string
 }
 
